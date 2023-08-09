@@ -6,8 +6,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#pragma intrinsic
-//extern "C" {
+extern "C" {
     #define ARBITRATOR "AFZPUAIYVPNUYGJRQVLUKOPPVLHAZQTGLYAAUUNBXFTVTAMSBKQBLEIEPCVJ"
     #define CONTRACT_IPO_BID 1
     #define MAX_AMOUNT 1000000000000000LL
@@ -3129,8 +3128,4 @@
 
         return EQUAL(*((__m256i*)A), *((__m256i*)signature));
     }
-//}
-
-int main() {
-    return 0;
 }
