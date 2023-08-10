@@ -1,10 +1,10 @@
 [package]
-name = "Rubic"
+name = "store"
 version = "0.1.0"
 edition = "2021"
-authors = ["Matthew Darnell"]
+
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-identity = { path = './identity' }
-store = { path = './store' }
+sqlite = "0.31.0"
+identity = { path = '../identity' }
