@@ -77,7 +77,7 @@ pub fn fetch_identity(path: &str, identity: &str) -> Result<Identity, String> {
                                     Ok(id)
                                 },
                                 Ok(State::Done) => {
-                                  println!("Finished Reading?");
+                                  println!("Finished Reading. Failed To Fetch Identity.");
                                     Err("Identity Not Found!".to_string())
                                 },
                                 Err(err) => {
@@ -100,12 +100,47 @@ pub fn fetch_identity(path: &str, identity: &str) -> Result<Identity, String> {
         }
     }
 }
-/*
-pub fn delete_identity(path: &str, identity: &str) -> Result<(), String> {
 
+pub fn delete_identity(path: &str, identity: &str) -> Result<(), String> {
+    let prep_query = "DELETE FROM identities WHERE identity = :identity;";
+    match open_database(path, true) {
+        Ok(connection) => {
+            match prepare_crud_statement(path, &connection, prep_query) {
+                Ok(mut statement) => {
+                    match statement.bind::<&[(&str, &str)]>(&[
+                        (":identity", identity),
+                    ][..]) {
+                        Ok(_) => {
+                            match statement.next() {
+                                Ok(State::Row) => {
+                                    println!("Read a Row While Trying To Delete Identity?");
+                                    Err("Identity Not Found".to_string())
+                                },
+                                Ok(State::Done) => {
+                                    Ok(())
+                                },
+                                Err(err) => {
+                                    Err(err.to_string())
+                                }
+                            }
+                        },
+                        Err(err) => Err(err.to_string())
+                    }
+                },
+                Err(err) => {
+                    println!("Error in insert_new_identity! : {}", &err);
+                    Err(err)
+                }
+            }
+        },
+        Err(err) => {
+            println!("Error in insert_new_identity! : {}", &err);
+            Err(err)
+        }
+    }
 }
 
- */
+
 
 
 #[test]
@@ -126,6 +161,41 @@ fn create_identity_and_insert() {
     }
     fs::remove_file("test.sqlite").unwrap();
 }
+
+#[test]
+fn create_identity_and_delete() {
+    use std::fs;
+    {
+        let id: Identity = Identity::new("lcehvbvddggkjfnokduyjuiyvkklrvrmsaozwbvjlzvgvfipqpnkkuf", 0);
+        println!("{:?}", &id);
+        match insert_new_identity("test.sqlite", &id) {
+            Ok(_) => {
+                match delete_identity("test.sqlite", &id.identity.as_str()) {
+                    Ok(_) => {
+                        match fetch_identity("test.sqlite", "EPYWDREDNLHXOFYVGQUKPHJGOMPBSLDDGZDPKVQUMFXAIQYMZGEHPZTAAWON") {
+                            Ok(identity) => {
+                                assert_eq!(1, 2);
+                            },
+                            Err(err) => {
+                               println!("Identity Deleted Ok!");
+                            }
+                        }
+                    },
+                    Err(err) => {
+                        println!("Failed To Delete Identity! : {}", err.as_str());
+                        assert_eq!(1, 2);
+                    }
+                }
+            },
+            Err(err) => {
+                println!("{}", err);
+                assert_eq!(1, 2);
+            }
+        }
+    }
+    fs::remove_file("test.sqlite").unwrap();
+}
+
 
 #[test]
 fn create_identity_and_insert_and_fetch() {
