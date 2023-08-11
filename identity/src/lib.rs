@@ -3,16 +3,12 @@ use std::str::Utf8Error;
 extern {
     fn getSubseed(seed: *const u8, subseed: *mut u8) -> bool;
     fn getPrivateKey(subseed: *const u8, privateKey: *mut u8);
-
     fn getPublicKey(privateKey: *const u8, publicKey: *mut u8);
-
-    //void getIdentity(unsigned char* publicKey, char* identity, bool isLowerCase)
     fn getIdentity(publicKey: *const u8, identity: *const u8, isLowerCase: bool);
-
-    //fn CompressedKeyGeneration(SecretKey: *const u8, PublicKey: *mut u8) -> u8;
-
-    //void KangarooTwelve(unsigned char* input, unsigned int inputByteLen, unsigned char* output, unsigned int outputByteLen)
     fn KangarooTwelve(input: *const u8, inputByteLen: u32, output: *mut u8, outputByteLen: u32);
+    // bool getSharedKey(const unsigned char* privateKey, const unsigned char* publicKey, unsigned char* sharedKey)
+    //void sign(const unsigned char* subseed, const unsigned char* publicKey, const unsigned char* messageDigest, unsigned char* signature)
+    //bool verify(const unsigned char* publicKey, const unsigned char* messageDigest, const unsigned char* signature)
 }
 
 fn identity(seed: &str, index: u32) -> Vec<u8> {

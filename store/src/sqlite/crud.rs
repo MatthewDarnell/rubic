@@ -143,84 +143,94 @@ pub fn delete_identity(path: &str, identity: &str) -> Result<(), String> {
 
 
 
-#[test]
-fn create_identity_and_insert() {
-    use std::fs;
-    {
-        let id: Identity = Identity::new("lcehvbvddggkjfnokduyjuiyvkklrvrmsaozwbvjlzvgvfipqpnkkuf", 0);
-        println!("{:?}", &id);
-        match insert_new_identity("test.sqlite", &id) {
-            Ok(_) => {
-                println!("Identity Inserted Ok!");
-            },
-            Err(err) => {
-                println!("{}", err);
-                assert_eq!(1, 2);
+#[cfg(test)]
+mod store_crud_tests {
+    use identity::Identity;
+    use crate::sqlite::crud::{insert_new_identity, fetch_identity, delete_identity};
+    use serial_test::serial;
+
+    #[test]
+    #[serial]
+    fn create_identity_and_insert() {
+        use std::fs;
+        {
+            let id: Identity = Identity::new("lcehvbvddggkjfnokduyjuiyvkklrvrmsaozwbvjlzvgvfipqpnkkuf", 0);
+            println!("{:?}", &id);
+            match insert_new_identity("test.sqlite", &id) {
+                Ok(_) => {
+                    println!("Identity Inserted Ok!");
+                },
+                Err(err) => {
+                    println!("{}", err);
+                    assert_eq!(1, 2);
+                }
             }
         }
+        fs::remove_file("test.sqlite").unwrap();
     }
-    fs::remove_file("test.sqlite").unwrap();
-}
 
-#[test]
-fn create_identity_and_delete() {
-    use std::fs;
-    {
-        let id: Identity = Identity::new("lcehvbvddggkjfnokduyjuiyvkklrvrmsaozwbvjlzvgvfipqpnkkuf", 0);
-        println!("{:?}", &id);
-        match insert_new_identity("test.sqlite", &id) {
-            Ok(_) => {
-                match delete_identity("test.sqlite", &id.identity.as_str()) {
-                    Ok(_) => {
-                        match fetch_identity("test.sqlite", "EPYWDREDNLHXOFYVGQUKPHJGOMPBSLDDGZDPKVQUMFXAIQYMZGEHPZTAAWON") {
-                            Ok(identity) => {
-                                assert_eq!(1, 2);
-                            },
-                            Err(err) => {
-                               println!("Identity Deleted Ok!");
+    #[test]
+    #[serial]
+    fn create_identity_and_delete() {
+        use std::fs;
+        {
+            let id: Identity = Identity::new("lcehvbvddggkjfnokduyjuiyvkklrvrmsaozwbvjlzvgvfipqpnkkuf", 0);
+            println!("{:?}", &id);
+            match insert_new_identity("test.sqlite", &id) {
+                Ok(_) => {
+                    match delete_identity("test.sqlite", &id.identity.as_str()) {
+                        Ok(_) => {
+                            match fetch_identity("test.sqlite", "EPYWDREDNLHXOFYVGQUKPHJGOMPBSLDDGZDPKVQUMFXAIQYMZGEHPZTAAWON") {
+                                Ok(identity) => {
+                                    assert_eq!(1, 2);
+                                },
+                                Err(err) => {
+                                    println!("Identity Deleted Ok!");
+                                }
                             }
+                        },
+                        Err(err) => {
+                            println!("Failed To Delete Identity! : {}", err.as_str());
+                            assert_eq!(1, 2);
                         }
-                    },
-                    Err(err) => {
-                        println!("Failed To Delete Identity! : {}", err.as_str());
-                        assert_eq!(1, 2);
                     }
+                },
+                Err(err) => {
+                    println!("{}", err);
+                    assert_eq!(1, 2);
                 }
-            },
-            Err(err) => {
-                println!("{}", err);
-                assert_eq!(1, 2);
             }
         }
+        fs::remove_file("test.sqlite").unwrap();
     }
-    fs::remove_file("test.sqlite").unwrap();
-}
 
 
-#[test]
-fn create_identity_and_insert_and_fetch() {
-    use std::fs;
-    {
-        let id: Identity = Identity::new("lcehvbvddggkjfnokduyjuiyvkklrvrmsaozwbvjlzvgvfipqpnkkuf", 0);
-        println!("{:?}", &id);
-        match insert_new_identity("test.sqlite", &id) {
-            Ok(_) => {
-                println!("Identity Inserted Ok!");
-                match fetch_identity("test.sqlite", "EPYWDREDNLHXOFYVGQUKPHJGOMPBSLDDGZDPKVQUMFXAIQYMZGEHPZTAAWON") {
-                    Ok(identity) => {
-                        assert_eq!(identity.identity.as_str(), "EPYWDREDNLHXOFYVGQUKPHJGOMPBSLDDGZDPKVQUMFXAIQYMZGEHPZTAAWON");
-                    },
-                    Err(err) => {
-                        println!("Failed To Fetch Identity! : {}", err.as_str());
-                        assert_eq!(1, 2);
+    #[test]
+    #[serial]
+    fn create_identity_and_insert_and_fetch() {
+        use std::fs;
+        {
+            let id: Identity = Identity::new("lcehvbvddggkjfnokduyjuiyvkklrvrmsaozwbvjlzvgvfipqpnkkuf", 0);
+            println!("{:?}", &id);
+            match insert_new_identity("test.sqlite", &id) {
+                Ok(_) => {
+                    println!("Identity Inserted Ok!");
+                    match fetch_identity("test.sqlite", "EPYWDREDNLHXOFYVGQUKPHJGOMPBSLDDGZDPKVQUMFXAIQYMZGEHPZTAAWON") {
+                        Ok(identity) => {
+                            assert_eq!(identity.identity.as_str(), "EPYWDREDNLHXOFYVGQUKPHJGOMPBSLDDGZDPKVQUMFXAIQYMZGEHPZTAAWON");
+                        },
+                        Err(err) => {
+                            println!("Failed To Fetch Identity! : {}", err.as_str());
+                            assert_eq!(1, 2);
+                        }
                     }
+                },
+                Err(err) => {
+                    println!("{}", err);
+                    assert_eq!(1, 2);
                 }
-            },
-            Err(err) => {
-                println!("{}", err);
-                assert_eq!(1, 2);
             }
         }
+        fs::remove_file("test.sqlite").unwrap();
     }
-    fs::remove_file("test.sqlite").unwrap();
 }

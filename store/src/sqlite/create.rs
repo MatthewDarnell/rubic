@@ -20,30 +20,41 @@ pub fn open_database(path: &str, create: bool) -> Result<sqlite::Connection, Str
     }
 }
 
-#[test]
-fn create_new_db_in_memory() {
-    match open_database(":memory:", true) {
-        Ok(_) =>{ println!("db created in memory"); },
-        Err(err) => {
-            println!("{}", err);
-            assert_eq!(1, 2);
-        }
-    }
-}
 
-
-#[test]
-fn create_new_db_in_disk() {
+#[cfg(test)]
+mod store_tests {
+    use identity::Identity;
+    use crate::sqlite::create::open_database;
+    use serial_test::serial;
     use std::fs;
-    {
-        match open_database("test.sqlite", true) {
-            Ok(_) => {},
+
+    # [test]
+    # [serial]
+    fn create_new_db_in_memory() {
+        match open_database(":memory:", true) {
+            Ok(_) =>{ println!("db created in memory"); },
             Err(err) => {
                 println!("{}", err);
                 assert_eq!(1, 2);
             }
         }
     }
-    fs::remove_file("test.sqlite").unwrap();
 
+
+    #[test]
+    #[serial]
+    fn create_new_db_in_disk() {
+        use std::fs;
+        {
+            match open_database("test.sqlite", true) {
+                Ok(_) => {},
+                Err(err) => {
+                    println!("{}", err);
+                    assert_eq!(1, 2);
+                }
+            }
+        }
+        fs::remove_file("test.sqlite").unwrap();
+
+    }
 }
