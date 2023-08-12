@@ -82,23 +82,27 @@ impl Identity {
 }
 
 
-#[test]
-fn create_new_identity() {
-    let id: Identity = Identity::new("lcehvbvddggkjfnokduyjuiyvkklrvrmsaozwbvjlzvgvfipqpnkkuf", 0);
-    println!("{:?}", &id);
-    assert_eq!(id.identity.as_str(), "EPYWDREDNLHXOFYVGQUKPHJGOMPBSLDDGZDPKVQUMFXAIQYMZGEHPZTAAWON");
-}
+#[cfg(test)]
+mod create_identity {
+    use crate::Identity;
+    #[test]
+    fn create_new_identity() {
+        let id: Identity = Identity::new("lcehvbvddggkjfnokduyjuiyvkklrvrmsaozwbvjlzvgvfipqpnkkuf", 0);
+        println!("{:?}", &id);
+        assert_eq!(id.identity.as_str(), "EPYWDREDNLHXOFYVGQUKPHJGOMPBSLDDGZDPKVQUMFXAIQYMZGEHPZTAAWON");
+    }
 
-#[test]
-fn create_new_identity_from_vars() {
-    //let id: Identity = Identity::new("lcehvbvddggkjfnokduyjuiyvkklrvrmsaozwbvjlzvgvfipqpnkkuf", 0);
-    let id: Identity = Identity::from_vars(
-    "lcehvbvddggkjfnokduyjuiyvkklrvrmsaozwbvjlzvgvfipqpnkkuf",
-    "",
-    "",
-    "",
-    "EPYWDREDNLHXOFYVGQUKPHJGOMPBSLDDGZDPKVQUMFXAIQYMZGEHPZTAAWON",
-    0
-    );
-    assert_eq!(id.identity.as_str(), "EPYWDREDNLHXOFYVGQUKPHJGOMPBSLDDGZDPKVQUMFXAIQYMZGEHPZTAAWON");
+    #[test]
+    fn create_new_identity_from_vars() {
+        let id: Identity = Identity::from_vars(
+            "lcehvbvddggkjfnokduyjuiyvkklrvrmsaozwbvjlzvgvfipqpnkkuf",
+            "",
+            "",
+            "",
+            "EPYWDREDNLHXOFYVGQUKPHJGOMPBSLDDGZDPKVQUMFXAIQYMZGEHPZTAAWON",
+            0
+        );
+        assert_eq!(id.identity.as_str(), "EPYWDREDNLHXOFYVGQUKPHJGOMPBSLDDGZDPKVQUMFXAIQYMZGEHPZTAAWON");
+    }
+
 }
