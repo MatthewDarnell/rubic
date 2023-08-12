@@ -10,25 +10,66 @@ fn prepare_crud_statement<'a>(path: &'a str, connection: &'a sqlite::Connection,
         }
 }
 
+//  name TEXT UNIQUE PRIMARY KEY,
+//         seed TEXT UNIQUE,
+//         salt TEXT UNIQUE,
+//         hash TEXT UNIQUE,
+//         is_encrypted INTEGER
 
-
-pub fn insert_new_identity(path: &str, identity: &Identity) -> Result<(), String> {
-    let prep_query = "INSERT INTO identities (identity_index, seed, seed_ct, salt, hash, identity) VALUES (:index, :seed, :seed_ct, :salt, :hash, :identity)";
+pub fn create_account(path: &str, identity: &Identity) -> Result<(), String> {
+    let prep_query = "INSERT INTO account (name, seed, salt, hash, is_encrypted) VALUES (:name, :seed, :salt, :hash, :is_encrypted);";
     match open_database(path, true) {
         Ok(connection) => {
             match prepare_crud_statement(path, &connection, prep_query) {
                 Ok(mut statement) => {
                     match identity {
-                        Identity { seed_ct, hash, salt, identity, index, seed } => {
+                        Identity { account, hash, salt, identity, index, seed, encrypted } => {
                             match statement.bind::<&[(&str, &str)]>(&[
-                                (":index", index.to_string().as_str()),
+                                (":name", account.as_str()),
                                 (":seed", seed.as_str()),
-                                (":seed_ct", seed_ct.as_str()),
                                 (":salt", salt.as_str()),
                                 (":hash", hash.as_str()),
-                                (":identity", identity.as_str()),
+                                (":is_encrypted", encrypted.to_string().as_str()),
                             ][..]) {
                                 Ok(_) => {
+                                    match statement.next() {
+                                        Ok(State::Done) => Ok(()),
+                                        Err(error) => Err(error.to_string()),
+                                        _ => Err("Weird!".to_string())
+                                    }
+                                },
+                                Err(err) => Err(err.to_string())
+                            }
+                        }
+                    }
+                },
+                Err(err) => {
+                    println!("Error in create_account! : {}", &err);
+                    Err(err)
+                }
+            }
+        },
+        Err(err) => {
+            println!("Error in create_account! : {}", &err);
+            Err(err)
+        }
+    }
+}
+
+pub fn insert_new_identity(path: &str, identity: &Identity) -> Result<(), String> {
+    let prep_query = "INSERT INTO identities (account, identity_index, identity) VALUES (:account, :index, :identity)";
+    match open_database(path, true) {
+        Ok(connection) => {
+            match prepare_crud_statement(path, &connection, prep_query) {
+                Ok(mut statement) => {
+                    match identity {
+                        Identity { account, hash, salt, identity, index, seed, encrypted } => {
+                            match statement.bind::<&[(&str, &str)]>(&[
+                                (":account", account.as_str()),
+                                (":index", index.to_string().as_str()),
+                                (":identity", identity.as_str()),
+                            ][..]) {
+                                Ok(val) => {
                                     match statement.next() {
                                         Ok(State::Done) => Ok(()),
                                         Err(error) => Err(error.to_string()),
@@ -54,7 +95,7 @@ pub fn insert_new_identity(path: &str, identity: &Identity) -> Result<(), String
 }
 
 pub fn fetch_identity(path: &str, identity: &str) -> Result<Identity, String> {
-    let prep_query = "SELECT * FROM identities WHERE identity = :identity LIMIT 1;";
+    let prep_query = "SELECT * FROM identities i INNER JOIN account a ON a.name=i.account WHERE i.identity = :identity  LIMIT 1;";
     match open_database(path, true) {
         Ok(connection) => {
             match prepare_crud_statement(path, &connection, prep_query) {
@@ -67,12 +108,13 @@ pub fn fetch_identity(path: &str, identity: &str) -> Result<Identity, String> {
                                 Ok(State::Row) => {
                                     let index: u32 = statement.read::<String, _>("identity_index").unwrap().parse().unwrap();
                                     let id: Identity = Identity::from_vars(
+                                        statement.read::<String, _>("name").unwrap().as_str(),
                                         statement.read::<String, _>("seed").unwrap().as_str(),
-                                        statement.read::<String, _>("seed_ct").unwrap().as_str(),
                                         statement.read::<String, _>("hash").unwrap().as_str(),
                                         statement.read::<String, _>("salt").unwrap().as_str(),
                                         statement.read::<String, _>("identity").unwrap().as_str(),
-                                        index
+                                        index,
+                                        statement.read::<String, _>("is_encrypted").unwrap().as_str() == "true",
                                     );
                                     Ok(id)
                                 },
@@ -146,15 +188,41 @@ pub fn delete_identity(path: &str, identity: &str) -> Result<(), String> {
 #[cfg(test)]
 mod store_crud_tests {
     use identity::Identity;
-    use crate::sqlite::crud::{insert_new_identity, fetch_identity, delete_identity};
+    use crate::sqlite::crud::{ create_account, insert_new_identity, fetch_identity, delete_identity};
     use serial_test::serial;
+    use std::fs;
+
+    #[test]
+    #[serial]
+    fn create_account_and_insert() {
+
+        let id: Identity = Identity::new("lcehvbvddggkjfnokduyjuiyvkklrvrmsaozwbvjlzvgvfipqpnkkuf", "testAccount", 0);
+        create_account("test.sqlite", &id).unwrap();
+        fs::remove_file("test.sqlite").unwrap();
+    }
+
+    #[test]
+    #[serial]
+    fn enforce_identity_linked_to_real_account() {
+        {
+            let id: Identity = Identity::new("lcehvbvddggkjfnokduyjuiyvkklrvrmsaozwbvjlzvgvfipqpnkkuf", "testAccount", 0);
+            println!("{:?}", &id);
+            match insert_new_identity("test.sqlite", &id) {
+                Ok(_) => {
+                    assert_eq!(1, 2);
+                },
+                Err(err) => {}
+            }
+        }
+        fs::remove_file("test.sqlite").unwrap();
+    }
 
     #[test]
     #[serial]
     fn create_identity_and_insert() {
-        use std::fs;
         {
-            let id: Identity = Identity::new("lcehvbvddggkjfnokduyjuiyvkklrvrmsaozwbvjlzvgvfipqpnkkuf", 0);
+            let id: Identity = Identity::new("lcehvbvddggkjfnokduyjuiyvkklrvrmsaozwbvjlzvgvfipqpnkkuf", "testAccount", 0);
+            create_account("test.sqlite", &id).unwrap();
             println!("{:?}", &id);
             match insert_new_identity("test.sqlite", &id) {
                 Ok(_) => {
@@ -172,9 +240,9 @@ mod store_crud_tests {
     #[test]
     #[serial]
     fn create_identity_and_delete() {
-        use std::fs;
         {
-            let id: Identity = Identity::new("lcehvbvddggkjfnokduyjuiyvkklrvrmsaozwbvjlzvgvfipqpnkkuf", 0);
+            let id: Identity = Identity::new("lcehvbvddggkjfnokduyjuiyvkklrvrmsaozwbvjlzvgvfipqpnkkuf", "testAccount", 0);
+            create_account("test.sqlite", &id).unwrap();
             println!("{:?}", &id);
             match insert_new_identity("test.sqlite", &id) {
                 Ok(_) => {
@@ -208,9 +276,9 @@ mod store_crud_tests {
     #[test]
     #[serial]
     fn create_identity_and_insert_and_fetch() {
-        use std::fs;
         {
-            let id: Identity = Identity::new("lcehvbvddggkjfnokduyjuiyvkklrvrmsaozwbvjlzvgvfipqpnkkuf", 0);
+            let id: Identity = Identity::new("lcehvbvddggkjfnokduyjuiyvkklrvrmsaozwbvjlzvgvfipqpnkkuf", "testAccount", 0);
+            create_account("test.sqlite", &id).unwrap();
             println!("{:?}", &id);
             match insert_new_identity("test.sqlite", &id) {
                 Ok(_) => {

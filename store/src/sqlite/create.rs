@@ -1,6 +1,21 @@
 pub fn open_database(path: &str, create: bool) -> Result<sqlite::Connection, String> {
     let query = "
-    CREATE TABLE IF NOT EXISTS identities (identity_index INTEGER PRIMARY KEY, seed TEXT, seed_ct TEXT, salt TEXT, hash TEXT, identity TEXT, created DATETIME DEFAULT CURRENT_TIMESTAMP);
+    PRAGMA foreign_keys = ON;
+    CREATE TABLE IF NOT EXISTS account (
+        name TEXT UNIQUE NOT NULL PRIMARY KEY,
+        seed TEXT UNIQUE,
+        salt TEXT UNIQUE,
+        hash TEXT UNIQUE,
+        is_encrypted INTEGER,
+        created DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE TABLE IF NOT EXISTS identities (
+        account TEXT NOT NULL,
+        identity_index INTEGER,
+        identity TEXT UNIQUE,
+        created DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY(account) REFERENCES account(name)
+    );
 ";
     match sqlite::open(path) {
         Ok(connection) => {
