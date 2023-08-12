@@ -3,9 +3,9 @@ pub fn open_database(path: &str, create: bool) -> Result<sqlite::Connection, Str
     PRAGMA foreign_keys = ON;
     CREATE TABLE IF NOT EXISTS account (
         name TEXT UNIQUE NOT NULL PRIMARY KEY,
-        seed TEXT UNIQUE,
-        salt TEXT UNIQUE,
-        hash TEXT UNIQUE,
+        seed TEXT,
+        salt TEXT,
+        hash TEXT,
         is_encrypted INTEGER,
         created DATETIME DEFAULT CURRENT_TIMESTAMP
     );

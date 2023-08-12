@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::LinkedList;
 use identity::Identity;
 use crate::sqlite::create::open_database;
 use sqlite::State;
@@ -50,10 +50,89 @@ pub fn create_account(path: &str, identity: &Identity) -> Result<(), String> {
     }
 }
 
+pub fn fetch_all_accounts(path: &str) -> Result<LinkedList<String>, String> {
+    let prep_query = "SELECT name FROM account;";
+    match open_database(path, true) {
+        Ok(connection) => {
+            match prepare_crud_statement(path, &connection, prep_query) {
+                        Ok(_) => {
+                            let mut ret_val: LinkedList<String> = LinkedList::new();
+                            connection
+                                .iterate(prep_query, |accounts| {
+                                    for &(name, value) in accounts.iter() {
+                                        ret_val.push_back(name.to_string());
+                                    }
+                                    true
+                                })
+                                .unwrap();
+                            Ok(ret_val)
+                        },
+                Err(err) => {
+                    println!("Error in fetch_account! : {}", &err);
+                    Err(err)
+                }
+            }
+        },
+        Err(err) => {
+            println!("Error in fetch_account! : {}", &err);
+            Err(err)
+        }
+    }
+}
+
+pub fn fetch_account(path: &str, name: &str) -> Result<Identity, String> {
+    let prep_query = "SELECT * FROM account WHERE name = :name LIMIT 1;";
+    match open_database(path, true) {
+        Ok(connection) => {
+            match prepare_crud_statement(path, &connection, prep_query) {
+                Ok(mut statement) => {
+                    match statement.bind::<&[(&str, &str)]>(&[
+                        (":name", name),
+                    ][..]) {
+                        Ok(_) => {
+                            match statement.next() {
+                                Ok(State::Row) => {
+                                    let id: Identity = Identity::from_vars(
+                                        statement.read::<String, _>("name").unwrap().as_str(),
+                                        statement.read::<String, _>("seed").unwrap().as_str(),
+                                        statement.read::<String, _>("hash").unwrap().as_str(),
+                                        statement.read::<String, _>("salt").unwrap().as_str(),
+                                        "",
+                                        0,
+                                        statement.read::<String, _>("is_encrypted").unwrap().as_str() == "true",
+                                    );
+                                    Ok(id)
+                                },
+                                Ok(State::Done) => {
+                                    println!("Finished Reading. Failed To Fetch Account.");
+                                    Err("Account Not Found!".to_string())
+                                },
+                                Err(err) => {
+                                    Err(err.to_string())
+                                }
+                            }
+                        },
+                        Err(err) => Err(err.to_string())
+                    }
+                },
+                Err(err) => {
+                    println!("Error in fetch_account! : {}", &err);
+                    Err(err)
+                }
+            }
+        },
+        Err(err) => {
+            println!("Error in fetch_account! : {}", &err);
+            Err(err)
+        }
+    }
+}
+
+
 pub fn insert_new_identity(path: &str, identity: &Identity) -> Result<(), String> {
 
     {   //First time creating an identity for this account
-        create_account(path, identity).unwrap();
+        create_account(path, identity).ok();
     }
     let prep_query = "INSERT INTO identities (account, identity_index, identity) VALUES (:account, :index, :identity)";
     match open_database(path, true) {
@@ -92,6 +171,42 @@ pub fn insert_new_identity(path: &str, identity: &Identity) -> Result<(), String
     }
 }
 
+
+pub fn fetch_all_identities_by_account(path: &str, account: &str) -> Result<LinkedList<String>, String> {
+    let prep_query = "SELECT identity FROM identities WHERE account=:account;";
+    match open_database(path, true) {
+        Ok(connection) => {
+            match prepare_crud_statement(path, &connection, prep_query) {
+                Ok(mut statement) => {
+                    match statement.bind::<&[(&str, &str)]>(&[
+                        (":account", account),
+                    ][..]) {
+                        Ok(_) => {
+                            let mut ret_val: LinkedList<String> = LinkedList::new();
+                            while let Ok(State::Row) = statement.next() {
+                                ret_val.push_back(
+                                    statement.read::<String, _>("identity").unwrap()
+                                );
+                            }
+                            Ok(ret_val)
+                        },
+                        Err(err) => Err(err.to_string())
+                    }
+                },
+                Err(err) => {
+                    println!("Error in fetch_identity! : {}", &err);
+                    Err(err)
+                }
+            }
+        },
+        Err(err) => {
+            println!("Error in fetch_account! : {}", &err);
+            Err(err)
+        }
+    }
+}
+
+
 pub fn fetch_identity(path: &str, identity: &str) -> Result<Identity, String> {
     let prep_query = "SELECT * FROM identities i INNER JOIN account a ON a.name=i.account WHERE i.identity = :identity  LIMIT 1;";
     match open_database(path, true) {
@@ -129,13 +244,13 @@ pub fn fetch_identity(path: &str, identity: &str) -> Result<Identity, String> {
                     }
                 },
                 Err(err) => {
-                    println!("Error in insert_new_identity! : {}", &err);
+                    println!("Error in fetch_identity! : {}", &err);
                     Err(err)
                 }
             }
         },
         Err(err) => {
-            println!("Error in insert_new_identity! : {}", &err);
+            println!("Error in fetch_identity! : {}", &err);
             Err(err)
         }
     }
@@ -168,13 +283,13 @@ pub fn delete_identity(path: &str, identity: &str) -> Result<(), String> {
                     }
                 },
                 Err(err) => {
-                    println!("Error in insert_new_identity! : {}", &err);
+                    println!("Error in delete_identity! : {}", &err);
                     Err(err)
                 }
             }
         },
         Err(err) => {
-            println!("Error in insert_new_identity! : {}", &err);
+            println!("Error in delete_identity! : {}", &err);
             Err(err)
         }
     }
@@ -185,131 +300,208 @@ pub fn delete_identity(path: &str, identity: &str) -> Result<(), String> {
 
 #[cfg(test)]
 mod store_crud_tests {
-    use identity::Identity;
-    use crate::sqlite::crud::{ create_account, insert_new_identity, fetch_identity, delete_identity};
-    use serial_test::serial;
-    use std::fs;
+    pub mod accounts {
 
-    #[test]
-    #[serial]
-    fn create_account_and_insert() {
+        use identity::Identity;
+        use crate::sqlite::crud::{create_account, insert_new_identity, fetch_identity, delete_identity, fetch_all_accounts};
+        use serial_test::serial;
+        use std::fs;
+        use crate::sqlite::crud::fetch_account;
 
-        let id: Identity = Identity::new("lcehvbvddggkjfnokduyjuiyvkklrvrmsaozwbvjlzvgvfipqpnkkuf", "testAccount", 0);
-        create_account("test.sqlite", &id).unwrap();
-        fs::remove_file("test.sqlite").unwrap();
-    }
+        #[test]
+        #[serial]
+        fn create_account_and_insert() {
 
-    #[test]
-    #[serial]
-    fn create_identity_and_insert() {
-        {
             let id: Identity = Identity::new("lcehvbvddggkjfnokduyjuiyvkklrvrmsaozwbvjlzvgvfipqpnkkuf", "testAccount", 0);
-            println!("{:?}", &id);
-            match insert_new_identity("test.sqlite", &id) {
-                Ok(_) => {
-                    println!("Identity Inserted Ok!");
+            create_account("test.sqlite", &id).unwrap();
+            fs::remove_file("test.sqlite").unwrap();
+        }
+
+        #[test]
+        #[serial]
+        fn create_account_and_insert_and_fetch() {
+            let id: Identity = Identity::new("lcehvbvddggkjfnokduyjuiyvkklrvrmsaozwbvjlzvgvfipqpnkkuf", "testAccount", 0);
+            create_account("test.sqlite", &id).unwrap();
+            match fetch_account("test.sqlite", "testAccount") {
+                Ok(id) => {
+                    assert_eq!(id.account.as_str(), "testAccount");
                 },
                 Err(err) => {
-                    println!("{}", err);
+                    println!("Account Couldn't be Fetched!");
                     assert_eq!(1, 2);
                 }
             }
+            fs::remove_file("test.sqlite").unwrap();
         }
-        fs::remove_file("test.sqlite").unwrap();
+
+        #[test]
+        #[serial]
+        fn create_multiple_accounts_and_insert_and_fetch() {
+            let id: Identity = Identity::new("lcehvbvddggkjfnokduyjuiyvkklrvrmsaozwbvjlzvgvfipqpnkkuf", "testAccount", 0);
+            let id2: Identity = Identity::new("lcehvbvddggkjfnokduyjuiyvkklrvrmsaozwbvjlzvgvfipqpnkkuf", "testAccount2", 0);
+            let id3: Identity = Identity::new("lcehvbvddggkjfnokduyjuiyvkklrvrmsaozwbvjlzvgvfipqpnkkuf", "testAccount3", 0);
+            create_account("test.sqlite", &id).unwrap();
+            create_account("test.sqlite", &id2).unwrap();
+            create_account("test.sqlite", &id3).unwrap();
+            match fetch_all_accounts("test.sqlite",) {
+                Ok(list) => {
+                    assert_eq!(list.len(), 3);
+                },
+                Err(err) => {
+                    println!("Account Couldn't be Fetched!");
+                    assert_eq!(1, 2);
+                }
+            }
+            fs::remove_file("test.sqlite").unwrap();
+        }
     }
 
-    #[test]
-    #[serial]
-    fn create_identity_and_delete() {
-        {
-            let id: Identity = Identity::new("lcehvbvddggkjfnokduyjuiyvkklrvrmsaozwbvjlzvgvfipqpnkkuf", "testAccount", 0);
-            println!("{:?}", &id);
-            match insert_new_identity("test.sqlite", &id) {
-                Ok(_) => {
-                    match delete_identity("test.sqlite", &id.identity.as_str()) {
-                        Ok(_) => {
-                            match fetch_identity("test.sqlite", "EPYWDREDNLHXOFYVGQUKPHJGOMPBSLDDGZDPKVQUMFXAIQYMZGEHPZTAAWON") {
-                                Ok(identity) => {
-                                    assert_eq!(1, 2);
-                                },
-                                Err(err) => {
-                                    println!("Identity Deleted Ok!");
+    pub mod identities {
+        use identity::Identity;
+        use crate::sqlite::crud::{create_account, insert_new_identity, fetch_identity, delete_identity, fetch_all_identities_by_account};
+        use serial_test::serial;
+        use std::fs;
+        #[test]
+        #[serial]
+        fn create_identity_and_insert() {
+            {
+                let id: Identity = Identity::new("lcehvbvddggkjfnokduyjuiyvkklrvrmsaozwbvjlzvgvfipqpnkkuf", "testAccount", 0);
+                println!("{:?}", &id);
+                match insert_new_identity("test.sqlite", &id) {
+                    Ok(_) => {
+                        println!("Identity Inserted Ok!");
+                    },
+                    Err(err) => {
+                        println!("{}", err);
+                        assert_eq!(1, 2);
+                    }
+                }
+            }
+            fs::remove_file("test.sqlite").unwrap();
+        }
+
+        #[test]
+        #[serial]
+        fn create_identity_and_delete() {
+            {
+                let id: Identity = Identity::new("lcehvbvddggkjfnokduyjuiyvkklrvrmsaozwbvjlzvgvfipqpnkkuf", "testAccount", 0);
+                println!("{:?}", &id);
+                match insert_new_identity("test.sqlite", &id) {
+                    Ok(_) => {
+                        match delete_identity("test.sqlite", &id.identity.as_str()) {
+                            Ok(_) => {
+                                match fetch_identity("test.sqlite", "EPYWDREDNLHXOFYVGQUKPHJGOMPBSLDDGZDPKVQUMFXAIQYMZGEHPZTAAWON") {
+                                    Ok(identity) => {
+                                        assert_eq!(1, 2);
+                                    },
+                                    Err(err) => {
+                                        println!("Identity Deleted Ok!");
+                                    }
                                 }
+                            },
+                            Err(err) => {
+                                println!("Failed To Delete Identity! : {}", err.as_str());
+                                assert_eq!(1, 2);
                             }
-                        },
-                        Err(err) => {
-                            println!("Failed To Delete Identity! : {}", err.as_str());
-                            assert_eq!(1, 2);
                         }
+                    },
+                    Err(err) => {
+                        println!("{}", err);
+                        assert_eq!(1, 2);
                     }
-                },
-                Err(err) => {
-                    println!("{}", err);
-                    assert_eq!(1, 2);
                 }
             }
+            fs::remove_file("test.sqlite").unwrap();
         }
-        fs::remove_file("test.sqlite").unwrap();
-    }
 
 
-    #[test]
-    #[serial]
-    fn create_identity_and_insert_and_fetch() {
-        {
-            let id: Identity = Identity::new("lcehvbvddggkjfnokduyjuiyvkklrvrmsaozwbvjlzvgvfipqpnkkuf", "testAccount", 0);
-            println!("{:?}", &id);
-            match insert_new_identity("test.sqlite", &id) {
-                Ok(_) => {
-                    println!("Identity Inserted Ok!");
-                    match fetch_identity("test.sqlite", "EPYWDREDNLHXOFYVGQUKPHJGOMPBSLDDGZDPKVQUMFXAIQYMZGEHPZTAAWON") {
-                        Ok(identity) => {
-                            assert_eq!(identity.identity.as_str(), "EPYWDREDNLHXOFYVGQUKPHJGOMPBSLDDGZDPKVQUMFXAIQYMZGEHPZTAAWON");
-                        },
-                        Err(err) => {
-                            println!("Failed To Fetch Identity! : {}", err.as_str());
-                            assert_eq!(1, 2);
+        #[test]
+        #[serial]
+        fn create_identity_and_insert_and_fetch() {
+            {
+                let id: Identity = Identity::new("lcehvbvddggkjfnokduyjuiyvkklrvrmsaozwbvjlzvgvfipqpnkkuf", "testAccount", 0);
+                println!("{:?}", &id);
+                match insert_new_identity("test.sqlite", &id) {
+                    Ok(_) => {
+                        println!("Identity Inserted Ok!");
+                        match fetch_identity("test.sqlite", "EPYWDREDNLHXOFYVGQUKPHJGOMPBSLDDGZDPKVQUMFXAIQYMZGEHPZTAAWON") {
+                            Ok(identity) => {
+                                assert_eq!(identity.identity.as_str(), "EPYWDREDNLHXOFYVGQUKPHJGOMPBSLDDGZDPKVQUMFXAIQYMZGEHPZTAAWON");
+                            },
+                            Err(err) => {
+                                println!("Failed To Fetch Identity! : {}", err.as_str());
+                                assert_eq!(1, 2);
+                            }
                         }
+                    },
+                    Err(err) => {
+                        println!("{}", err);
+                        assert_eq!(1, 2);
                     }
-                },
-                Err(err) => {
-                    println!("{}", err);
-                    assert_eq!(1, 2);
                 }
             }
+            fs::remove_file("test.sqlite").unwrap();
         }
-        fs::remove_file("test.sqlite").unwrap();
-    }
 
-    #[test]
-    #[serial]
-    fn create_identity_encrypt_and_insert_and_fetch() {
-        {
-            let mut id: Identity = Identity::new("lcehvbvddggkjfnokduyjuiyvkklrvrmsaozwbvjlzvgvfipqpnkkuf", "testAccount", 0);
-            println!("{:?}", &id);
 
-            id =  id.encrypt_identity("password").unwrap();
-            println!("{:?}", &id);
-
-            match insert_new_identity("test.sqlite", &id) {
-                Ok(_) => {
-                    println!("Identity Inserted Ok!");
-                    match fetch_identity("test.sqlite", "EPYWDREDNLHXOFYVGQUKPHJGOMPBSLDDGZDPKVQUMFXAIQYMZGEHPZTAAWON") {
-                        Ok(identity) => {
-                            assert_eq!(identity.identity.as_str(), "EPYWDREDNLHXOFYVGQUKPHJGOMPBSLDDGZDPKVQUMFXAIQYMZGEHPZTAAWON");
-                        },
-                        Err(err) => {
-                            println!("Failed To Fetch Identity! : {}", err.as_str());
-                            assert_eq!(1, 2);
+        #[test]
+        #[serial]
+        fn create_identities_and_insert_and_fetch_all_by_account() {
+            {
+                let id: Identity = Identity::new("lcehvbvddggkjfnokduyjuiyvkklrvrmsaozwbvjlzvgvfipqpnkkuf", "testAccount", 0);
+                let id2: Identity = Identity::new("twohvbvddggkjfnokduyjuiyvkklrvrmsaozwbvjlzvgvfipqpnkkuf", "testAccount", 1);
+                let id3: Identity = Identity::new("threebvddggkjfnokduyjuiyvkklrvrmsaozwbvjlzvgvfipqpnkkuf", "testAccount", 2);
+                println!("{:?}", &id);
+                insert_new_identity("test.sqlite", &id).unwrap();
+                insert_new_identity("test.sqlite", &id2).unwrap();
+                match insert_new_identity("test.sqlite", &id3) {
+                    Ok(_) => {
+                        match fetch_all_identities_by_account("test.sqlite", "testAccount") {
+                            Ok(identities) => {
+                                println!("{:?}", &identities);
+                                assert_eq!(identities.len(), 3);
+                            },
+                            Err(err) => {
+                                println!("Failed To Fetch Identity! : {}", err.as_str());
+                                assert_eq!(1, 2);
+                            }
                         }
+                    },
+                    Err(err) => {
+                        println!("{}", err);
+                        assert_eq!(1, 2);
                     }
-                },
-                Err(err) => {
-                    println!("{}", err);
-                    assert_eq!(1, 2);
                 }
             }
+            fs::remove_file("test.sqlite").unwrap();
         }
-        fs::remove_file("test.sqlite").unwrap();
+
+        #[test]
+        #[serial]
+        fn create_identity_encrypt_and_insert_and_fetch() {
+            {
+                let mut id: Identity = Identity::new("lcehvbvddggkjfnokduyjuiyvkklrvrmsaozwbvjlzvgvfipqpnkkuf", "testAccount", 0);
+                id =  id.encrypt_identity("password").unwrap();
+                match insert_new_identity("test.sqlite", &id) {
+                    Ok(_) => {
+                        println!("Identity Inserted Ok!");
+                        match fetch_identity("test.sqlite", "EPYWDREDNLHXOFYVGQUKPHJGOMPBSLDDGZDPKVQUMFXAIQYMZGEHPZTAAWON") {
+                            Ok(identity) => {
+                                assert_eq!(identity.identity.as_str(), "EPYWDREDNLHXOFYVGQUKPHJGOMPBSLDDGZDPKVQUMFXAIQYMZGEHPZTAAWON");
+                            },
+                            Err(err) => {
+                                println!("Failed To Fetch Identity! : {}", err.as_str());
+                                assert_eq!(1, 2);
+                            }
+                        }
+                    },
+                    Err(err) => {
+                        println!("{}", err);
+                        assert_eq!(1, 2);
+                    }
+                }
+            }
+            fs::remove_file("test.sqlite").unwrap();
+        }
     }
 }
