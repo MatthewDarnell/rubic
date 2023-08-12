@@ -10,12 +10,6 @@ fn prepare_crud_statement<'a>(path: &'a str, connection: &'a sqlite::Connection,
         }
 }
 
-//  name TEXT UNIQUE PRIMARY KEY,
-//         seed TEXT UNIQUE,
-//         salt TEXT UNIQUE,
-//         hash TEXT UNIQUE,
-//         is_encrypted INTEGER
-
 pub fn create_account(path: &str, identity: &Identity) -> Result<(), String> {
     let prep_query = "INSERT INTO account (name, seed, salt, hash, is_encrypted) VALUES (:name, :seed, :salt, :hash, :is_encrypted);";
     match open_database(path, true) {
@@ -57,6 +51,10 @@ pub fn create_account(path: &str, identity: &Identity) -> Result<(), String> {
 }
 
 pub fn insert_new_identity(path: &str, identity: &Identity) -> Result<(), String> {
+
+    {   //First time creating an identity for this account
+        create_account(path, identity).unwrap();
+    }
     let prep_query = "INSERT INTO identities (account, identity_index, identity) VALUES (:account, :index, :identity)";
     match open_database(path, true) {
         Ok(connection) => {
@@ -203,26 +201,9 @@ mod store_crud_tests {
 
     #[test]
     #[serial]
-    fn enforce_identity_linked_to_real_account() {
-        {
-            let id: Identity = Identity::new("lcehvbvddggkjfnokduyjuiyvkklrvrmsaozwbvjlzvgvfipqpnkkuf", "testAccount", 0);
-            println!("{:?}", &id);
-            match insert_new_identity("test.sqlite", &id) {
-                Ok(_) => {
-                    assert_eq!(1, 2);
-                },
-                Err(err) => {}
-            }
-        }
-        fs::remove_file("test.sqlite").unwrap();
-    }
-
-    #[test]
-    #[serial]
     fn create_identity_and_insert() {
         {
             let id: Identity = Identity::new("lcehvbvddggkjfnokduyjuiyvkklrvrmsaozwbvjlzvgvfipqpnkkuf", "testAccount", 0);
-            create_account("test.sqlite", &id).unwrap();
             println!("{:?}", &id);
             match insert_new_identity("test.sqlite", &id) {
                 Ok(_) => {
@@ -242,7 +223,6 @@ mod store_crud_tests {
     fn create_identity_and_delete() {
         {
             let id: Identity = Identity::new("lcehvbvddggkjfnokduyjuiyvkklrvrmsaozwbvjlzvgvfipqpnkkuf", "testAccount", 0);
-            create_account("test.sqlite", &id).unwrap();
             println!("{:?}", &id);
             match insert_new_identity("test.sqlite", &id) {
                 Ok(_) => {
@@ -278,8 +258,39 @@ mod store_crud_tests {
     fn create_identity_and_insert_and_fetch() {
         {
             let id: Identity = Identity::new("lcehvbvddggkjfnokduyjuiyvkklrvrmsaozwbvjlzvgvfipqpnkkuf", "testAccount", 0);
-            create_account("test.sqlite", &id).unwrap();
             println!("{:?}", &id);
+            match insert_new_identity("test.sqlite", &id) {
+                Ok(_) => {
+                    println!("Identity Inserted Ok!");
+                    match fetch_identity("test.sqlite", "EPYWDREDNLHXOFYVGQUKPHJGOMPBSLDDGZDPKVQUMFXAIQYMZGEHPZTAAWON") {
+                        Ok(identity) => {
+                            assert_eq!(identity.identity.as_str(), "EPYWDREDNLHXOFYVGQUKPHJGOMPBSLDDGZDPKVQUMFXAIQYMZGEHPZTAAWON");
+                        },
+                        Err(err) => {
+                            println!("Failed To Fetch Identity! : {}", err.as_str());
+                            assert_eq!(1, 2);
+                        }
+                    }
+                },
+                Err(err) => {
+                    println!("{}", err);
+                    assert_eq!(1, 2);
+                }
+            }
+        }
+        fs::remove_file("test.sqlite").unwrap();
+    }
+
+    #[test]
+    #[serial]
+    fn create_identity_encrypt_and_insert_and_fetch() {
+        {
+            let mut id: Identity = Identity::new("lcehvbvddggkjfnokduyjuiyvkklrvrmsaozwbvjlzvgvfipqpnkkuf", "testAccount", 0);
+            println!("{:?}", &id);
+
+            id =  id.encrypt_identity("password").unwrap();
+            println!("{:?}", &id);
+
             match insert_new_identity("test.sqlite", &id) {
                 Ok(_) => {
                     println!("Identity Inserted Ok!");
