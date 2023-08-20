@@ -1,33 +1,18 @@
 use std::time::Duration;
 use std::io::prelude::*;
 use std::net::TcpStream;
+extern crate network;
 extern crate crypto;
-use crypto::random::random_bytes;
+use network::entity::qubic_request;
 fn main() {
-    //    unsigned char _size[3];
-    //     unsigned char _protocol;
-    //     unsigned char _dejavu[3];
-    //     unsigned char _type;
-    //                                           vvvv type 31 = get info
-    let mut request: [u8; 40] = [40, 0, 0, 0, 0, 0, 0, 31, 170, 135, 62, 76, 253, 55, 228, 191, 82, 138, 42, 160, 30, 236, 239, 54, 84, 124, 153, 202, 170, 189, 27, 189, 247, 37, 58, 101, 176, 65, 119, 26];
     println!("Connecting");
-
-
-
     let mut stream = TcpStream::connect("136.243.81.157:21841").expect("Failed To Connect");
-
-    stream.set_read_timeout(Some(Duration::from_millis(1000))).unwrap();
+    stream.set_read_timeout(Some(Duration::from_millis(5000))).unwrap();
     loop {
-        let r = random_bytes(3);
-        println!("{:?}", r);
-        request[4] = r[0];
-        request[5] = r[1];
-        request[6] = r[2];
+        let request = qubic_request::get_identity_balance("EPYWDREDNLHXOFYVGQUKPHJGOMPBSLDDGZDPKVQUMFXAIQYMZGEHPZTAAWON").as_bytes();
         println!("{:?}", &request);
-
-
         println!("Writing");
-        stream.write(&request).unwrap();
+        stream.write(request.as_slice()).unwrap();
         println!("Wrote");
         let mut readable: [u8; 30000] = [0; 30000];
         println!("Reading");
@@ -40,5 +25,4 @@ fn main() {
             }
         }
     }
-
 }

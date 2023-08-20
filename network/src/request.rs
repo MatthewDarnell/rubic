@@ -81,7 +81,7 @@ impl request_buffer {
         //1 byte type
         header_bytes[6] = 0;
         //1 byte request entity type
-        header_bytes[7] = request.entity_t as u8;
+        //header_bytes[7] = request.entity_t as u8;
         let mut data_bytes: [u8; 65535] = [0; 65535];
         for (index, val) in request.data.iter().enumerate() {
             data_bytes[index] = *val;
