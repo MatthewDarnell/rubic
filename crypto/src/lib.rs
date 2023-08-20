@@ -1,7 +1,7 @@
 extern crate libc;
 extern crate core;
 
-
+#[cfg(feature = "hash")]
 pub mod hash {
     use sodiumoxide::hex::encode;
     extern {
@@ -25,6 +25,7 @@ pub mod hash {
     }
 }
 
+#[cfg(feature = "random")]
 pub mod random {
     use sodiumoxide::randombytes::randombytes;
     pub fn random_bytes(length: u32) -> Vec<u8> {
@@ -51,6 +52,7 @@ pub mod random {
 
 }
 
+#[cfg(feature = "encryption")]
 pub mod encryption {
     use base64::{Engine as _, engine::general_purpose};
     use crate::hash;

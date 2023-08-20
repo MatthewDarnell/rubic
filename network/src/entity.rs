@@ -1,4 +1,5 @@
-
+extern crate crypto;
+use crypto::random::random_bytes;
 
 //#define REQUEST_ENTITY 31
 //
@@ -39,7 +40,7 @@ impl request_response_header {
         request_response_header {
             _size: [0; 3],
             _protocol: 0,
-            _dejavu: [0; 3],
+            _dejavu: random_bytes(3).as_slice().try_into().unwrap(),
             _type: 0
         }
     }

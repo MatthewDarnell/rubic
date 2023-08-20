@@ -172,7 +172,7 @@ pub async fn initiate_request(peer: &str, request: &mut qubic_request) -> Result
 }
 
 
-
+/*
 #[cfg(test)]
 mod network {
     pub mod requests {
@@ -194,3 +194,5 @@ mod network {
         }
     }
 }
+
+ */

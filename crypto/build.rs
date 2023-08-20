@@ -1,6 +1,13 @@
 extern crate cc;
 
+#[cfg(feature = "random")]
 fn main() {
+    println!("Skipping crypto Build Step, feature is only 'random'");
+}
+
+#[cfg(feature = "encryption")]
+fn main() {
+    println!("Running crypto Build Step");
     /*
 
     MS FourQ Lib Builder for Windows

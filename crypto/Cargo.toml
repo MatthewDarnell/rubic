@@ -13,3 +13,8 @@ sodiumoxide = "0.2.7"
 
 [build-dependencies]
 cc = "1.0.79"
+
+[features]
+random = []
+hash = []
+encryption = ["hash"]
