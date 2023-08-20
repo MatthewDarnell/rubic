@@ -44,6 +44,22 @@ pub struct Identity {
 }
 
 impl Identity {
+    pub fn get_public_key(&self) -> Result<Vec<u8>, String> {
+        if !self.contains_seed() {
+            Err("Invalid Seed! Can't Get Public Key!".to_string())
+        } else {
+            let mut own_subseed: [u8; 32] = [0; 32];
+            let mut private_key: [u8; 32] = [0; 32];
+            let mut public_key: [u8; 32] = [0; 32];
+            let mut identity: [u8; 60] = [0; 60];
+            unsafe {
+                getSubseed(self.seed.as_str().as_ptr(), own_subseed.as_mut_ptr());
+                getPrivateKey(own_subseed.as_ptr(), private_key.as_mut_ptr());
+                getPublicKey(private_key.as_ptr(), public_key.as_mut_ptr());
+            }
+            Ok(Vec::from(public_key))
+        }
+    }
     pub fn from_vars(account: &str, seed: &str, hash: &str, salt: &str, identity: &str, index: u32, is_encrypted: bool) -> Self {
         Identity {
             account: String::from(account),

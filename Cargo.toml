@@ -6,5 +6,9 @@ authors = ["Matthew Darnell"]
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+tui = "0.19"
+unicode-width = "0.1.10"
+crossterm = "0.25"
 identity = { path = './identity' }
+network = { path = './network' }
 store = { path = './store' }
