@@ -8,6 +8,7 @@ edition = "2021"
 [dependencies]
 bytes = "1.4.0"
 futures = "0.3.28"
+rand = "0.8.5"
 crypto = { path = '../crypto', features=["random"] }
 tokio = { version = "1.30.0", features = ["full"] }
 tokio-util = { version = "0.7.8", features = ["codec"] }
