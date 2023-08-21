@@ -27,6 +27,19 @@ impl Peer {
             last_responded: SystemTime::now()
         }
     }
+    pub fn read_stream(&mut self) -> Result<Vec<u8>, String>{
+        let mut result: [u8; 256] = [0; 256];
+        match self.stream.read(&mut result) {
+            Ok(bytes_read) => {
+                println!("Read {} bytes", bytes_read);
+                Ok(result.to_vec())
+            },
+            Err(e) => {
+                println!("{}", e.to_string());
+                Err(e.to_string())
+            }
+        }
+    }
     pub fn set_ping_time(&mut self, ping: u32) {
         self.ping_time = ping;
     }
@@ -55,7 +68,7 @@ pub struct PeerSet {
 }
 
 impl PeerSet {
-    fn new(strategy: PeerStrategy) -> Self {
+    pub fn new(strategy: PeerStrategy) -> Self {
         PeerSet {
             strategy: strategy,
             peers: vec![],
@@ -67,6 +80,7 @@ impl PeerSet {
     pub fn add_peer(&mut self, ip: &str) -> Result<(), String> {
         match TcpStream::connect(ip) {
             Ok(stream) => {
+                stream.set_read_timeout(Some(Duration::from_millis(5000))).unwrap();
                 self.peers.push(Peer::new(ip, stream, ""));
                 Ok(())
             },
@@ -87,7 +101,7 @@ impl PeerSet {
         }
         false
     }
-    pub fn send_request(&mut self, request: &Vec<u8>) -> Result<(), String> {
+    pub fn send_request(&mut self, request: &Vec<u8>) -> Result<&mut Peer, String> {
         if self.num_peers() < 1 {
             return Err("Cannot send request, 0 peers! Add some!".to_string())
         }
@@ -124,10 +138,11 @@ impl PeerSet {
                 }
             }
         };
+        println!("Using Peer: {}", peer.ip_addr.as_str());
         match peer.stream.write(request.as_slice()) {
             Ok(_) => {
                 peer.last_responded = SystemTime::now();
-                Ok(())
+                Ok(peer)
             },
             Err(err) =>{
                 println!("Failed To Send Data To Peer! {}", peer.ip_addr);
