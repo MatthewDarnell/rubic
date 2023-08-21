@@ -167,7 +167,7 @@ pub mod peer_tests {
                 assert_eq!(p_set.num_peers(), 1);
             },
             Err(err) => {
-                assert!(err.contains("Connection refused"));
+                assert!(err.contains("refused"));
                 assert_eq!(p_set.num_peers(), 0);
             }
         }

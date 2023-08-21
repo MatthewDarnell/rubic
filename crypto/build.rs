@@ -1,11 +1,11 @@
 extern crate cc;
 
-#[cfg(feature = "random")]
+#[cfg(not(feature="hash"))]
 fn main() {
     println!("Skipping crypto Build Step, feature is only 'random'");
 }
 
-#[cfg(feature = "encryption")]
+#[cfg(all(feature = "random", feature = "encryption"))]
 fn main() {
     println!("Running crypto Build Step");
     /*
