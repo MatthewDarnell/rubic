@@ -5,7 +5,7 @@ fn main() {
     println!("Skipping crypto Build Step, feature is only 'random'");
 }
 
-#[cfg(all(feature = "random", feature = "encryption"))]
+#[cfg(feature = "encryption")]
 fn main() {
     println!("Running crypto Build Step");
     /*

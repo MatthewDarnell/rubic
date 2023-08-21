@@ -6,6 +6,9 @@ extern {
     fn getPrivateKey(subseed: *const u8, privateKey: *mut u8);
     fn getPublicKey(privateKey: *const u8, publicKey: *mut u8);
     fn getIdentity(publicKey: *const u8, identity: *const u8, isLowerCase: bool);
+    //bool getPublicKeyFromIdentity(const unsigned char* identity, unsigned char* publicKey)
+    fn getPublicKeyFromIdentity(identity: *const u8, publicKey: *mut u8);
+
     // bool getSharedKey(const unsigned char* privateKey, const unsigned char* publicKey, unsigned char* sharedKey)
     //void sign(const unsigned char* subseed, const unsigned char* publicKey, const unsigned char* messageDigest, unsigned char* signature)
     //bool verify(const unsigned char* publicKey, const unsigned char* messageDigest, const unsigned char* signature)
@@ -30,6 +33,14 @@ fn identity_to_address(identity: &Vec<u8>) -> Result<String, Utf8Error> {
         Ok(val) => Ok(val.to_string()),
         Err(err) => Err(err)
     }
+}
+
+pub fn get_public_key_from_identity(identity: &str) -> Result<Vec<u8>, ()> {
+    println!("get_public_key_from_identity: {}", identity);
+    let mut pub_key: [u8; 60] = [0; 60];
+    let did_work = unsafe { getPublicKeyFromIdentity(identity.as_ptr(), pub_key.as_mut_ptr()) };
+    println!("get_public_key_from_identity: {:?}", &pub_key);
+    Ok(pub_key.to_owned().to_vec())
 }
 
 #[derive(Debug)]

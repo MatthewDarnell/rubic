@@ -4,8 +4,8 @@ use std::error::Error;
 use std::io;
 use std::thread::sleep;
 use std::time::Duration;
-
-use crate::entity::{entity_type, requested_entity, request_response_header, qubic_request};
+use api::header::{entity_type, request_response_header};
+use api::{requested_entity, qubic_api_t};
 
 
 //                    RequestedEntity request;
@@ -67,7 +67,7 @@ pub struct request_buffer {
 }
 
 impl request_buffer {
-    pub fn new(request: &qubic_request) -> Self {
+    pub fn new(request: &qubic_api_t) -> Self {
         let size = std::mem::size_of::<request_response_header>() + request.data.len();
         let mut header_bytes: [u8; 8] = [0; 8];
         //3 byte size
@@ -104,7 +104,7 @@ impl request_buffer {
     }
 }
 
-pub async fn initiate_request(peer: &str, request: &mut qubic_request) -> Result<(), Box<dyn Error>> {
+pub async fn initiate_request(peer: &str, request: &mut qubic_api_t) -> Result<(), Box<dyn Error>> {
     println!("Initiating Request!");
     let size = std::mem::size_of::<request_response_header>() + request.data.len();
     println!("Request Size: {}", size);
@@ -176,7 +176,7 @@ pub async fn initiate_request(peer: &str, request: &mut qubic_request) -> Result
 #[cfg(test)]
 mod network {
     pub mod requests {
-        use crate::entity::qubic_request;
+        use crate::entity::qubic_api_t;
         use crate::request;
         use identity;
         use identity::Identity;
@@ -188,7 +188,7 @@ mod network {
             let id: Identity = Identity::new("lcehvbvddggkjfnokduyjuiyvkklrvrmsaozwbvjlzvgvfipqpnkkuf", "testAccount", 0);
             let pub_key: Vec<u8> = id.get_public_key().unwrap();
 
-            let mut request: qubic_request = qubic_request::new(REQUEST_ENTITY, &pub_key);
+            let mut request: qubic_api_t = qubic_api_t::new(REQUEST_ENTITY, &pub_key);
             initiate_request("95.179.220.69:21841", &mut request).await;
 
         }

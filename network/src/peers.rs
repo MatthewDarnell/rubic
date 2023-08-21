@@ -1,9 +1,10 @@
 use std::convert::TryInto;
 use std::io::prelude::*;
 use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4, TcpStream};
-use crate::entity::qubic_request;
+use api::qubic_api_t;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use rand::seq::SliceRandom;
+use uuid::Uuid;
 
 
 #[derive(Debug)]
@@ -13,7 +14,8 @@ pub struct Peer {
     ip_addr: String,
     nick: String,
     whitelisted: bool,
-    last_responded: SystemTime
+    last_responded: SystemTime,
+    id: String
 }
 
 impl Peer {
@@ -24,7 +26,8 @@ impl Peer {
             ip_addr: ip.to_string(),
             nick: nick.to_string(),
             whitelisted: false,
-            last_responded: SystemTime::now()
+            last_responded: SystemTime::now(),
+            id: Uuid::new_v4().to_string()
         }
     }
     pub fn read_stream(&mut self) -> Result<Vec<u8>, String>{
@@ -78,15 +81,43 @@ impl PeerSet {
         self.peers.len()
     }
     pub fn add_peer(&mut self, ip: &str) -> Result<(), String> {
-        match TcpStream::connect(ip) {
-            Ok(stream) => {
+        let sock: SocketAddr = ip.parse().unwrap();
+        match TcpStream::connect_timeout(&sock, Duration::from_millis(5000)) {
+            Ok(mut stream) => {
+                println!("Adding Peer {}", ip);
                 stream.set_read_timeout(Some(Duration::from_millis(5000))).unwrap();
-                self.peers.push(Peer::new(ip, stream, ""));
-                Ok(())
+                stream.set_write_timeout(Some(Duration::from_millis(5000))).unwrap();
+                let mut request = qubic_api_t::get_identity_balance("EPYWDREDNLHXOFYVGQUKPHJGOMPBSLDDGZDPKVQUMFXAIQYMZGEHPZTAAWON");
+                match self._send_request_via_stream(&mut stream, &mut request.as_bytes().to_vec()) {
+                    Ok(_) => {
+                        println!("peer responded!");
+                        self.peers.push(Peer::new(ip, stream, ""));
+                        Ok(())
+                    }
+                    Err(err) => {
+                        println!("Error Getting Response From Peer! {}", err.as_str());
+                        Err(err)
+                    }
+                }
             },
             Err(err) => Err(err.to_string())
         }
     }
+
+    pub fn add_peer_do_not_send_request(&mut self, ip: &str) -> Result<(), String> {
+        let sock: SocketAddr = ip.parse().unwrap();
+        match TcpStream::connect_timeout(&sock, Duration::from_millis(5000)) {
+            Ok(mut stream) => {
+                println!("Adding Peer {}", ip);
+                        println!("peer responded!");
+                        self.peers.push(Peer::new(ip, stream, ""));
+                        Ok(())
+
+            },
+            Err(err) => Err(err.to_string())
+        }
+    }
+
     pub fn delete_peer(&mut self, ip: &str) -> bool {
         for (index, connection) in self.peers.iter().enumerate() {
             match connection.stream.peer_addr() {
@@ -101,7 +132,47 @@ impl PeerSet {
         }
         false
     }
-    pub fn send_request(&mut self, request: &Vec<u8>) -> Result<&mut Peer, String> {
+    fn _listen_response(&mut self, id: &str) -> Result<Vec<u8>, String> {
+        let mut peer: Option<&mut Peer> = None;
+        for mut p in &mut self.peers.iter_mut() {
+            if p.id.as_str() == id {
+                peer = Some(p);
+                break;
+            }
+        }
+        if peer.is_none() {
+            return Err("Invalid Peer Id".to_string())
+        }
+        println!("Reading From Peer <{}>", id);
+        match peer.unwrap().read_stream() {
+            Ok(result) => Ok(result),
+            Err(err) => Err(err)
+        }
+    }
+
+    fn _send_request_via_stream(&mut self, stream: &mut TcpStream, request: &Vec<u8>) -> Result<(), String> {
+        match stream.write(request.as_slice()) {
+            Ok(_) => {
+                let mut result: [u8; 256] = [0; 256];
+                match stream.read(&mut result) {
+                    Ok(bytes_read) => {
+                        println!("Read {} bytes", bytes_read);
+                        Ok(())
+                    },
+                    Err(e) => {
+                        println!("{}", e.to_string());
+                        Err(e.to_string())
+                    }
+                }
+            },
+            Err(err) =>{
+                println!("Failed To Send Data To Peer!");
+                Err(err.to_string())
+            }
+        }
+    }
+
+    fn _send_request(&mut self, request: &Vec<u8>) -> Result<String, String> {
         if self.num_peers() < 1 {
             return Err("Cannot send request, 0 peers! Add some!".to_string())
         }
@@ -139,15 +210,27 @@ impl PeerSet {
             }
         };
         println!("Using Peer: {}", peer.ip_addr.as_str());
+        println!("Writing Request To Stream: {:?}", request.as_slice());
         match peer.stream.write(request.as_slice()) {
             Ok(_) => {
                 peer.last_responded = SystemTime::now();
-                Ok(peer)
+                Ok(peer.id.to_owned())
             },
             Err(err) =>{
                 println!("Failed To Send Data To Peer! {}", peer.ip_addr);
                 Err(err.to_string())
             }
+        }
+    }
+    pub fn make_request(&mut self, request: &mut qubic_api_t) -> Result<(), String> {
+        match self._send_request(&mut request.as_bytes()) {
+            Ok(peer_id) => {
+                match self._listen_response(peer_id.as_str()) {
+                    Ok(v) => Ok(request.set_response(v)),
+                    Err(err) => Err(err)
+                }
+            },
+            Err(err) => Err(err)
         }
     }
 }

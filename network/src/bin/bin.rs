@@ -1,33 +1,35 @@
 use std::time::Duration;
+use std::thread::sleep;
 use std::io::prelude::*;
 use std::net::TcpStream;
+extern crate api;
 extern crate network;
 extern crate crypto;
-use network::entity::qubic_request;
+use api::qubic_api_t;
 use network::peers::{PeerStrategy, Peer, PeerSet};
 
 fn main() {
-    let peer_ips = vec!["136.243.81.157:21841", "5.199.134.150:21841", "91.43.76.142:21841"];
+    let peer_ips = vec!["85.10.199.154:21841", "148.251.184.163:21841"];
     println!("Creating Peer Set");
-    let mut peer_set = PeerSet::new(PeerStrategy::PRIORITIZE_LONGEST_UNUSED_CONN);
+    let mut peer_set = PeerSet::new(PeerStrategy::RANDOM);
     for ip in peer_ips {
-        peer_set.add_peer(ip);
+        println!("Adding Peer {}", ip);
+        peer_set.add_peer_do_not_send_request(ip);
+        println!("Peer Added");
     }
     println!("Number Of Peers: {}", peer_set.num_peers());
+    let delay = Duration::from_secs(3);
+
+
     loop {
         println!("Writing");
-        let request = qubic_request::get_identity_balance("EPYWDREDNLHXOFYVGQUKPHJGOMPBSLDDGZDPKVQUMFXAIQYMZGEHPZTAAWON").as_bytes();
-        let mut peer = peer_set.send_request(&request).unwrap();
-        println!("Wrote");
-        println!("Reading");
-        match peer.read_stream() {
-            Ok(result) => {
-                println!("{:?}", result.as_slice());
-            },
-            Err(err) => {
-                println!("Failed to Read!");
-            }
+        let mut request = qubic_api_t::get_identity_balance("BAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAARMID");
+        match peer_set.make_request(&mut request) {
+            Ok(_) => println!("Request Completed."),
+            //Ok(_) => println!("{:?}", request.response_data),
+            Err(err) => println!("{}", err)
         }
+        sleep(delay);
     }
 
 }
