@@ -13,9 +13,16 @@ pub struct requested_entity {
     pub public_key: [u8; 32]
 }
 
+#[derive(Debug, Clone)]
+pub enum qubic_api_type {
+    REQUEST = 0,
+    RESPONSE = 1
+}
 
 #[derive(Debug, Clone)]
 pub struct qubic_api_t {
+    pub api_type: qubic_api_type,
+    pub peer: Option<String>,
     pub header: request_response_header,
     pub data: Vec<u8>,
     pub response_data: Option<Vec<u8>>
@@ -35,6 +42,8 @@ println!("Passed identity {}, got pub key {:?}", id, &data);
         let size = std::mem::size_of::<request_response_header>() + data.len();
         header.set_size(size);
         qubic_api_t {
+            api_type: qubic_api_type::REQUEST,
+            peer: None,
             header: header,
             data: data,
             response_data: None
@@ -45,30 +54,32 @@ println!("Passed identity {}, got pub key {:?}", id, &data);
         res.append(&mut self.data);
         res
     }
-    pub fn set_response(&mut self, data: Vec<u8>) {
-        handle_response(&data);
-    }
     pub fn new(data: &Vec<u8>) -> Self {    //todo: remove this, should only be able to create by specific api call
         qubic_api_t {
+            api_type: qubic_api_type::REQUEST,
+            peer: None,
             header: request_response_header::new(),
             data: data.clone(),
             response_data: None
         }
     }
+    pub fn format_response_from_bytes(data: Vec<u8>) -> Option<Self> {
+        handle_response(&data)
+    }
 }
 
 #[cfg(test)]
-pub mod entity_tests {
-    use crate::entity;
+pub mod api_formatting_tests {
+    use crate::qubic_api_t;
     #[test]
     fn create_identity_balance_request_entity() {
-        let req = entity::qubic_api_t::get_identity_balance("EPYWDREDNLHXOFYVGQUKPHJGOMPBSLDDGZDPKVQUMFXAIQYMZGEHPZTAAWON");
+        let req = qubic_api_t::get_identity_balance("EPYWDREDNLHXOFYVGQUKPHJGOMPBSLDDGZDPKVQUMFXAIQYMZGEHPZTAAWON");
         println!("{:?}", req);
     }
 
     #[test]
     fn create_entity_get_full_request_as_bytes() {
-        let mut req = entity::qubic_api_t::get_identity_balance("EPYWDREDNLHXOFYVGQUKPHJGOMPBSLDDGZDPKVQUMFXAIQYMZGEHPZTAAWON");
+        let mut req = qubic_api_t::get_identity_balance("EPYWDREDNLHXOFYVGQUKPHJGOMPBSLDDGZDPKVQUMFXAIQYMZGEHPZTAAWON");
         req.header.zero_dejavu();   //Dejavu is random 3 byte value
         let bytes = req.as_bytes();
         assert_eq!(bytes.len(), 68);

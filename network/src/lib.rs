@@ -1,4 +1,5 @@
 extern crate core;
 
-pub mod request;
+mod peer;
+pub mod worker;
 pub mod peers;
