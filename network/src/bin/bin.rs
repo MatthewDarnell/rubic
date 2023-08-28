@@ -22,10 +22,9 @@ fn main() {
 
 
     loop {
-        println!("Writing");
         let mut request = qubic_api_t::get_identity_balance("BAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAARMID");
         match peer_set.make_request(request) {
-            Ok(_) => println!("Request Completed."),
+            Ok(_) => {},
             //Ok(_) => println!("{:?}", request.response_data),
             Err(err) => println!("{}", err)
         }

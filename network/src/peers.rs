@@ -143,19 +143,15 @@ impl PeerSet {
                 }
             }
         };
-        println!("Using Peer: {}", peer.get_ip_addr().as_str());
+        //println!("Using Peer: {}", peer.get_ip_addr().as_str());
         request.peer = Some(peer.get_id().to_owned());
         match self.req_channel.0.send(request) {
-            Ok(_) => {
-                println!("Request Fired Off To Threads!");
-               return  Ok(());
-
-            },
+            Ok(_) => Ok(()),
             Err(err) => {
                 println!("Failed To Send Request Data To Threads! : {}", err.to_string());
+                Err(err.to_string())
             }
         }
-        Ok(())
     }
 }
 

@@ -9,6 +9,7 @@ pub struct request_response_header {
 
 #[derive(Debug, Copy, Clone)]
 pub enum entity_type {
+    UNKNOWN = -1,
     EXCHANGE_PEERS = 0,
     REQUEST_ENTITY = 31,
     RESPONSE_ENTITY = 32
@@ -76,12 +77,12 @@ impl request_response_header {
     pub fn set_type(&mut self, _type: entity_type) {
         self._type = _type as u8;
     }
-    pub fn get_type(&self) -> Option<entity_type> {
+    pub fn get_type(&self) -> entity_type {
         match self._type {
-            0 => Some(entity_type::EXCHANGE_PEERS),
-            31 => Some(entity_type::REQUEST_ENTITY),
-            32 => Some(entity_type::RESPONSE_ENTITY),
-            _ => None
+            0 => entity_type::EXCHANGE_PEERS,
+            31 => entity_type::REQUEST_ENTITY,
+            32 => entity_type::RESPONSE_ENTITY,
+            _ => entity_type::UNKNOWN
         }
     }
 }

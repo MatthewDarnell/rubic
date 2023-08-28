@@ -36,10 +36,8 @@ fn identity_to_address(identity: &Vec<u8>) -> Result<String, Utf8Error> {
 }
 
 pub fn get_public_key_from_identity(identity: &str) -> Result<Vec<u8>, ()> {
-    println!("get_public_key_from_identity: {}", identity);
     let mut pub_key: [u8; 60] = [0; 60];
     let did_work = unsafe { getPublicKeyFromIdentity(identity.as_ptr(), pub_key.as_mut_ptr()) };
-    println!("get_public_key_from_identity: {:?}", &pub_key);
     Ok(pub_key.to_owned().to_vec())
 }
 
