@@ -53,7 +53,7 @@ pub fn handle_response_entity(response: &mut qubic_api_t) -> Option<ResponseEnti
     if data.len() < 8+32 + 8 + 8 + 4 + 4 + 4 + 4 + 4 + 4 {
         return None;
     }
-    println!("Got Exchange Peer Data: {:?}", data);
+    println!("Got Response Entity Peer Data: {:?}", data);
 
     let sliced_incoming = &data.as_slice()[8 + 32..8+32 + 8];
     let sliced_outgoing = &data.as_slice()[8 + 32 + 8..8+32 + 8 + 8];

@@ -1,5 +1,7 @@
 use std::collections::LinkedList;
+use api::qubic_api_t;
 use identity::Identity;
+use base64::{engine::general_purpose, Engine as _};
 use crate::sqlite::create::open_database;
 use sqlite::State;
 
@@ -294,17 +296,20 @@ pub fn delete_identity(path: &str, identity: &str) -> Result<(), String> {
         }
     }
 }
-pub fn create_peer_response(path: &str, peer: &str, header: &str, response_type: u8, data: &str) -> Result<(), String> {
+pub fn create_peer_response(path: &str, peer: &str, data: &Vec<u8>) -> Result<(), String> {
     let prep_query = "INSERT INTO response (peer, header, type, data) VALUES (:peer, :header, :response_type, :data);";
     match open_database(path, true) {
         Ok(connection) => {
             match prepare_crud_statement(path, &connection, prep_query) {
                 Ok(mut statement) => {
+                    let header = &data[0..8];
+                    let real_data = &data[8..];
+                    let response_type = &data[7];
                     match statement.bind::<&[(&str, &str)]>(&[
                         (":peer", peer),
-                        (":header", header),
+                        (":header", general_purpose::STANDARD.encode(&header).as_str()),
                         (":response_type", response_type.to_string().as_str()),
-                        (":data", data),
+                        (":data", general_purpose::STANDARD.encode(&real_data).as_str()),
                     ][..]) {
                         Ok(_) => {
                             match statement.next() {
@@ -328,7 +333,7 @@ pub fn create_peer_response(path: &str, peer: &str, header: &str, response_type:
         }
     }
 }
-pub fn fetch_peer_response_by_type(path: &str, response_type: u8) -> Result<Vec<Vec<String>>, String> {
+pub fn fetch_peer_response_by_type(path: &str, response_type: u8) -> Result<Vec<qubic_api_t>, String> {
     let prep_query = "SELECT * FROM response WHERE type = :response_type ORDER BY created DESC;";
     match open_database(path, true) {
         Ok(connection) => {
@@ -338,15 +343,16 @@ pub fn fetch_peer_response_by_type(path: &str, response_type: u8) -> Result<Vec<
                         (":response_type", response_type.to_string().as_str()),
                     ][..]) {
                         Ok(_) => {
-                            let mut response = vec![];
+                            let mut response: Vec<qubic_api_t> = vec![];
                             while let Ok(State::Row) = statement.next() {
-                                    response.push(vec![
-                                        statement.read::<String, _>("peer").unwrap(),
-                                        statement.read::<String, _>("header").unwrap(),
-                                        statement.read::<String, _>("type").unwrap(),
-                                        statement.read::<String, _>("data").unwrap(),
-                                        statement.read::<String, _>("created").unwrap(),
-                                    ]);
+                                let peer_ip = statement.read::<String, _>("peer").unwrap();
+                                let mut header_bytes: Vec<u8> = general_purpose::STANDARD.decode(statement.read::<String, _>("header").unwrap()).unwrap();
+                                let mut data_bytes: Vec<u8> = general_purpose::STANDARD.decode(statement.read::<String, _>("data").unwrap()).unwrap();
+                                header_bytes.append(&mut data_bytes);
+                                match qubic_api_t::format_response_from_bytes(&peer_ip, header_bytes) {
+                                    Some(t) => response.push(t),
+                                    None => {}
+                                }
                                 }
                             Ok(response)
                         },
@@ -433,20 +439,25 @@ mod store_crud_tests {
         #[test]
         #[serial]
         fn create_account_and_insert_and_fetch() {
-            create_peer_response("test.sqlite", "127.0.0.1", "0xFFFFFFFFFFFFFFFF", 31, "0xdeadbeef").unwrap();
-            create_peer_response("test.sqlite", "127.0.0.1", "0xFFFFFFFFFFFFFFFF", 31, "0xdeadbeef").unwrap();
-            create_peer_response("test.sqlite", "127.0.0.1", "0xFFFFFFFFFFFFFFFF", 31, "0xdeadbeef").unwrap();
-            match fetch_peer_response_by_type("test.sqlite", 31) {
-                Ok(response_vec) => {
-                    assert_eq!(response_vec.len(), 3);
-                    assert_eq!(response_vec[0][0].as_str(), "127.0.0.1");
-                },
-                Err(err) => {
-                    println!("Account Couldn't be Fetched!");
-                    assert_eq!(1, 2);
+                let data: Vec<u8> = vec![80, 3, 0, 167, 8, 105, 98, 32, 80, 3, 0, 167, 8, 105, 98, 32, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 225, 245, 5, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 250, 100, 124, 0, 0, 0, 0, 0, 124, 141, 129, 0, 1, 0, 0, 0, 42, 90, 241, 198, 106, 243, 239, 74, 41, 78, 9, 242, 122, 237, 3, 13, 63, 174, 255, 185, 161, 145, 0, 18, 70, 139, 156, 127, 62, 70, 189, 159, 18, 49, 252, 149, 121, 228, 161, 156, 5, 104, 234, 45, 220, 245, 230, 19, 51, 151, 17, 31, 147, 163, 145, 11, 96, 54, 223, 194, 153, 88, 7, 153, 236, 214, 251, 45, 205, 47, 16, 11, 86, 100, 214, 84, 204, 245, 113, 6, 108, 13, 172, 151, 88, 42, 241, 66, 109, 41, 52, 62, 12, 163, 125, 174, 57, 33, 123, 231, 45, 173, 64, 110, 153, 145, 12, 112, 192, 130, 163, 44, 89, 9, 43, 129, 141, 112, 192, 170, 171, 155, 11, 204, 121, 169, 79, 92, 65, 156, 144, 198, 90, 88, 74, 154, 40, 181, 191, 15, 219, 29, 67, 231, 230, 43, 230, 5, 19, 23, 124, 204, 180, 165, 144, 161, 73, 135, 50, 77, 141, 111, 78, 247, 107, 163, 45, 75, 151, 228, 192, 122, 239, 28, 53, 101];;
+                create_peer_response("test.sqlite", "127.0.0.1", &data).unwrap();
+                create_peer_response("test.sqlite", "127.0.0.1", &data).unwrap();
+                match fetch_peer_response_by_type("test.sqlite", 32) {
+                    Ok(response_vec) => {
+                        assert_eq!(response_vec.len(), 2);
+                        assert_eq!(response_vec[0].peer.as_ref().unwrap().as_str(), "127.0.0.1");
+                    },
+                    Err(err) => {
+                        println!("Account Couldn't be Fetched!");
+                        assert_eq!(1, 2);
+                    }
                 }
-            }
             fs::remove_file("test.sqlite").unwrap();
+        }
+        #[test]
+        #[serial]
+        fn delete_db() {
+            fs::remove_file("test.sqlite"); //Don't care about the result
         }
     }
 

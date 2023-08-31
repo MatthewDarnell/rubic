@@ -37,7 +37,7 @@ fn identity_to_address(identity: &Vec<u8>) -> Result<String, Utf8Error> {
 
 pub fn get_public_key_from_identity(identity: &str) -> Result<Vec<u8>, ()> {
     let mut pub_key: [u8; 60] = [0; 60];
-    let did_work = unsafe { getPublicKeyFromIdentity(identity.as_ptr(), pub_key.as_mut_ptr()) };
+    unsafe { getPublicKeyFromIdentity(identity.as_ptr(), pub_key.as_mut_ptr()) };
     Ok(pub_key.to_owned().to_vec())
 }
 
@@ -60,7 +60,6 @@ impl Identity {
             let mut own_subseed: [u8; 32] = [0; 32];
             let mut private_key: [u8; 32] = [0; 32];
             let mut public_key: [u8; 32] = [0; 32];
-            let mut identity: [u8; 60] = [0; 60];
             unsafe {
                 getSubseed(self.seed.as_str().as_ptr(), own_subseed.as_mut_ptr());
                 getPrivateKey(own_subseed.as_ptr(), private_key.as_mut_ptr());
