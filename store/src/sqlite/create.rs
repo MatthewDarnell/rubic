@@ -23,7 +23,22 @@ pub fn open_database(path: &str, create: bool) -> Result<sqlite::Connection, Str
         data TEXT NOT NULL,
         created DATETIME DEFAULT CURRENT_TIMESTAMP
     );
+    CREATE TABLE IF NOT EXISTS response_entity (
+        peer TEXT NOT NULL,
+        identity TEXT NOT NULL,
+        incoming INTEGER NOT NULL,
+        outgoing INTEGER NOT NULL,
+        balance INTEGER NOT NULL,
+        num_in_txs INTEGER NOT NULL,
+        num_out_txs INTEGER NOT NULL,
+        latest_in_tick INTEGER NOT NULL,
+        latest_out_tick INTEGER NOT NULL,
+        tick INTEGER NOT NULL,
+        spectrum_index INTEGER NOT NULL,
+        created DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
 ";
+    //        FOREIGN KEY(identity) REFERENCES identities(identity)
     match sqlite::open(path) {
         Ok(connection) => {
             match create {

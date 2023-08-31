@@ -58,7 +58,7 @@ impl qubic_api_t {
             api_type: header.get_type().to_owned(),
             peer: Some(peer_id.to_owned()),
             header: header,
-            data: data,
+            data: data[8..].to_vec(),
             response_data: None
         })
     }

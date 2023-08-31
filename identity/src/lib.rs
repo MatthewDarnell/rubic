@@ -35,6 +35,12 @@ fn identity_to_address(identity: &Vec<u8>) -> Result<String, Utf8Error> {
     }
 }
 
+pub fn get_identity_from_pub_key(pub_key: &[u8]) -> String {
+    let mut identity: [u8; 60] = [0; 60];
+    unsafe {     getIdentity(pub_key.as_ptr(), identity.as_mut_ptr(), false); }
+    std::str::from_utf8(&identity).unwrap().to_string()
+}
+
 pub fn get_public_key_from_identity(identity: &str) -> Result<Vec<u8>, ()> {
     let mut pub_key: [u8; 60] = [0; 60];
     unsafe { getPublicKeyFromIdentity(identity.as_ptr(), pub_key.as_mut_ptr()) };

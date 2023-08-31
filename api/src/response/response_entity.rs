@@ -1,25 +1,32 @@
 use crate::qubic_api_t;
 use crate::response::FormatQubicResponseDataToStructure;
-
-#[derive(Debug, Copy, Clone)]
+use crate::identity::get_identity_from_pub_key;
+#[derive(Debug, Clone)]
 pub struct ResponseEntity {
+    pub identity: String,
+    pub peer: String,
     pub incoming: u64,
     pub outgoing: u64,
     pub final_balance: u64,
-        pub number_incoming_transactions: u32,
-        pub number_outgoing_transactions: u32,
-        pub latest_incoming_transfer_tick: u32,
-        pub latest_outgoing_transfer_tick: u32,
+    pub number_incoming_transactions: u32,
+    pub number_outgoing_transactions: u32,
+    pub latest_incoming_transfer_tick: u32,
+    pub latest_outgoing_transfer_tick: u32,
     pub tick: u32,
     pub spectrum_index: i32
 }
 
 impl ResponseEntity {
-    pub fn new(inc: u64, out: u64, num_in_txs: u32, num_out_txs: u32, lt_in_tx: u32, lt_out_tx: u32, tick: u32, s_in: i32) -> ResponseEntity {
+    pub fn new(identity: &str, peer: &str, inc: u64, out: u64, num_in_txs: u32, num_out_txs: u32, lt_in_tx: u32, lt_out_tx: u32, tick: u32, s_in: i32) -> ResponseEntity {
         ResponseEntity {
+            identity: identity.to_string(),
+            peer: peer.to_string(),
             incoming: inc,
             outgoing: out,
-            final_balance: out - inc,
+            final_balance: match inc > out {
+                true => inc - out,
+                false => out - inc
+            },
             number_incoming_transactions: num_in_txs,
             number_outgoing_transactions: num_out_txs,
             latest_incoming_transfer_tick: lt_in_tx,
@@ -30,6 +37,8 @@ impl ResponseEntity {
     }
     pub fn print(&self) {
         println!("----Response Entity----");
+        println!("Identity: ({})", self.identity.as_str());
+        println!("Peer: ({})", self.peer.as_str());
         println!("Incoming: ({}) Qus", self.incoming);
         println!("Outgoing: ({}) Qus", self. outgoing);
         println!("Final Balance: <{}> Qus", self.final_balance);
@@ -53,8 +62,8 @@ pub fn handle_response_entity(response: &mut qubic_api_t) -> Option<ResponseEnti
     if data.len() < 8+32 + 8 + 8 + 4 + 4 + 4 + 4 + 4 + 4 {
         return None;
     }
-    println!("Got Response Entity Peer Data: {:?}", data);
-
+    //println!("Got Response Entity Peer Data: {:?}", data);
+    let sliced_identity = get_identity_from_pub_key(&data.as_slice()[8..40]);
     let sliced_incoming = &data.as_slice()[8 + 32..8+32 + 8];
     let sliced_outgoing = &data.as_slice()[8 + 32 + 8..8+32 + 8 + 8];
 
@@ -152,6 +161,8 @@ pub fn handle_response_entity(response: &mut qubic_api_t) -> Option<ResponseEnti
     num_spectrum_index |= spectrumIndex[0] as i32 & 0xFF;
 
     Some(ResponseEntity::new(
+        sliced_identity.as_str(),
+        response.peer.as_ref().unwrap().as_str(),
         incoming,
         outgoing,
         number_incoming_transfers,
