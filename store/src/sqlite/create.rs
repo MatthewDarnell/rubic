@@ -16,6 +16,13 @@ pub fn open_database(path: &str, create: bool) -> Result<sqlite::Connection, Str
         created DATETIME DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY(account) REFERENCES account(name)
     );
+    CREATE TABLE IF NOT EXISTS response (
+        peer TEXT NOT NULL,
+        header TEXT NOT NULL,
+        type INTEGER NOT NULL,
+        data TEXT NOT NULL,
+        created DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
 ";
     match sqlite::open(path) {
         Ok(connection) => {

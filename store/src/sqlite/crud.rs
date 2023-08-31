@@ -294,8 +294,77 @@ pub fn delete_identity(path: &str, identity: &str) -> Result<(), String> {
         }
     }
 }
-
-
+pub fn create_peer_response(path: &str, peer: &str, header: &str, response_type: u8, data: &str) -> Result<(), String> {
+    let prep_query = "INSERT INTO response (peer, header, type, data) VALUES (:peer, :header, :response_type, :data);";
+    match open_database(path, true) {
+        Ok(connection) => {
+            match prepare_crud_statement(path, &connection, prep_query) {
+                Ok(mut statement) => {
+                    match statement.bind::<&[(&str, &str)]>(&[
+                        (":peer", peer),
+                        (":header", header),
+                        (":response_type", response_type.to_string().as_str()),
+                        (":data", data),
+                    ][..]) {
+                        Ok(_) => {
+                            match statement.next() {
+                                Ok(State::Done) => Ok(()),
+                                Err(error) => Err(error.to_string()),
+                                _ => Err("Weird!".to_string())
+                            }
+                        },
+                        Err(err) => Err(err.to_string())
+                    }
+                },
+                Err(err) => {
+                    println!("Error in create_account! : {}", &err);
+                    Err(err)
+                }
+            }
+        },
+        Err(err) => {
+            println!("Error in create_account! : {}", &err);
+            Err(err)
+        }
+    }
+}
+pub fn fetch_peer_response_by_type(path: &str, response_type: u8) -> Result<Vec<Vec<String>>, String> {
+    let prep_query = "SELECT * FROM response WHERE type = :response_type ORDER BY created DESC;";
+    match open_database(path, true) {
+        Ok(connection) => {
+            match prepare_crud_statement(path, &connection, prep_query) {
+                Ok(mut statement) => {
+                    match statement.bind::<&[(&str, &str)]>(&[
+                        (":response_type", response_type.to_string().as_str()),
+                    ][..]) {
+                        Ok(_) => {
+                            let mut response = vec![];
+                            while let Ok(State::Row) = statement.next() {
+                                    response.push(vec![
+                                        statement.read::<String, _>("peer").unwrap(),
+                                        statement.read::<String, _>("header").unwrap(),
+                                        statement.read::<String, _>("type").unwrap(),
+                                        statement.read::<String, _>("data").unwrap(),
+                                        statement.read::<String, _>("created").unwrap(),
+                                    ]);
+                                }
+                            Ok(response)
+                        },
+                        Err(err) => Err(err.to_string())
+                    }
+                },
+                Err(err) => {
+                    println!("Error in fetch_peer_response_by_type! : {}", &err);
+                    Err(err)
+                }
+            }
+        },
+        Err(err) => {
+            println!("Error in fetch_peer_response_by_type! : {}", &err);
+            Err(err)
+        }
+    }
+}
 
 
 #[cfg(test)]
@@ -346,6 +415,31 @@ mod store_crud_tests {
             match fetch_all_accounts("test.sqlite",) {
                 Ok(list) => {
                     assert_eq!(list.len(), 3);
+                },
+                Err(err) => {
+                    println!("Account Couldn't be Fetched!");
+                    assert_eq!(1, 2);
+                }
+            }
+            fs::remove_file("test.sqlite").unwrap();
+        }
+    }
+
+    pub mod response {
+        use crate::sqlite::crud::{create_peer_response, fetch_peer_response_by_type};
+        use serial_test::serial;
+        use std::fs;
+
+        #[test]
+        #[serial]
+        fn create_account_and_insert_and_fetch() {
+            create_peer_response("test.sqlite", "127.0.0.1", "0xFFFFFFFFFFFFFFFF", 31, "0xdeadbeef").unwrap();
+            create_peer_response("test.sqlite", "127.0.0.1", "0xFFFFFFFFFFFFFFFF", 31, "0xdeadbeef").unwrap();
+            create_peer_response("test.sqlite", "127.0.0.1", "0xFFFFFFFFFFFFFFFF", 31, "0xdeadbeef").unwrap();
+            match fetch_peer_response_by_type("test.sqlite", 31) {
+                Ok(response_vec) => {
+                    assert_eq!(response_vec.len(), 3);
+                    assert_eq!(response_vec[0][0].as_str(), "127.0.0.1");
                 },
                 Err(err) => {
                     println!("Account Couldn't be Fetched!");
