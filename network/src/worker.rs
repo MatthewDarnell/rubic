@@ -12,6 +12,7 @@ pub fn handle_new_peer(id: String, mut peer: Peer, rx: spmc::Receiver<qubic_api_
         return;
     }
             let mut stream = peer.get_stream().unwrap();
+    let mut result: [u8; 1024] = [0; 1024];
     loop {
         match rx.recv() {
             Ok(mut request) => {
@@ -22,9 +23,9 @@ pub fn handle_new_peer(id: String, mut peer: Peer, rx: spmc::Receiver<qubic_api_
                     //println!("Received Work For Peer {} ! (I am {})", request_id.as_str(), id.as_str());
                     match stream.write(request.as_bytes().as_slice()) {
                         Ok(_) => {
+                            result = [0; 1024];
                             let response = ["Peer ", id.as_str(), " Responded At Time ", Utc::now().to_string().as_str()].join("");
                             //println!( "Worker Thread Responding With {}", response.as_str());
-                            let mut result: [u8; 256] = [0; 256];
                             match stream.read(&mut result) {
                                 Ok(bytes_read) => {
                                     let api_response: Option<qubic_api_t> = qubic_api_t::format_response_from_bytes(peer.get_id(), result.to_vec());
@@ -32,7 +33,6 @@ pub fn handle_new_peer(id: String, mut peer: Peer, rx: spmc::Receiver<qubic_api_
                                     //println!("Worker Thread Read Back {} Bytes!", bytes_read);
                                     //println!("Read {:?}", result);
                                     if let Some(mut formatted_api_response) = api_response {
-                                        response::get_formatted_response(& mut formatted_api_response);
                                         tx.send(formatted_api_response);
                                     }
                                 },

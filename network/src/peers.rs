@@ -7,6 +7,7 @@ use api::qubic_api_t;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use rand::seq::SliceRandom;
 use crate::worker;
+use crate::receive_response_worker;
 use uuid::Uuid;
 use crate::peer::Peer;
 
@@ -23,7 +24,7 @@ pub struct PeerSet {
   strategy: PeerStrategy,
   peers: Vec<Peer>,
   req_channel: (spmc::Sender<qubic_api_t>, spmc::Receiver<qubic_api_t>),
-  resp_channel: (std::sync::mpsc::Sender<qubic_api_t>, std::sync::mpsc::Receiver<qubic_api_t>),
+  resp_channel: std::sync::mpsc::Sender<qubic_api_t>,
   threads: HashMap<String, std::thread::JoinHandle<()>>
 }
 
@@ -32,13 +33,20 @@ pub struct PeerSet {
 
 impl PeerSet {
     pub fn new(strategy: PeerStrategy) -> Self {
-        PeerSet {
+        let channel = std::sync::mpsc::channel::<qubic_api_t>();
+        let peer_set = PeerSet {
             strategy: strategy,
             peers: vec![],
             threads: HashMap::new(),
             req_channel: spmc::channel::<qubic_api_t>(),
-            resp_channel: std::sync::mpsc::channel::<qubic_api_t>()
+            resp_channel: channel.0
+        };
+        {
+            let rx = channel.1;
+            std::thread::spawn(move || receive_response_worker::listen_for_api_responses(rx));
+
         }
+        peer_set
     }
     pub fn num_peers(&self) -> usize {
         self.peers.len()
@@ -54,7 +62,7 @@ impl PeerSet {
                     let mut peer = new_peer.clone();
                     peer.set_stream(stream);
                     let rx = self.req_channel.1.clone();
-                    let tx = self.resp_channel.0.clone();
+                    let tx = self.resp_channel.clone();
                     let id = id;
                     let copied_id = id.to_owned();
                     let t = std::thread::spawn(move || worker::handle_new_peer(id.to_owned(), peer, rx, tx));
