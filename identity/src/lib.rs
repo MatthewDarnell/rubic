@@ -14,7 +14,7 @@ extern {
     //bool verify(const unsigned char* publicKey, const unsigned char* messageDigest, const unsigned char* signature)
 }
 
-fn identity(seed: &str, index: u32) -> Vec<u8> {
+fn identity(seed: &str) -> Vec<u8> {
     let mut own_subseed: [u8; 32] = [0; 32];
     let mut private_key: [u8; 32] = [0; 32];
     let mut public_key: [u8; 32] = [0; 32];
@@ -54,7 +54,6 @@ pub struct Identity {
     pub hash: String,
     pub salt: String,
     pub identity: String,
-    pub index: u32,
     pub encrypted: bool
 }
 
@@ -74,20 +73,19 @@ impl Identity {
             Ok(Vec::from(public_key))
         }
     }
-    pub fn from_vars(account: &str, seed: &str, hash: &str, salt: &str, identity: &str, index: u32, is_encrypted: bool) -> Self {
+    pub fn from_vars(account: &str, seed: &str, hash: &str, salt: &str, identity: &str, is_encrypted: bool) -> Self {
         Identity {
             account: String::from(account),
             seed: String::from(seed),
             hash: String::from(hash),
             salt: String::from(salt),
             identity: String::from(identity),
-            index: index,
             encrypted: is_encrypted
         }
     }
     pub fn contains_seed(&self) -> bool { self.seed.len() == 55}
-    pub fn new(seed: &str, account: &str, index: u32) -> Self {
-        let id = identity(seed, index);
+    pub fn new(seed: &str, account: &str) -> Self {
+        let id = identity(seed);
         match identity_to_address(&id) {
             Ok(address) => {
                 Identity {
@@ -96,7 +94,6 @@ impl Identity {
                     hash: String::from(""),
                     salt: String::from(""),
                     identity: address,
-                    index: index,
                     encrypted: false
                 }
             },
@@ -108,7 +105,6 @@ impl Identity {
                     hash: String::from(""),
                     salt: String::from(""),
                     identity: String::from(""),
-                    index: 0,
                     encrypted: false
                 }
             }
@@ -128,7 +124,6 @@ impl Identity {
                             hash: hashed_password,
                             salt: nonce,
                             identity: self.identity.to_owned(),
-                            index: self.index,
                             encrypted: true
                         })
                     },
@@ -155,7 +150,6 @@ impl Identity {
                             hash: self.hash.to_owned(),
                             salt: self.salt.to_owned(),
                             identity: self.identity.to_owned(),
-                            index: self.index,
                             encrypted: false
                         })
                     },
@@ -180,7 +174,7 @@ mod create_identity {
 
         #[test]
         fn create_new_identity() {
-            let id: Identity = Identity::new("lcehvbvddggkjfnokduyjuiyvkklrvrmsaozwbvjlzvgvfipqpnkkuf", "testAccount", 0);
+            let id: Identity = Identity::new("lcehvbvddggkjfnokduyjuiyvkklrvrmsaozwbvjlzvgvfipqpnkkuf", "testAccount");
             println!("{:?}", &id);
             assert_eq!(id.identity.as_str(), "EPYWDREDNLHXOFYVGQUKPHJGOMPBSLDDGZDPKVQUMFXAIQYMZGEHPZTAAWON");
         }
@@ -193,7 +187,6 @@ mod create_identity {
                 "",
                 "",
                 "EPYWDREDNLHXOFYVGQUKPHJGOMPBSLDDGZDPKVQUMFXAIQYMZGEHPZTAAWON",
-                0,
                 false
             );
             assert_eq!(id.identity.as_str(), "EPYWDREDNLHXOFYVGQUKPHJGOMPBSLDDGZDPKVQUMFXAIQYMZGEHPZTAAWON");
@@ -204,7 +197,7 @@ mod create_identity {
         use crate::Identity;
         #[test]
         fn encrypt_an_identity() {
-            let mut id: Identity = Identity::new("lcehvbvddggkjfnokduyjuiyvkklrvrmsaozwbvjlzvgvfipqpnkkuf", "testAccount", 0);
+            let mut id: Identity = Identity::new("lcehvbvddggkjfnokduyjuiyvkklrvrmsaozwbvjlzvgvfipqpnkkuf", "testAccount");
             assert_eq!(id.encrypted, false);
             assert_eq!(id.seed.as_str(), "lcehvbvddggkjfnokduyjuiyvkklrvrmsaozwbvjlzvgvfipqpnkkuf");
             id =  id.encrypt_identity("password").unwrap();
@@ -215,7 +208,7 @@ mod create_identity {
 
         #[test]
         fn decrypt_an_identity() {
-            let mut id: Identity = Identity::new("lcehvbvddggkjfnokduyjuiyvkklrvrmsaozwbvjlzvgvfipqpnkkuf", "testAccount", 0);
+            let mut id: Identity = Identity::new("lcehvbvddggkjfnokduyjuiyvkklrvrmsaozwbvjlzvgvfipqpnkkuf", "testAccount");
             id =  id.encrypt_identity("password").unwrap();
             assert_eq!(id.encrypted, true);
             id = id.decrypt_identity("password").unwrap();

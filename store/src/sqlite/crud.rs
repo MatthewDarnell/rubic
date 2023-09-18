@@ -1,10 +1,8 @@
-use std::collections::LinkedList;
-use api::qubic_api_t;
+use std::collections::{HashMap, LinkedList};
 use identity::Identity;
 use base64::{engine::general_purpose, Engine as _};
 use crate::sqlite::create::open_database;
 use sqlite::State;
-use api::response::response_entity::ResponseEntity;
 
 fn prepare_crud_statement<'a>(path: &'a str, connection: &'a sqlite::Connection, prep_query: &'a str) -> Result<sqlite::Statement<'a>, String> {
         match connection.prepare(prep_query) {
@@ -20,7 +18,7 @@ pub fn create_account(path: &str, identity: &Identity) -> Result<(), String> {
             match prepare_crud_statement(path, &connection, prep_query) {
                 Ok(mut statement) => {
                     match identity {
-                        Identity { account, hash, salt, identity, index, seed, encrypted } => {
+                        Identity { account, hash, salt, identity, seed, encrypted } => {
                             match statement.bind::<&[(&str, &str)]>(&[
                                 (":name", account.as_str()),
                                 (":seed", seed.as_str()),
@@ -101,8 +99,7 @@ pub fn fetch_account(path: &str, name: &str) -> Result<Identity, String> {
                                         statement.read::<String, _>("hash").unwrap().as_str(),
                                         statement.read::<String, _>("salt").unwrap().as_str(),
                                         "",
-                                        0,
-                                        statement.read::<String, _>("is_encrypted").unwrap().as_str() == "true",
+                                        statement.read::<String, _>("is_encrypted").unwrap().as_str() == "true"
                                     );
                                     Ok(id)
                                 },
@@ -137,17 +134,16 @@ pub fn insert_new_identity(path: &str, identity: &Identity) -> Result<(), String
     {   //First time creating an identity for this account
         create_account(path, identity).ok();
     }
-    let prep_query = "INSERT INTO identities (account, identity_index, identity) VALUES (:account, :index, :identity)";
+    let prep_query = "INSERT INTO identities (account, identity) VALUES (:account, :identity)";
     match open_database(path, true) {
         Ok(connection) => {
             match prepare_crud_statement(path, &connection, prep_query) {
                 Ok(mut statement) => {
                     match identity {
-                        Identity { account, hash, salt, identity, index, seed, encrypted } => {
+                        Identity { account, hash, salt, identity, seed, encrypted } => {
                             match statement.bind::<&[(&str, &str)]>(&[
                                 (":account", account.as_str()),
-                                (":index", index.to_string().as_str()),
-                                (":identity", identity.as_str()),
+                                (":identity", identity.as_str())
                             ][..]) {
                                 Ok(val) => {
                                     match statement.next() {
@@ -222,15 +218,13 @@ pub fn fetch_identity(path: &str, identity: &str) -> Result<Identity, String> {
                         Ok(_) => {
                             match statement.next() {
                                 Ok(State::Row) => {
-                                    let index: u32 = statement.read::<String, _>("identity_index").unwrap().parse().unwrap();
                                     let id: Identity = Identity::from_vars(
                                         statement.read::<String, _>("name").unwrap().as_str(),
                                         statement.read::<String, _>("seed").unwrap().as_str(),
                                         statement.read::<String, _>("hash").unwrap().as_str(),
                                         statement.read::<String, _>("salt").unwrap().as_str(),
                                         statement.read::<String, _>("identity").unwrap().as_str(),
-                                        index,
-                                        statement.read::<String, _>("is_encrypted").unwrap().as_str() == "true",
+                                        statement.read::<String, _>("is_encrypted").unwrap().as_str() == "true"
                                     );
                                     Ok(id)
                                 },
@@ -334,7 +328,7 @@ pub fn create_peer_response(path: &str, peer: &str, data: &Vec<u8>) -> Result<()
         }
     }
 }
-pub fn fetch_peer_response_by_type(path: &str, response_type: u8) -> Result<Vec<qubic_api_t>, String> {
+pub fn fetch_peer_response_by_type(path: &str, response_type: u8) -> Result<Vec<Vec<u8>>, String> {
     let prep_query = "SELECT * FROM response WHERE type = :response_type ORDER BY created DESC;";
     match open_database(path, true) {
         Ok(connection) => {
@@ -344,16 +338,13 @@ pub fn fetch_peer_response_by_type(path: &str, response_type: u8) -> Result<Vec<
                         (":response_type", response_type.to_string().as_str()),
                     ][..]) {
                         Ok(_) => {
-                            let mut response: Vec<qubic_api_t> = vec![];
+                            let mut response: Vec<Vec<u8>> = vec![];
                             while let Ok(State::Row) = statement.next() {
                                 let peer_ip = statement.read::<String, _>("peer").unwrap();
                                 let mut header_bytes: Vec<u8> = general_purpose::STANDARD.decode(statement.read::<String, _>("header").unwrap()).unwrap();
                                 let mut data_bytes: Vec<u8> = general_purpose::STANDARD.decode(statement.read::<String, _>("data").unwrap()).unwrap();
                                 header_bytes.append(&mut data_bytes);
-                                match qubic_api_t::format_response_from_bytes(&peer_ip, header_bytes) {
-                                    Some(t) => response.push(t),
-                                    None => {}
-                                }
+                                response.push(header_bytes);
                                 }
                             Ok(response)
                         },
@@ -385,7 +376,7 @@ pub fn fetch_peer_response_by_type(path: &str, response_type: u8) -> Result<Vec<
 //         created DATETIME DEFAULT CURRENT_TIMESTAMP,
 //         FOREIGN KEY(identity) REFERENCES identities(identity)
 
-pub fn create_response_entity(path: &str, response_entity: &ResponseEntity) -> Result<(), String> {
+pub fn create_response_entity(path: &str, peer: &str, identity: &str, incoming: u64, outgoing: u64, balance: u64, num_in_txs: u32, num_out_txs: u32, latest_in_tick: u32, latest_out_tick: u32, tick: u32, spectrum_index: i32) -> Result<(), String> {
     let prep_query = "INSERT INTO response_entity (peer, identity, incoming, outgoing, balance, num_in_txs, num_out_txs, latest_in_tick, latest_out_tick, tick, spectrum_index) VALUES (
     :peer, :identity, :incoming, :outgoing, :balance, :num_in_txs, :num_out_txs, :latest_in_tick, :latest_out_tick, :tick, :spectrum_index
     );";
@@ -393,18 +384,16 @@ pub fn create_response_entity(path: &str, response_entity: &ResponseEntity) -> R
         Ok(connection) => {
             match prepare_crud_statement(path, &connection, prep_query) {
                 Ok(mut statement) => {
-                    match response_entity {
-                        ResponseEntity { peer, identity, incoming, outgoing, final_balance, number_outgoing_transactions, number_incoming_transactions, latest_outgoing_transfer_tick, latest_incoming_transfer_tick, tick, spectrum_index } => {
                             match statement.bind::<&[(&str, &str)]>(&[
-                                (":peer", peer.as_str()),
-                                (":identity", identity.as_str()),
+                                (":peer", peer),
+                                (":identity", identity),
                                 (":incoming", incoming.to_string().as_str()),
                                 (":outgoing", outgoing.to_string().as_str()),
-                                (":balance", final_balance.to_string().as_str()),
-                                (":num_in_txs", number_incoming_transactions.to_string().as_str()),
-                                (":num_out_txs", number_outgoing_transactions.to_string().as_str()),
-                                (":latest_in_tick", latest_incoming_transfer_tick.to_string().as_str()),
-                                (":latest_out_tick", latest_outgoing_transfer_tick.to_string().as_str()),
+                                (":balance", balance.to_string().as_str()),
+                                (":num_in_txs", num_in_txs.to_string().as_str()),
+                                (":num_out_txs", num_out_txs.to_string().as_str()),
+                                (":latest_in_tick", latest_in_tick.to_string().as_str()),
+                                (":latest_out_tick", latest_out_tick.to_string().as_str()),
                                 (":tick", tick.to_string().as_str()),
                                 (":spectrum_index", spectrum_index.to_string().as_str()),
                             ][..]) {
@@ -417,8 +406,7 @@ pub fn create_response_entity(path: &str, response_entity: &ResponseEntity) -> R
                                 },
                                 Err(err) => { return Err(err.to_string()); }
                             }
-                        },
-                    }
+
                 },
                 Err(err) => { return Err(err.to_string()); }
             }
@@ -430,7 +418,7 @@ pub fn create_response_entity(path: &str, response_entity: &ResponseEntity) -> R
 
 
 
-pub fn fetch_response_entity_by_identity(path: &str, identity: &str) -> Result<Vec<ResponseEntity>, String> {
+pub fn fetch_response_entity_by_identity(path: &str, identity: &str) -> Result<Vec<HashMap<String, String>>, String> {
     let prep_query = "SELECT * FROM response_entity WHERE identity = :identity ORDER BY created DESC;";
     match open_database(path, true) {
         Ok(connection) => {
@@ -440,31 +428,20 @@ pub fn fetch_response_entity_by_identity(path: &str, identity: &str) -> Result<V
                         (":identity", identity.to_string().as_str()),
                     ][..]) {
                         Ok(_) => {
-                            let mut response: Vec<ResponseEntity> = vec![];
+                            let mut response: Vec<HashMap<String, String>> = vec![];
                             while let Ok(State::Row) = statement.next() {
-                                let peer_ip = statement.read::<String, _>("peer").unwrap();
-                                let identity = statement.read::<String, _>("identity").unwrap();
-                                let incoming = statement.read::<String, _>("incoming").unwrap();
-                                let outgoing = statement.read::<String, _>("outgoing").unwrap();
-                                let num_in_txs = statement.read::<String, _>("num_in_txs").unwrap();
-                                let num_out_txs = statement.read::<String, _>("num_out_txs").unwrap();
-                                let latest_in_tick = statement.read::<String, _>("latest_in_tick").unwrap();
-                                let latest_out_tick = statement.read::<String, _>("latest_out_tick").unwrap();
-                                let tick = statement.read::<String, _>("tick").unwrap();
-                                let spectrum_index = statement.read::<String, _>("spectrum_index").unwrap();
-
-                                                                response.push(ResponseEntity::new(
-                                    identity.as_str(),
-                                    peer_ip.as_str(),
-                                                                    incoming.parse().unwrap(),
-                                                                    outgoing.parse().unwrap(),
-                                    num_in_txs.parse().unwrap(),
-                                    num_out_txs.parse().unwrap(),
-                                    latest_in_tick.parse().unwrap(),
-                                    latest_out_tick.parse().unwrap(),
-                                    tick.parse().unwrap(),
-                                    spectrum_index.parse().unwrap()
-                                                                ));
+                                let mut response_entity: HashMap<String, String> = HashMap::new();
+                                response_entity.insert("peer_ip".to_string(), statement.read::<String, _>("peer").unwrap());
+                                response_entity.insert("identity".to_string(), statement.read::<String, _>("identity").unwrap());
+                                response_entity.insert("incoming".to_string(), statement.read::<String, _>("incoming").unwrap());
+                                response_entity.insert("outgoing".to_string(), statement.read::<String, _>("outgoing").unwrap());
+                                response_entity.insert("num_in_txs".to_string(), statement.read::<String, _>("num_in_txs").unwrap());
+                                response_entity.insert("num_out_txs".to_string(), statement.read::<String, _>("num_out_txs").unwrap());
+                                response_entity.insert("latest_in_tick".to_string(), statement.read::<String, _>("latest_in_tick").unwrap());
+                                response_entity.insert("latest_out_tick".to_string(), statement.read::<String, _>("latest_out_tick").unwrap());
+                                response_entity.insert("tick".to_string(), statement.read::<String, _>("tick").unwrap());
+                                response_entity.insert("spectrum_index".to_string(), statement.read::<String, _>("spectrum_index").unwrap());
+                                                                response.push(response_entity);
                             }
                             Ok(response)
                         },
@@ -499,7 +476,7 @@ mod store_crud_tests {
         #[serial]
         fn create_account_and_insert() {
 
-            let id: Identity = Identity::new("lcehvbvddggkjfnokduyjuiyvkklrvrmsaozwbvjlzvgvfipqpnkkuf", "testAccount", 0);
+            let id: Identity = Identity::new("lcehvbvddggkjfnokduyjuiyvkklrvrmsaozwbvjlzvgvfipqpnkkuf", "testAccount");
             create_account("test.sqlite", &id).unwrap();
             fs::remove_file("test.sqlite").unwrap();
         }
@@ -507,7 +484,7 @@ mod store_crud_tests {
         #[test]
         #[serial]
         fn create_account_and_insert_and_fetch() {
-            let id: Identity = Identity::new("lcehvbvddggkjfnokduyjuiyvkklrvrmsaozwbvjlzvgvfipqpnkkuf", "testAccount", 0);
+            let id: Identity = Identity::new("lcehvbvddggkjfnokduyjuiyvkklrvrmsaozwbvjlzvgvfipqpnkkuf", "testAccount");
             create_account("test.sqlite", &id).unwrap();
             match fetch_account("test.sqlite", "testAccount") {
                 Ok(id) => {
@@ -524,9 +501,9 @@ mod store_crud_tests {
         #[test]
         #[serial]
         fn create_multiple_accounts_and_insert_and_fetch() {
-            let id: Identity = Identity::new("lcehvbvddggkjfnokduyjuiyvkklrvrmsaozwbvjlzvgvfipqpnkkuf", "testAccount", 0);
-            let id2: Identity = Identity::new("lcehvbvddggkjfnokduyjuiyvkklrvrmsaozwbvjlzvgvfipqpnkkuf", "testAccount2", 0);
-            let id3: Identity = Identity::new("lcehvbvddggkjfnokduyjuiyvkklrvrmsaozwbvjlzvgvfipqpnkkuf", "testAccount3", 0);
+            let id: Identity = Identity::new("lcehvbvddggkjfnokduyjuiyvkklrvrmsaozwbvjlzvgvfipqpnkkuf", "testAccount");
+            let id2: Identity = Identity::new("lcehvbvddggkjfnokduyjuiyvkklrvrmsaozwbvjlzvgvfipqpnkkuf", "testAccount2");
+            let id3: Identity = Identity::new("lcehvbvddggkjfnokduyjuiyvkklrvrmsaozwbvjlzvgvfipqpnkkuf", "testAccount3");
             create_account("test.sqlite", &id).unwrap();
             create_account("test.sqlite", &id2).unwrap();
             create_account("test.sqlite", &id3).unwrap();
@@ -547,18 +524,16 @@ mod store_crud_tests {
         use crate::sqlite::crud::{create_response_entity, fetch_response_entity_by_identity};
         use serial_test::serial;
         use std::fs;
-        use api::response::response_entity::ResponseEntity;
 
         #[test]
         #[serial]
         fn create_response_entity_and_insert_and_fetch() {
-                let response: ResponseEntity = ResponseEntity::new("EPYWDREDNLHXOFYVGQUKPHJGOMPBSLDDGZDPKVQUMFXAIQYMZGEHPZTAAWON", "127.0.0.1", 1000, 0, 1, 0, 100, 100, 1000, 1);
-            create_response_entity("test.sqlite", &response).unwrap();
-            create_response_entity("test.sqlite", &response).unwrap();
+            create_response_entity("test.sqlite", "127.0.0.1", "EPYWDREDNLHXOFYVGQUKPHJGOMPBSLDDGZDPKVQUMFXAIQYMZGEHPZTAAWON", 1000, 0, 1, 0, 100, 100, 1000, 100000, 1).unwrap();
+            create_response_entity("test.sqlite", "127.0.0.1", "EPYWDREDNLHXOFYVGQUKPHJGOMPBSLDDGZDPKVQUMFXAIQYMZGEHPZTAAWON", 1000, 0, 1, 0, 100, 100, 1000, 100000, 1).unwrap();
                 match fetch_response_entity_by_identity("test.sqlite", "EPYWDREDNLHXOFYVGQUKPHJGOMPBSLDDGZDPKVQUMFXAIQYMZGEHPZTAAWON") {
                     Ok(response_vec) => {
                     assert_eq!(response_vec.len(), 2);
-                        assert_eq!(response_vec[0].identity.as_str(), "EPYWDREDNLHXOFYVGQUKPHJGOMPBSLDDGZDPKVQUMFXAIQYMZGEHPZTAAWON");
+                        assert_eq!(response_vec[0].get("identity").unwrap().as_str(), "EPYWDREDNLHXOFYVGQUKPHJGOMPBSLDDGZDPKVQUMFXAIQYMZGEHPZTAAWON");
                     },
                     Err(err) => {
                         println!("ResponeEntity Couldn't be Fetched!");
@@ -588,7 +563,7 @@ mod store_crud_tests {
             match fetch_peer_response_by_type("test.sqlite", 32) {
                 Ok(response_vec) => {
                     assert_eq!(response_vec.len(), 2);
-                    assert_eq!(response_vec[0].peer.as_ref().unwrap().as_str(), "127.0.0.1");
+                    //assert_eq!(response_vec[0].peer.as_ref().unwrap().as_str(), "127.0.0.1");
                 },
                 Err(err) => {
                     println!("Account Couldn't be Fetched!");
@@ -613,7 +588,7 @@ mod store_crud_tests {
         #[serial]
         fn create_identity_and_insert() {
             {
-                let id: Identity = Identity::new("lcehvbvddggkjfnokduyjuiyvkklrvrmsaozwbvjlzvgvfipqpnkkuf", "testAccount", 0);
+                let id: Identity = Identity::new("lcehvbvddggkjfnokduyjuiyvkklrvrmsaozwbvjlzvgvfipqpnkkuf", "testAccount");
                 println!("{:?}", &id);
                 match insert_new_identity("test.sqlite", &id) {
                     Ok(_) => {
@@ -632,7 +607,7 @@ mod store_crud_tests {
         #[serial]
         fn create_identity_and_delete() {
             {
-                let id: Identity = Identity::new("lcehvbvddggkjfnokduyjuiyvkklrvrmsaozwbvjlzvgvfipqpnkkuf", "testAccount", 0);
+                let id: Identity = Identity::new("lcehvbvddggkjfnokduyjuiyvkklrvrmsaozwbvjlzvgvfipqpnkkuf", "testAccount");
                 println!("{:?}", &id);
                 match insert_new_identity("test.sqlite", &id) {
                     Ok(_) => {
@@ -667,7 +642,7 @@ mod store_crud_tests {
         #[serial]
         fn create_identity_and_insert_and_fetch() {
             {
-                let id: Identity = Identity::new("lcehvbvddggkjfnokduyjuiyvkklrvrmsaozwbvjlzvgvfipqpnkkuf", "testAccount", 0);
+                let id: Identity = Identity::new("lcehvbvddggkjfnokduyjuiyvkklrvrmsaozwbvjlzvgvfipqpnkkuf", "testAccount");
                 println!("{:?}", &id);
                 match insert_new_identity("test.sqlite", &id) {
                     Ok(_) => {
@@ -696,9 +671,9 @@ mod store_crud_tests {
         #[serial]
         fn create_identities_and_insert_and_fetch_all_by_account() {
             {
-                let id: Identity = Identity::new("lcehvbvddggkjfnokduyjuiyvkklrvrmsaozwbvjlzvgvfipqpnkkuf", "testAccount", 0);
-                let id2: Identity = Identity::new("twohvbvddggkjfnokduyjuiyvkklrvrmsaozwbvjlzvgvfipqpnkkuf", "testAccount", 1);
-                let id3: Identity = Identity::new("threebvddggkjfnokduyjuiyvkklrvrmsaozwbvjlzvgvfipqpnkkuf", "testAccount", 2);
+                let id: Identity = Identity::new("lcehvbvddggkjfnokduyjuiyvkklrvrmsaozwbvjlzvgvfipqpnkkuf", "testAccount");
+                let id2: Identity = Identity::new("twohvbvddggkjfnokduyjuiyvkklrvrmsaozwbvjlzvgvfipqpnkkuf", "testAccount");
+                let id3: Identity = Identity::new("threebvddggkjfnokduyjuiyvkklrvrmsaozwbvjlzvgvfipqpnkkuf", "testAccount");
                 println!("{:?}", &id);
                 insert_new_identity("test.sqlite", &id).unwrap();
                 insert_new_identity("test.sqlite", &id2).unwrap();
@@ -728,7 +703,7 @@ mod store_crud_tests {
         #[serial]
         fn create_identity_encrypt_and_insert_and_fetch() {
             {
-                let mut id: Identity = Identity::new("lcehvbvddggkjfnokduyjuiyvkklrvrmsaozwbvjlzvgvfipqpnkkuf", "testAccount", 0);
+                let mut id: Identity = Identity::new("lcehvbvddggkjfnokduyjuiyvkklrvrmsaozwbvjlzvgvfipqpnkkuf", "testAccount",);
                 id =  id.encrypt_identity("password").unwrap();
                 match insert_new_identity("test.sqlite", &id) {
                     Ok(_) => {

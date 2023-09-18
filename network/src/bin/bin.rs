@@ -9,7 +9,8 @@ use api::qubic_api_t;
 use network::peers::{PeerStrategy, PeerSet};
 
 fn main() {
-    let peer_ips = vec!["85.10.199.154:21841", "148.251.184.163:21841"];
+    //let peer_ips = vec!["85.10.199.154:21841", "148.251.184.163:21841"];
+    let peer_ips = vec!["85.10.199.154:21841"];
     println!("Creating Peer Set");
     let mut peer_set = PeerSet::new(PeerStrategy::RANDOM);
     for ip in peer_ips {

@@ -8,3 +8,4 @@ edition = "2021"
 [dependencies]
 crypto = { path = '../crypto', features=["encryption", "random"] }
 identity = { path = '../identity' }
+store = { path = '../store'}

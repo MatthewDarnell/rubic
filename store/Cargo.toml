@@ -9,5 +9,4 @@ edition = "2021"
 base64 = "0.21.3"
 serial_test = "2.0.0"
 sqlite = "0.31.0"
-api = { path = '../api'}
 identity = { path = '../identity' }

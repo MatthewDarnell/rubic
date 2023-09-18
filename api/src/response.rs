@@ -2,7 +2,7 @@ use crate::{qubic_api_t, request_response_header};
 use crate::header::entity_type;
 use crate::response::exchange_peers::ExchangePeersEntity;
 use crate::response::response_entity::ResponseEntity;
-
+use store::sqlite::crud::{create_response_entity};
 pub mod exchange_peers;
 pub mod response_entity;
 
@@ -19,7 +19,20 @@ pub fn get_formatted_response(response: &mut qubic_api_t) {
         },
         entity_type::RESPONSE_ENTITY => {
             let resp: ResponseEntity = ResponseEntity::format_qubic_response_data_to_structure(response);
-            resp.print();
+            create_response_entity("test.sqlite",
+                                   resp.peer.as_str(),
+                                   resp.identity.as_str(),
+                                   resp.incoming,
+                                   resp.outgoing,
+                                   resp.final_balance,
+                         resp.number_incoming_transactions,
+                        resp.number_outgoing_transactions,
+                                   resp.latest_incoming_transfer_tick,
+                       resp.latest_outgoing_transfer_tick,
+                                   resp.tick,
+                                   resp.spectrum_index
+            );
+            println!("Inserted Response Entity!");
         },
         _ => {/*  println!("Unknown Entity Type"); */ }
     }
