@@ -11,6 +11,8 @@ pub trait FormatQubicResponseDataToStructure {
 }
 
 pub fn get_formatted_response(response: &mut qubic_api_t) {
+    let path = store::get_db_path();
+    println!("API MODULE GOT PATH {}", path.as_str());
     match response.api_type {
         entity_type::EXCHANGE_PEERS => {
             let resp: ExchangePeersEntity = ExchangePeersEntity::format_qubic_response_data_to_structure(response);
@@ -19,7 +21,7 @@ pub fn get_formatted_response(response: &mut qubic_api_t) {
         },
         entity_type::RESPONSE_ENTITY => {
             let resp: ResponseEntity = ResponseEntity::format_qubic_response_data_to_structure(response);
-            create_response_entity("test.sqlite",
+            create_response_entity(path.as_str(),
                                    resp.peer.as_str(),
                                    resp.identity.as_str(),
                                    resp.incoming,
