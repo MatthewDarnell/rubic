@@ -1,3 +1,4 @@
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use std::collections::{HashMap, LinkedList};
 use identity::Identity;
 use base64::{engine::general_purpose, Engine as _};
@@ -10,6 +11,68 @@ fn prepare_crud_statement<'a>(path: &'a str, connection: &'a sqlite::Connection,
             Err(err) => Err(err.to_string())
         }
 }
+
+//    stream: Option<TcpStream>,
+//     ping_time: u32,
+//     ip_addr: String,
+//     nick: String,
+//     whitelisted: bool,
+//     last_responded: SystemTime,
+//     id: String,
+//     thread_handle: Option<thread::JoinHandle<()>>
+
+//      id TEXT UNIQUE NOT NULL PRIMARY KEY,
+//       ip TEXT UNIQUE NOT NULL,
+//       nick TEXT,
+//       whitelisted INTEGER,
+//       ping UNSIGNED INTEGER,
+//       last_responded UNSIGNED INTEGER,
+pub fn create_peer(path: &str, id: &str, ip: &str, nick: &str, ping_time: u32, whitelisted: bool, last_responded: SystemTime) -> Result<(), String> {
+    let prep_query = "INSERT INTO peer (id, ip, nick, whitelisted, ping, last_responded) VALUES (:id, :ip, :nick, :whitelisted, :ping_time, :last_responded);";
+    match open_database(path, true) {
+        Ok(connection) => {
+            match prepare_crud_statement(path, &connection, prep_query) {
+                Ok(mut statement) => {
+                    let whitelisted_string: String = match whitelisted {
+                        true => "1".to_string(),
+                        false  => "0".to_string()
+                    };
+                    let last_responded_unix_time: String = last_responded
+                        .duration_since(UNIX_EPOCH)
+                        .expect("Failed To Get Unix Time For Last Responded!")
+                        .as_secs()
+                        .to_string();
+                    match statement.bind::<&[(&str, &str)]>(&[
+                        (":id", id),
+                        (":ip", ip),
+                        (":nick", nick),
+                        (":whitelisted", whitelisted_string.as_str()),
+                        (":ping_time", ping_time.to_string().as_str()),
+                        (":last_responded", last_responded_unix_time.as_str()),
+                    ][..]) {
+                        Ok(_) => {
+                            match statement.next() {
+                                Ok(State::Done) => Ok(()),
+                                Err(error) => Err(error.to_string()),
+                                _ => Err("Weird!".to_string())
+                            }
+                        },
+                        Err(err) => Err(err.to_string())
+                    }
+                },
+                Err(err) => {
+                    println!("Error in create_account! : {}", &err);
+                    Err(err)
+                }
+            }
+        },
+        Err(err) => {
+            println!("Error in create_account! : {}", &err);
+            Err(err)
+        }
+    }
+}
+
 
 pub fn create_account(path: &str, identity: &Identity) -> Result<(), String> {
     let prep_query = "INSERT INTO account (name, seed, salt, hash, is_encrypted) VALUES (:name, :seed, :salt, :hash, :is_encrypted);";
@@ -50,7 +113,6 @@ pub fn create_account(path: &str, identity: &Identity) -> Result<(), String> {
         }
     }
 }
-
 pub fn fetch_all_accounts(path: &str) -> Result<LinkedList<String>, String> {
     let prep_query = "SELECT name FROM account;";
     match open_database(path, true) {
@@ -80,7 +142,6 @@ pub fn fetch_all_accounts(path: &str) -> Result<LinkedList<String>, String> {
         }
     }
 }
-
 pub fn fetch_account(path: &str, name: &str) -> Result<Identity, String> {
     let prep_query = "SELECT * FROM account WHERE name = :name LIMIT 1;";
     match open_database(path, true) {
@@ -169,8 +230,6 @@ pub fn insert_new_identity(path: &str, identity: &Identity) -> Result<(), String
         }
     }
 }
-
-
 pub fn fetch_all_identities_by_account(path: &str, account: &str) -> Result<LinkedList<String>, String> {
     let prep_query = "SELECT identity FROM identities WHERE account=:account;";
     match open_database(path, true) {
@@ -252,7 +311,6 @@ pub fn fetch_identity(path: &str, identity: &str) -> Result<Identity, String> {
         }
     }
 }
-
 pub fn delete_identity(path: &str, identity: &str) -> Result<(), String> {
     let prep_query = "DELETE FROM identities WHERE identity = :identity;";
     match open_database(path, true) {
@@ -291,6 +349,8 @@ pub fn delete_identity(path: &str, identity: &str) -> Result<(), String> {
         }
     }
 }
+
+
 pub fn create_peer_response(path: &str, peer: &str, data: &Vec<u8>) -> Result<(), String> {
     let prep_query = "INSERT INTO response (peer, header, type, data) VALUES (:peer, :header, :response_type, :data);";
     match open_database(path, true) {
@@ -363,18 +423,6 @@ pub fn fetch_peer_response_by_type(path: &str, response_type: u8) -> Result<Vec<
         }
     }
 }
-//        identity TEXT NOT NULL,
-//         incoming INTEGER NOT NULL,
-//         outgoing INTEGER NOT NULL,
-//         balance INTEGER NOT NULL,
-//         num_in_txs INTEGER NOT NULL,
-//         num_out_txs INTEGER NOT NULL,
-//         latest_in_tick INTEGER NOT NULL,
-//         latest_out_tick INTEGER NOT NULL,
-//         tick INTEGER NOT NULL,
-//         spectrum_index INTEGER NOT NULL,
-//         created DATETIME DEFAULT CURRENT_TIMESTAMP,
-//         FOREIGN KEY(identity) REFERENCES identities(identity)
 
 pub fn create_response_entity(path: &str, peer: &str, identity: &str, incoming: u64, outgoing: u64, balance: u64, num_in_txs: u32, num_out_txs: u32, latest_in_tick: u32, latest_out_tick: u32, tick: u32, spectrum_index: i32) -> Result<(), String> {
     let prep_query = "INSERT INTO response_entity (peer, identity, incoming, outgoing, balance, num_in_txs, num_out_txs, latest_in_tick, latest_out_tick, tick, spectrum_index) VALUES (
@@ -414,10 +462,6 @@ pub fn create_response_entity(path: &str, peer: &str, identity: &str, incoming: 
         Err(err) => { return Err(err.to_string()); }
     }
 }
-
-
-
-
 pub fn fetch_response_entity_by_identity(path: &str, identity: &str) -> Result<Vec<HashMap<String, String>>, String> {
     let prep_query = "SELECT * FROM response_entity WHERE identity = :identity ORDER BY created DESC;";
     match open_database(path, true) {

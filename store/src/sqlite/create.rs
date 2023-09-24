@@ -1,6 +1,15 @@
 pub fn open_database(path: &str, create: bool) -> Result<sqlite::Connection, String> {
     let query = "
     PRAGMA foreign_keys = ON;
+    CREATE TABLE IF NOT EXISTS peer (
+      id TEXT UNIQUE NOT NULL PRIMARY KEY,
+      ip TEXT UNIQUE NOT NULL,
+      nick TEXT,
+      whitelisted INTEGER,
+      ping UNSIGNED INTEGER,
+      last_responded UNSIGNED INTEGER,
+      CREATED  datetime DEFAULT CURRENT_TIMESTAMP
+    );
     CREATE TABLE IF NOT EXISTS account (
         name TEXT UNIQUE NOT NULL PRIMARY KEY,
         seed TEXT,
