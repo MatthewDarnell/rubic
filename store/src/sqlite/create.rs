@@ -6,9 +6,9 @@ pub fn open_database(path: &str, create: bool) -> Result<sqlite::Connection, Str
       ip TEXT UNIQUE NOT NULL,
       nick TEXT,
       whitelisted INTEGER,
-      ping UNSIGNED INTEGER,
-      last_responded UNSIGNED INTEGER,
-      CREATED  datetime DEFAULT CURRENT_TIMESTAMP
+      ping INTEGER,
+      last_responded INTEGER,
+      created DATETIME DEFAULT CURRENT_TIMESTAMP
     );
     CREATE TABLE IF NOT EXISTS account (
         name TEXT UNIQUE NOT NULL PRIMARY KEY,
