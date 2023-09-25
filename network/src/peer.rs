@@ -46,7 +46,7 @@ impl Peer {
             ip_addr: ip.to_string(),
             nick: nick.to_string(),
             whitelisted: false,
-            last_responded: SystemTime::now(),
+            last_responded: UNIX_EPOCH,
             id: Uuid::new_v4().to_string(),
             thread_handle: None
         };
@@ -56,7 +56,7 @@ impl Peer {
             nick,
             9999,
             false,
-            SystemTime::now()
+            UNIX_EPOCH
         ) {
             Ok(_) => {
                 match fetch_peer_by_ip(get_db_path().as_str(), ip) {

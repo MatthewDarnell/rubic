@@ -1,9 +1,10 @@
 use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4, TcpStream};
 use std::io::prelude::*;
-
+use std::io::ErrorKind;
 use chrono::prelude::*;
 use crate::peer::Peer;
-use api::{qubic_api_t, response};
+use api::{qubic_api_t};
+use api::header::entity_type;
 
 pub fn handle_new_peer(id: String, mut peer: Peer, rx: spmc::Receiver<qubic_api_t>, tx: std::sync::mpsc::Sender<qubic_api_t>) {
     println!("Handling New Peer! {}", id.as_str());
@@ -11,7 +12,7 @@ pub fn handle_new_peer(id: String, mut peer: Peer, rx: spmc::Receiver<qubic_api_
        println!("Peer {} Missing TcpStream! Shutting Down Worker Thread.", peer.get_id());
         return;
     }
-            let mut stream = peer.get_stream().unwrap();
+    let mut stream = peer.get_stream().unwrap();
     let mut result: [u8; 1024] = [0; 1024];
     loop {
         match rx.recv() {
@@ -33,7 +34,10 @@ pub fn handle_new_peer(id: String, mut peer: Peer, rx: spmc::Receiver<qubic_api_
                                     //println!("Worker Thread Read Back {} Bytes!", bytes_read);
                                     //println!("Read {:?}", result);
                                     if let Some(mut formatted_api_response) = api_response {
-                                        tx.send(formatted_api_response);
+                                        match tx.send(formatted_api_response) {
+                                            Ok(_) => {},
+                                            Err(err) => println!("Failed to send Message from Worker Thread.({}) To Handler... ({})", peer.get_id().as_str(), err.to_string())
+                                        }
                                     }
                                 },
                                 Err(err) => {
@@ -41,9 +45,35 @@ pub fn handle_new_peer(id: String, mut peer: Peer, rx: spmc::Receiver<qubic_api_
                                 }
                             }
                         },
-                        Err(err) =>{
+                        Err(err) => {
+                            let error = match err.kind() {
+                                ErrorKind::ConnectionAborted => {
+                                    "Connection Aborted!".as_bytes()
+                                },
+                                ErrorKind::ConnectionRefused => {
+                                    "Connection Refused!".as_bytes()
+                                },
+                                ErrorKind::ConnectionReset => {
+                                    "Connection Reset!".as_bytes()
+                                },
+                                ErrorKind::NotConnected => {
+                                    "Not Connected!".as_bytes()
+                                },
+                                _ => {
+                                     println!("Unknown Error Kind! : {}", err.kind().to_string());
+                                    "Unknown Peer Error!".as_bytes()
+                                }
+                            }
+                                .to_vec();
                             println!("Failed To Send Data To Peer! {}", id.as_str());
                             println!("{}", err.to_string());
+                            let mut response: qubic_api_t = qubic_api_t::new(&error);
+                            response.api_type = entity_type::ERROR;
+                            response.peer = Some(peer.get_id().to_owned());
+                            match tx.send(response) {
+                                Ok(_) => {},
+                                Err(err) => println!("Failed to send Message from Worker Thread.({}) To Handler... ({})", peer.get_id().as_str(), err.to_string())
+                            }
                         }
                     }
                 }

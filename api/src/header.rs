@@ -9,6 +9,7 @@ pub struct request_response_header {
 
 #[derive(Debug, Copy, Clone)]
 pub enum entity_type {
+    ERROR = 55, //This is for internal message passing, not a real value
     UNKNOWN = -1,
     EXCHANGE_PEERS = 0,
     REQUEST_ENTITY = 31,
@@ -82,6 +83,7 @@ impl request_response_header {
             0 => entity_type::EXCHANGE_PEERS,
             31 => entity_type::REQUEST_ENTITY,
             32 => entity_type::RESPONSE_ENTITY,
+            55 => entity_type::ERROR,
             _ => entity_type::UNKNOWN
         }
     }

@@ -79,6 +79,44 @@ pub mod Peer {
             }
         }
     }
+    pub fn update_peer_last_responded(path: &str, id: &str, last_responded: SystemTime) -> Result<(), String> {
+        let prep_query = "UPDATE peer SET last_responded=:last_responded WHERE id=:id;";
+        match open_database(path, true) {
+            Ok(connection) => {
+                match prepare_crud_statement(path, &connection, prep_query) {
+                    Ok(mut statement) => {
+                        let last_responded_unix_time: String = last_responded
+                            .duration_since(UNIX_EPOCH)
+                            .expect("Failed To Get Unix Time For Last Responded!")
+                            .as_secs()
+                            .to_string();
+                        match statement.bind::<&[(&str, &str)]>(&[
+                            (":id", id),
+                            (":last_responded", last_responded_unix_time.as_str()),
+                        ][..]) {
+                            Ok(_) => {
+                                match statement.next() {
+                                    Ok(State::Done) => Ok(()),
+                                    Err(error) => Err(error.to_string()),
+                                    _ => Err("Weird!".to_string())
+                                }
+                            },
+                            Err(err) => Err(err.to_string())
+                        }
+                    },
+                    Err(err) => {
+                        println!("Error in update_peer_last_responded! : {}", &err);
+                        Err(err)
+                    }
+                }
+            },
+            Err(err) => {
+                println!("Error in update_peer_last_responded! : {}", &err);
+                Err(err)
+            }
+        }
+    }
+
     pub fn fetch_peer_by_ip(path: &str, ip: &str) -> Result<HashMap<String, String>, String> {
         let prep_query = "SELECT * FROM peer WHERE ip = :ip LIMIT 1;";
         match open_database(path, true) {
@@ -639,10 +677,11 @@ pub fn fetch_response_entity_by_identity(path: &str, identity: &str) -> Result<V
 #[cfg(test)]
 mod store_crud_tests {
     pub mod peers {
+        use std::alloc::System;
         use serial_test::serial;
         use std::fs;
-        use std::time::SystemTime;
-        use crate::sqlite::crud::Peer::{create_peer, fetch_peer_by_id, fetch_peer_by_ip, fetch_all_peers};
+        use std::time::{Duration, SystemTime, UNIX_EPOCH};
+        use crate::sqlite::crud::Peer::{create_peer, fetch_peer_by_id, fetch_peer_by_ip, fetch_all_peers, update_peer_last_responded};
         #[test]
         #[serial]
         fn create_peer_and_insert() {
@@ -652,7 +691,28 @@ mod store_crud_tests {
 
         #[test]
         #[serial]
-        fn create_account_and_insert_and_fetch_by_ip() {
+        fn create_peer_and_insert_and_update_last_responded() {
+            create_peer("test.sqlite", "id", "ip", "nickname", 3000, false, UNIX_EPOCH).expect("Test Failed To Create Peer");
+            update_peer_last_responded("test.sqlite", "id", SystemTime::now()).unwrap();
+            match fetch_peer_by_ip("test.sqlite", "ip") {
+                Ok(peer) => {
+                    assert_eq!(peer.keys().len(), 6);
+                    let time_secs: u64 = peer.get("last_responded").unwrap().parse().unwrap();
+                    let nineteen_seventy: SystemTime = SystemTime::UNIX_EPOCH;
+                    assert_eq!(nineteen_seventy.duration_since(UNIX_EPOCH).unwrap().as_secs(), 0);
+                    assert_ne!(Duration::from_secs(time_secs).as_secs(), nineteen_seventy.duration_since(UNIX_EPOCH).unwrap().as_secs());
+                },
+                Err(err) => {
+                    println!("Peer Couldn't be Fetched!");
+                    assert_eq!(1, 2);
+                }
+            }
+            fs::remove_file("test.sqlite").unwrap();
+        }
+
+        #[test]
+        #[serial]
+        fn create_peer_and_insert_and_fetch_by_ip() {
             create_peer("test.sqlite", "id", "ip", "nickname", 3000, false, SystemTime::now()).expect("Test Failed To Create Peer");
             match fetch_peer_by_ip("test.sqlite", "ip") {
                 Ok(peer) => {
@@ -669,7 +729,24 @@ mod store_crud_tests {
 
         #[test]
         #[serial]
-        fn create_account_and_insert_and_fetch() {
+        fn create_peer_and_insert_and_fetch_by_id() {
+            create_peer("test.sqlite", "id", "ip", "nickname", 3000, false, SystemTime::now()).expect("Test Failed To Create Peer");
+            match fetch_peer_by_id("test.sqlite", "id") {
+                Ok(peer) => {
+                    assert_eq!(peer.keys().len(), 6);
+                    assert_eq!(peer.get("nick").unwrap(), "nickname");
+                },
+                Err(err) => {
+                    println!("Peer Couldn't be Fetched!");
+                    assert_eq!(1, 2);
+                }
+            }
+            fs::remove_file("test.sqlite").unwrap();
+        }
+
+        #[test]
+        #[serial]
+        fn create_peer_and_insert_and_fetch() {
             create_peer("test.sqlite", "id", "ip", "nickname", 3000, false, SystemTime::now()).expect("Test Failed To Create Peer");
             match fetch_peer_by_id("test.sqlite", "id") {
                 Ok(peer) => {
@@ -685,7 +762,7 @@ mod store_crud_tests {
         }
         #[test]
         #[serial]
-        fn create_accounts_and_insert_and_fetch_all() {
+        fn create_peers_and_insert_and_fetch_all() {
             create_peer("test.sqlite", "id", "ip", "nickname", 3000, false, SystemTime::now()).expect("Test Failed To Create Peer");
             create_peer("test.sqlite", "id2", "ip2", "nickname2", 3000, false, SystemTime::now()).expect("Test Failed To Create Peer");
             create_peer("test.sqlite", "id3", "ip3", "nickname3", 3000, true, SystemTime::now()).expect("Test Failed To Create Peer");

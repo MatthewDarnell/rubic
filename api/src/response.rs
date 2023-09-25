@@ -1,8 +1,11 @@
+use std::alloc::System;
+use std::time::SystemTime;
+use chrono::prelude::*;
 use crate::{qubic_api_t, request_response_header};
 use crate::header::entity_type;
 use crate::response::exchange_peers::ExchangePeersEntity;
 use crate::response::response_entity::ResponseEntity;
-use store::sqlite::crud::{create_response_entity};
+use store::sqlite::crud::{create_response_entity, Peer::update_peer_last_responded};
 pub mod exchange_peers;
 pub mod response_entity;
 
@@ -33,9 +36,14 @@ pub fn get_formatted_response(response: &mut qubic_api_t) {
                        resp.latest_outgoing_transfer_tick,
                                    resp.tick,
                                    resp.spectrum_index
-            );
+            ).unwrap();
+            update_peer_last_responded(path.as_str(), resp.peer.as_str(), SystemTime::now()).unwrap();
             println!("Inserted Response Entity!");
         },
+        entity_type::ERROR => {
+            let error_type = String::from_utf8(response.data.clone()).unwrap();
+            println!("Response Thread Handler Got Error! Message Received: ({})", error_type.as_str());
+        }
         _ => {/*  println!("Unknown Entity Type"); */ }
     }
     /*
