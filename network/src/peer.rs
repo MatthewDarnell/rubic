@@ -4,6 +4,8 @@ use std::io::prelude::*;
 use std::thread;
 use chrono::prelude::*;
 use uuid::Uuid;
+use store::get_db_path;
+use store::sqlite::crud::Peer::{create_peer, fetch_peer_by_id, fetch_peer_by_ip};
 
 #[derive(Debug)]
 pub struct Peer {
@@ -37,7 +39,8 @@ impl Clone for Peer {
 
 impl Peer {
     pub fn new(ip: &str, stream: Option<TcpStream> ,nick: &str) -> Self {
-        Peer {
+        let id = Uuid::new_v4().to_string();
+        let mut peer = Peer {
             stream: stream,
             ping_time: 9999,
             ip_addr: ip.to_string(),
@@ -46,6 +49,37 @@ impl Peer {
             last_responded: SystemTime::now(),
             id: Uuid::new_v4().to_string(),
             thread_handle: None
+        };
+        match create_peer(get_db_path().as_str(),
+            id.as_str(),
+            ip,
+            nick,
+            9999,
+            false,
+            SystemTime::now()
+        ) {
+            Ok(_) => {
+                match fetch_peer_by_ip(get_db_path().as_str(), ip) {
+                    Ok(result) => {
+                        peer.ip_addr = result.get("ip").unwrap().to_string();
+                        peer.id = result.get("id").unwrap().to_string();
+                        peer.ping_time = result.get("ping").unwrap().to_string().parse().unwrap();
+                        peer.nick = result.get("nick").unwrap().to_string();
+                        peer.whitelisted = result.get("whitelisted").unwrap() == "true";
+                        let last_responded: u64 = result.get("last_responded").unwrap().parse().unwrap();
+                        peer.last_responded = UNIX_EPOCH + Duration::from_secs(last_responded);
+                        peer
+                    },
+                    Err(err) => {
+                        println!("Failed To Fetch Created Peer.({})!\nError: {}", ip, err);
+                        peer
+                    }
+                }
+            },
+            Err(err) => {
+                println!("Failed To Create Peer.({})!\nError: {}", ip, err);
+                peer
+            }
         }
     }
     pub fn read_stream(&mut self) -> Result<Vec<u8>, String>{

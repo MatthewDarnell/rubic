@@ -27,11 +27,14 @@ fn prepare_crud_statement<'a>(path: &'a str, connection: &'a sqlite::Connection,
 //       ping UNSIGNED INTEGER,
 //       last_responded UNSIGNED INTEGER,
 pub mod Peer {
+    use std::collections::HashMap;
     use std::time::{Duration, SystemTime, UNIX_EPOCH};
     use sqlite::State;
     use crate::sqlite::crud::{open_database, prepare_crud_statement};
     pub fn create_peer(path: &str, id: &str, ip: &str, nick: &str, ping_time: u32, whitelisted: bool, last_responded: SystemTime) -> Result<(), String> {
-        let prep_query = "INSERT INTO peer (id, ip, nick, whitelisted, ping, last_responded) VALUES (:id, :ip, :nick, :whitelisted, :ping_time, :last_responded);";
+        let prep_query = "INSERT INTO peer (id, ip, nick, whitelisted, ping, last_responded) \
+        VALUES (:id, :ip, :nick, :whitelisted, :ping_time, :last_responded)\
+         ON CONFLICT(ip) DO NOTHING;";
         match open_database(path, true) {
             Ok(connection) => {
                 match prepare_crud_statement(path, &connection, prep_query) {
@@ -54,6 +57,7 @@ pub mod Peer {
                             (":last_responded", last_responded_unix_time.as_str()),
                         ][..]) {
                             Ok(_) => {
+                                println!("Peer Created!");
                                 match statement.next() {
                                     Ok(State::Done) => Ok(()),
                                     Err(error) => Err(error.to_string()),
@@ -75,7 +79,52 @@ pub mod Peer {
             }
         }
     }
-    pub fn fetch_peer_by_id(path: &str, id: &str) -> Result<Vec<String>, String> {
+    pub fn fetch_peer_by_ip(path: &str, ip: &str) -> Result<HashMap<String, String>, String> {
+        let prep_query = "SELECT * FROM peer WHERE ip = :ip LIMIT 1;";
+        match open_database(path, true) {
+            Ok(connection) => {
+                match prepare_crud_statement(path, &connection, prep_query) {
+                    Ok(mut statement) => {
+                        match statement.bind::<&[(&str, &str)]>(&[
+                            (":ip", ip),
+                        ][..]) {
+                            Ok(_) => {
+                                match statement.next() {
+                                    Ok(State::Row) => {
+                                        let mut result: HashMap<String, String> = HashMap::new();
+                                        result.insert("ip".to_string(), statement.read::<String, _>("ip").unwrap());
+                                        result.insert("id".to_string(), statement.read::<String, _>("id").unwrap());
+                                        result.insert("nick".to_string(), statement.read::<String, _>("nick").unwrap());
+                                        result.insert("whitelisted".to_string(), statement.read::<String, _>("whitelisted").unwrap());
+                                        result.insert("ping".to_string(), statement.read::<i64, _>("ping").unwrap().to_string());
+                                        result.insert("last_responded".to_string(), statement.read::<i64, _>("last_responded").unwrap().to_string());
+                                        Ok(result)
+                                    },
+                                    Ok(State::Done) => {
+                                        println!("Finished Reading. Failed To Fetch Peer By Ip.({}).", ip);
+                                        Err("Peer Not Found!".to_string())
+                                    },
+                                    Err(err) => {
+                                        Err(err.to_string())
+                                    }
+                                }
+                            },
+                            Err(err) => Err(err.to_string())
+                        }
+                    },
+                    Err(err) => {
+                        println!("Error in fetch_peer_by_ip! : {}", &err);
+                        Err(err)
+                    }
+                }
+            },
+            Err(err) => {
+                println!("Error in fetch_peer_by_ip! : {}", &err);
+                Err(err)
+            }
+        }
+    }
+    pub fn fetch_peer_by_id(path: &str, id: &str) -> Result<HashMap<String, String>, String> {
         let prep_query = "SELECT * FROM peer WHERE id = :id LIMIT 1;";
         match open_database(path, true) {
             Ok(connection) => {
@@ -87,13 +136,13 @@ pub mod Peer {
                             Ok(_) => {
                                 match statement.next() {
                                     Ok(State::Row) => {
-                                        let mut result: Vec<String> = Vec::new();
-                                        result.push(statement.read::<String, _>("ip").unwrap());
-                                        result.push(statement.read::<String, _>("id").unwrap());
-                                        result.push(statement.read::<String, _>("nick").unwrap());
-                                        result.push(statement.read::<String, _>("whitelisted").unwrap());
-                                        result.push(statement.read::<i64, _>("ping").unwrap().to_string());
-                                        result.push(statement.read::<i64, _>("last_responded").unwrap().to_string());
+                                        let mut result: HashMap<String, String> = HashMap::new();
+                                        result.insert("ip".to_string(), statement.read::<String, _>("ip").unwrap());
+                                        result.insert("id".to_string(), statement.read::<String, _>("id").unwrap());
+                                        result.insert("nick".to_string(), statement.read::<String, _>("nick").unwrap());
+                                        result.insert("whitelisted".to_string(), statement.read::<String, _>("whitelisted").unwrap());
+                                        result.insert("ping".to_string(), statement.read::<i64, _>("ping").unwrap().to_string());
+                                        result.insert("last_responded".to_string(), statement.read::<i64, _>("last_responded").unwrap().to_string());
                                         Ok(result)
                                     },
                                     Ok(State::Done) => {
@@ -593,22 +642,39 @@ mod store_crud_tests {
         use serial_test::serial;
         use std::fs;
         use std::time::SystemTime;
-        use crate::sqlite::crud::Peer::{create_peer, fetch_peer_by_id, fetch_all_peers};
+        use crate::sqlite::crud::Peer::{create_peer, fetch_peer_by_id, fetch_peer_by_ip, fetch_all_peers};
         #[test]
         #[serial]
         fn create_peer_and_insert() {
-            create_peer("test.sqlite", "id", "ip", "nickname", 3000, false, SystemTime::now());
+            create_peer("test.sqlite", "id", "ip", "nickname", 3000, false, SystemTime::now()).expect("Test Failed To Create Peer");
+            fs::remove_file("test.sqlite").unwrap();
+        }
+
+        #[test]
+        #[serial]
+        fn create_account_and_insert_and_fetch_by_ip() {
+            create_peer("test.sqlite", "id", "ip", "nickname", 3000, false, SystemTime::now()).expect("Test Failed To Create Peer");
+            match fetch_peer_by_ip("test.sqlite", "ip") {
+                Ok(peer) => {
+                    assert_eq!(peer.keys().len(), 6);
+                    assert_eq!(peer.get("nick").unwrap(), "nickname");
+                },
+                Err(err) => {
+                    println!("Peer Couldn't be Fetched!");
+                    assert_eq!(1, 2);
+                }
+            }
             fs::remove_file("test.sqlite").unwrap();
         }
 
         #[test]
         #[serial]
         fn create_account_and_insert_and_fetch() {
-            create_peer("test.sqlite", "id", "ip", "nickname", 3000, false, SystemTime::now());
+            create_peer("test.sqlite", "id", "ip", "nickname", 3000, false, SystemTime::now()).expect("Test Failed To Create Peer");
             match fetch_peer_by_id("test.sqlite", "id") {
                 Ok(peer) => {
-                    assert_eq!(peer.len(), 6);
-                    assert_eq!(peer[2], "nickname");
+                    assert_eq!(peer.keys().len(), 6);
+                    assert_eq!(peer.get("nick").unwrap(), "nickname");
                 },
                 Err(err) => {
                     println!("Peer Couldn't be Fetched!");
@@ -620,9 +686,9 @@ mod store_crud_tests {
         #[test]
         #[serial]
         fn create_accounts_and_insert_and_fetch_all() {
-            create_peer("test.sqlite", "id", "ip", "nickname", 3000, false, SystemTime::now());
-            create_peer("test.sqlite", "id2", "ip2", "nickname2", 3000, false, SystemTime::now());
-            create_peer("test.sqlite", "id3", "ip3", "nickname3", 3000, true, SystemTime::now());
+            create_peer("test.sqlite", "id", "ip", "nickname", 3000, false, SystemTime::now()).expect("Test Failed To Create Peer");
+            create_peer("test.sqlite", "id2", "ip2", "nickname2", 3000, false, SystemTime::now()).expect("Test Failed To Create Peer");
+            create_peer("test.sqlite", "id3", "ip3", "nickname3", 3000, true, SystemTime::now()).expect("Test Failed To Create Peer");
             match fetch_all_peers("test.sqlite") {
                 Ok(peers) => {
                     assert_eq!(peers.len(), 3);
@@ -755,7 +821,7 @@ mod store_crud_tests {
 
     pub mod identities {
         use identity::Identity;
-        use crate::sqlite::crud::{create_account, insert_new_identity, fetch_identity, delete_identity, fetch_all_identities_by_account};
+        use crate::sqlite::crud::{insert_new_identity, fetch_identity, delete_identity, fetch_all_identities_by_account};
         use serial_test::serial;
         use std::fs;
         #[test]

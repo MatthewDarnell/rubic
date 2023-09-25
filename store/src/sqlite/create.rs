@@ -62,7 +62,7 @@ pub fn open_database(path: &str, create: bool) -> Result<sqlite::Connection, Str
                 }
             }
         },
-        Err(err) => Err(String::from("Failed To Create Db!"))
+        Err(_) => Err(String::from("Failed To Create Db!"))
     }
 }
 
