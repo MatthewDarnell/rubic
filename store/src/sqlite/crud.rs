@@ -672,6 +672,48 @@ pub fn fetch_response_entity_by_identity(path: &str, identity: &str) -> Result<V
         }
     }
 }
+pub fn fetch_latest_response_entity_by_identity_group_peers(path: &str, identity: &str) -> Result<Vec<HashMap<String, String>>, String> {
+    let prep_query = "SELECT * FROM (SELECT * FROM response_entity WHERE identity = :identity ORDER BY tick DESC) GROUP BY peer;";
+    match open_database(path, true) {
+        Ok(connection) => {
+            match prepare_crud_statement(path, &connection, prep_query) {
+                Ok(mut statement) => {
+                    match statement.bind::<&[(&str, &str)]>(&[
+                        (":identity", identity.to_string().as_str()),
+                    ][..]) {
+                        Ok(_) => {
+                            let mut response: Vec<HashMap<String, String>> = vec![];
+                            while let Ok(State::Row) = statement.next() {
+                                let mut response_entity: HashMap<String, String> = HashMap::new();
+                                response_entity.insert("peer_ip".to_string(), statement.read::<String, _>("peer").unwrap());
+                                response_entity.insert("identity".to_string(), statement.read::<String, _>("identity").unwrap());
+                                response_entity.insert("incoming".to_string(), statement.read::<String, _>("incoming").unwrap());
+                                response_entity.insert("outgoing".to_string(), statement.read::<String, _>("outgoing").unwrap());
+                                response_entity.insert("num_in_txs".to_string(), statement.read::<String, _>("num_in_txs").unwrap());
+                                response_entity.insert("num_out_txs".to_string(), statement.read::<String, _>("num_out_txs").unwrap());
+                                response_entity.insert("latest_in_tick".to_string(), statement.read::<String, _>("latest_in_tick").unwrap());
+                                response_entity.insert("latest_out_tick".to_string(), statement.read::<String, _>("latest_out_tick").unwrap());
+                                response_entity.insert("tick".to_string(), statement.read::<String, _>("tick").unwrap());
+                                response_entity.insert("spectrum_index".to_string(), statement.read::<String, _>("spectrum_index").unwrap());
+                                response.push(response_entity);
+                            }
+                            Ok(response)
+                        },
+                        Err(err) => Err(err.to_string())
+                    }
+                },
+                Err(err) => {
+                    println!("Error in fetch_peer_response_by_type! : {}", &err);
+                    Err(err)
+                }
+            }
+        },
+        Err(err) => {
+            println!("Error in fetch_peer_response_by_type! : {}", &err);
+            Err(err)
+        }
+    }
+}
 
 
 #[cfg(test)]
@@ -838,7 +880,7 @@ mod store_crud_tests {
     }
 
     pub mod response {
-        use crate::sqlite::crud::{create_response_entity, fetch_response_entity_by_identity};
+        use crate::sqlite::crud::{create_response_entity, fetch_latest_response_entity_by_identity_group_peers, fetch_response_entity_by_identity};
         use serial_test::serial;
         use std::fs;
 
@@ -853,10 +895,50 @@ mod store_crud_tests {
                         assert_eq!(response_vec[0].get("identity").unwrap().as_str(), "EPYWDREDNLHXOFYVGQUKPHJGOMPBSLDDGZDPKVQUMFXAIQYMZGEHPZTAAWON");
                     },
                     Err(err) => {
-                        println!("ResponeEntity Couldn't be Fetched!");
+                        println!("ResponseEntity Couldn't be Fetched!");
                         assert_eq!(1, 2);
                     }
                 }
+            fs::remove_file("test.sqlite").unwrap();
+        }
+
+        #[test]
+        #[serial]
+        fn create_response_entities_and_insert_and_fetch_grouping_by_peer_and_sorting_latest_time() {
+            create_response_entity("test.sqlite", "127.0.0.1", "EPYWDREDNLHXOFYVGQUKPHJGOMPBSLDDGZDPKVQUMFXAIQYMZGEHPZTAAWON", 1000, 0, 1, 0, 100, 100, 1000, 9000, 1).unwrap();
+            create_response_entity("test.sqlite", "0.0.0.0", "EPYWDREDNLHXOFYVGQUKPHJGOMPBSLDDGZDPKVQUMFXAIQYMZGEHPZTAAWON", 1000, 0, 1, 0, 100, 100, 1000, 8500, 1).unwrap();
+            create_response_entity("test.sqlite", "127.0.0.1", "EPYWDREDNLHXOFYVGQUKPHJGOMPBSLDDGZDPKVQUMFXAIQYMZGEHPZTAAWON", 1000, 0, 1, 0, 100, 100, 1000, 9001, 1).unwrap();
+            create_response_entity("test.sqlite", "0.0.0.0", "EPYWDREDNLHXOFYVGQUKPHJGOMPBSLDDGZDPKVQUMFXAIQYMZGEHPZTAAWON", 1000, 0, 1, 0, 100, 100, 1000, 9000, 1).unwrap();
+            create_response_entity("test.sqlite", "10.1.1.1", "EPYWDREDNLHXOFYVGQUKPHJGOMPBSLDDGZDPKVQUMFXAIQYMZGEHPZTAAWON", 1000, 0, 1, 0, 100, 100, 1000, 70, 1).unwrap();
+            create_response_entity("test.sqlite", "127.0.0.1", "EPYWDREDNLHXOFYVGQUKPHJGOMPBSLDDGZDPKVQUMFXAIQYMZGEHPZTAAWON", 1000, 0, 1, 0, 100, 100, 1000, 8999, 1).unwrap();
+            match fetch_latest_response_entity_by_identity_group_peers("test.sqlite", "EPYWDREDNLHXOFYVGQUKPHJGOMPBSLDDGZDPKVQUMFXAIQYMZGEHPZTAAWON") {
+                Ok(response_vec) => {
+                    assert_eq!(response_vec.len(), 3);  //num peers = 3
+                    assert_eq!(response_vec[0].get("identity").unwrap().as_str(), "EPYWDREDNLHXOFYVGQUKPHJGOMPBSLDDGZDPKVQUMFXAIQYMZGEHPZTAAWON");
+                    for peer in &response_vec {
+                        match peer.get("peer_ip").unwrap().as_str() {
+                            "127.0.0.1" => {
+                                assert_eq!(peer.get("incoming").unwrap(), "1000");
+                                assert_eq!(peer.get("tick").unwrap(), "9001");
+                            },
+                            "0.0.0.0" => {
+                                assert_eq!(peer.get("incoming").unwrap(), "1000");
+                                assert_eq!(peer.get("tick").unwrap(), "9000");
+                            },
+                            "10.1.1.1" => {
+                                assert_eq!(peer.get("incoming").unwrap(), "1000");
+                                assert_eq!(peer.get("tick").unwrap(), "70");
+
+                            },
+                            _ => { assert_eq!(1, 2) }
+                        }
+                    }
+                },
+                Err(err) => {
+                    println!("ResponseEntity Couldn't be Fetched!");
+                    assert_eq!(1, 2);
+                }
+            }
             fs::remove_file("test.sqlite").unwrap();
         }
         #[test]
