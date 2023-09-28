@@ -2,9 +2,9 @@ use crypto::random::random_bytes;
 #[derive(Debug, Copy, Clone)]
 pub struct request_response_header {
     pub _size: [u8; 3],
-    pub _protocol: u8,
+    pub _type: u8,
     pub _dejavu: [u8; 3],
-    pub _type: u8
+    pub _deprecated_type: u8
 }
 
 #[derive(Debug, Copy, Clone)]
@@ -23,13 +23,13 @@ impl request_response_header {
         header._size[1] = vec[1];
         header._size[2] = vec[2];
 
-        header._protocol = vec[3];
+        header._type = vec[3];
 
         header._dejavu[0] = vec[4];
         header._dejavu[1] = vec[5];
         header._dejavu[2] = vec[6];
 
-        header._type = vec[7];
+        header._deprecated_type = vec[7];
         return header;
     }
     pub fn as_bytes(&self) -> Vec<u8> {
@@ -38,21 +38,21 @@ impl request_response_header {
         bytes.push(self._size[1]);
         bytes.push(self._size[2]);
 
-        bytes.push(self._protocol);
+        bytes.push(self._type);
 
         bytes.push(self._dejavu[0]);
         bytes.push(self._dejavu[1]);
         bytes.push(self._dejavu[2]);
 
-        bytes.push(self._type);
+        bytes.push(self._deprecated_type);
         bytes
     }
     pub fn new() -> Self {
         request_response_header {
             _size: [0; 3],
-            _protocol: 0,
+            _type: 0,
             _dejavu: random_bytes(3).as_slice().try_into().unwrap(),
-            _type: 0
+            _deprecated_type: 0
         }
     }
     pub fn zero_dejavu(&mut self) {
