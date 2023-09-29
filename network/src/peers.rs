@@ -5,6 +5,7 @@ use std::collections::HashMap;
 use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4, TcpStream};
 use api::qubic_api_t;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use store;
 use rand::seq::SliceRandom;
 use crate::worker;
 use crate::receive_response_worker;
@@ -48,6 +49,7 @@ impl PeerSet {
         }
         peer_set
     }
+    pub fn get_peers(&self) -> Vec<&Peer> { self.peers.iter().map(|x| x).collect() }
     pub fn num_peers(&self) -> usize {
         self.peers.len()
     }
@@ -63,12 +65,19 @@ impl PeerSet {
                     peer.set_stream(stream);
                     let rx = self.req_channel.1.clone();
                     let tx = self.resp_channel.clone();
-                    let id = id;
+                    let id = id.clone();
                     let copied_id = id.to_owned();
                     let t = std::thread::spawn(move || worker::handle_new_peer(id.to_owned(), peer, rx, tx));
                     self.threads.insert(copied_id, t);
                 }
                 self.peers.push(new_peer);
+                match store::sqlite::crud::Peer::set_peer_connected(
+                    store::get_db_path().as_str(),
+                    id.as_str()
+                ) {
+                    Ok(_) => println!("Set Peer {} Connected.", id.as_str()),
+                    Err(err) => println!("Error Setting Peer {} Connected! : {}", id.as_str(), err.as_str())
+                }
                 Ok(())
             },
             Err(err) => Err(err.to_string())

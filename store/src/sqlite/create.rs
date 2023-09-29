@@ -8,7 +8,8 @@ pub fn open_database(path: &str, create: bool) -> Result<sqlite::Connection, Str
       whitelisted INTEGER,
       ping INTEGER,
       last_responded INTEGER,
-      created DATETIME DEFAULT CURRENT_TIMESTAMP
+      created DATETIME DEFAULT CURRENT_TIMESTAMP,
+      connected BOOLEAN DEFAULT false
     );
     CREATE TABLE IF NOT EXISTS account (
         name TEXT UNIQUE NOT NULL PRIMARY KEY,

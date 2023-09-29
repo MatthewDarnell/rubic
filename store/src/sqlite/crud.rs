@@ -116,6 +116,53 @@ pub mod Peer {
             }
         }
     }
+    pub fn set_peer_connected(path: &str, id: &str) -> Result<(), String> {
+        let prep_query = "UPDATE peer SET connected = true WHERE id=:id;";
+        match open_database(path, true) {
+            Ok(connection) => {
+                match prepare_crud_statement(path, &connection, prep_query) {
+                    Ok(mut statement) => {
+                        match statement.bind::<&[(&str, &str)]>(&[
+                            (":id", id)
+                        ][..]) {
+                            Ok(_) => {
+                                match statement.next() {
+                                    Ok(State::Done) => Ok(()),
+                                    Err(error) => Err(error.to_string()),
+                                    _ => Err("Weird!".to_string())
+                                }
+                            },
+                            Err(err) => Err(err.to_string())
+                        }
+                    },
+                    Err(err) => {
+                        println!("Error in set_peer_connected! : {}", &err);
+                        Err(err)
+                    }
+                }
+            },
+            Err(err) => {
+                println!("Error in set_peer_connected! : {}", &err);
+                Err(err)
+            }
+        }
+    }
+    pub fn set_all_peers_disconnected(path: &str) -> Result<(), String> {
+        let prep_query = "UPDATE peer SET connected = false;";
+        match open_database(path, true) {
+            Ok(connection) => {
+                match connection.execute(prep_query) {
+                    Ok(_) => Ok(()),
+                    Err(err) => Err(err.to_string())
+                }
+            },
+            Err(err) => {
+                println!("Error in set_all_peers_disconnected! : {}", &err);
+                Err(err)
+            }
+        }
+    }
+
 
     pub fn fetch_peer_by_ip(path: &str, ip: &str) -> Result<HashMap<String, String>, String> {
         let prep_query = "SELECT * FROM peer WHERE ip = :ip LIMIT 1;";
@@ -209,6 +256,38 @@ pub mod Peer {
     }
     pub fn fetch_all_peers(path: &str) -> Result<Vec<Vec<String>>, String> {
         let prep_query = "SELECT * FROM peer;";
+        match open_database(path, true) {
+            Ok(connection) => {
+                match prepare_crud_statement(path, &connection, prep_query) {
+                    Ok(_) => {
+                        let mut ret_val: Vec<Vec<String>> = Vec::new();
+                        connection
+                            .iterate(prep_query, |peers| {
+                                let mut each_peer: Vec<String> = Vec::new();
+                                for &(name, value) in peers.iter() {
+                                    println!("Iterating fetch_all_peers: {}", name);
+                                    each_peer.push(value.unwrap().to_string());
+                                }
+                                ret_val.push(each_peer);
+                                true
+                            })
+                            .unwrap();
+                        Ok(ret_val)
+                    },
+                    Err(err) => {
+                        println!("Error in fetch_all_peers! : {}", &err);
+                        Err(err)
+                    }
+                }
+            },
+            Err(err) => {
+                println!("Error in fetch_all_peers! : {}", &err);
+                Err(err)
+            }
+        }
+    }
+    pub fn fetch_connected_peers(path: &str) -> Result<Vec<Vec<String>>, String> {
+        let prep_query = "SELECT * FROM peer WHERE connected = true;";
         match open_database(path, true) {
             Ok(connection) => {
                 match prepare_crud_statement(path, &connection, prep_query) {
@@ -432,7 +511,39 @@ pub fn fetch_all_identities_by_account(path: &str, account: &str) -> Result<Link
     }
 }
 
-
+pub fn fetch_balance_by_identity(path: &str, identity: &str) -> Result<Vec<String>, String> {
+    let prep_query = "SELECT * FROM (SELECT * FROM response_entity WHERE identity = :identity ORDER BY tick DESC) GROUP BY peer LIMIT 3;";
+    let mut response: Vec<String> = Vec::new();
+    match open_database(path, true) {
+        Ok(connection) => {
+            match prepare_crud_statement(path, &connection, prep_query) {
+                Ok(mut statement) => {
+                    match statement.bind::<&[(&str, &str)]>(&[
+                        (":identity", identity),
+                    ][..]) {
+                        Ok(_) => {
+                            while let Ok(State::Row) = statement.next() {
+                                response.push(
+                                    statement.read::<String, _>("balance").unwrap()
+                                );
+                            }
+                            Ok(response)
+                        },
+                        Err(err) => Err(err.to_string())
+                    }
+                },
+                Err(err) => {
+                    println!("Error in fetch_balance_by_identity! : {}", &err);
+                    Err(err)
+                }
+            }
+        },
+        Err(err) => {
+            println!("Error in fetch_balance_by_identity! : {}", &err);
+            Err(err)
+        }
+    }
+}
 pub fn fetch_identity(path: &str, identity: &str) -> Result<Identity, String> {
     let prep_query = "SELECT * FROM identities i INNER JOIN account a ON a.name=i.account WHERE i.identity = :identity  LIMIT 1;";
     match open_database(path, true) {

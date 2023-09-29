@@ -6,9 +6,13 @@ authors = ["Matthew Darnell"]
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-tui = "0.19"
-unicode-width = "0.1.10"
-crossterm = "0.25"
+crossbeam-channel = "0.5.8"
+dotenv = "0.15.0"
+dotenv_codegen = "0.15.0"
+rocket = "0.5.0-rc.3"
+tokio = "1.32.0"
+api = { path = './api' }
 identity = { path = './identity' }
 network = { path = './network' }
+server = { path = './server' }
 store = { path = './store' }
