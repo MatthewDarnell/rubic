@@ -20,7 +20,7 @@ pub fn get_formatted_response(response: &mut qubic_api_t) {
         entity_type::EXCHANGE_PEERS => {
             let resp: ExchangePeersEntity = ExchangePeersEntity::format_qubic_response_data_to_structure(response);
             println!("ExchangePeersEntity: {:?}", resp);
-
+            update_peer_last_responded(path.as_str(), resp.peer.as_str(), SystemTime::now()).unwrap();
         },
         entity_type::RESPONSE_ENTITY => {
             let resp: ResponseEntity = ResponseEntity::format_qubic_response_data_to_structure(response);

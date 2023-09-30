@@ -1,13 +1,16 @@
 use crate::qubic_api_t;
 use crate::response::FormatQubicResponseDataToStructure;
 
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Clone)]
 pub struct ExchangePeersEntity {
+    pub peer: String
 }
 
 impl ExchangePeersEntity {
-    pub fn new() -> ExchangePeersEntity {
-        ExchangePeersEntity {}
+    pub fn new(peer: &str) -> ExchangePeersEntity {
+        ExchangePeersEntity {
+            peer: peer.to_string()
+        }
     }
 }
 
@@ -17,5 +20,5 @@ impl FormatQubicResponseDataToStructure for ExchangePeersEntity {
 
 pub fn handle_exchange_peers(data: &mut qubic_api_t) -> Option<ExchangePeersEntity> {
     println!("Got Exchange Peer Data: {:?}", data);
-    Some(ExchangePeersEntity::new())
+    Some(ExchangePeersEntity::new(data.peer.as_ref().unwrap().as_str()))
 }

@@ -3,6 +3,7 @@ use std::io::prelude::*;
 use std::thread;
 use std::collections::HashMap;
 use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4, TcpStream};
+use std::thread::sleep;
 use api::qubic_api_t;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use store;
@@ -40,7 +41,7 @@ impl PeerSet {
             peers: vec![],
             threads: HashMap::new(),
             req_channel: spmc::channel::<qubic_api_t>(),
-            resp_channel: channel.0
+            resp_channel: channel.0,
         };
         {
             let rx = channel.1;
@@ -54,6 +55,9 @@ impl PeerSet {
         self.peers.len()
     }
     pub fn add_peer(&mut self, ip: &str) -> Result<(), String> {
+        if(self.get_peers().len() > 5) {
+            return Err("Already At Max Capacity of Connected Peers".to_string());
+        }
         let sock: SocketAddr = ip.parse().unwrap();
         match TcpStream::connect_timeout(&sock, Duration::from_millis(5000)) {
             Ok(mut stream) => {
@@ -80,7 +84,10 @@ impl PeerSet {
                 }
                 Ok(())
             },
-            Err(err) => Err(err.to_string())
+            Err(err) => {
+                println!("Error Adding Peer! {}", err.to_string());
+                Err(err.to_string())
+            }
         }
     }
 
