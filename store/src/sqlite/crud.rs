@@ -510,6 +510,39 @@ pub fn fetch_all_identities_by_account(path: &str, account: &str) -> Result<Link
         }
     }
 }
+pub fn fetch_all_identities(path: &str) -> Result<LinkedList<String>, String> {
+    let prep_query = "SELECT identity FROM identities;";
+    match open_database(path, true) {
+        Ok(connection) => {
+            match prepare_crud_statement(path, &connection, prep_query) {
+                Ok(mut statement) => {
+                    match statement.bind::<&[(&str, &str)]>(&[
+                    ][..]) {
+                        Ok(_) => {
+                            let mut ret_val: LinkedList<String> = LinkedList::new();
+                            while let Ok(State::Row) = statement.next() {
+                                ret_val.push_back(
+                                    statement.read::<String, _>("identity").unwrap()
+                                );
+                            }
+                            Ok(ret_val)
+                        },
+                        Err(err) => Err(err.to_string())
+                    }
+                },
+                Err(err) => {
+                    println!("Error in fetch_all_identities! : {}", &err);
+                    Err(err)
+                }
+            }
+        },
+        Err(err) => {
+            println!("Error in fetch_all_identities! : {}", &err);
+            Err(err)
+        }
+    }
+}
+
 
 pub fn fetch_balance_by_identity(path: &str, identity: &str) -> Result<Vec<String>, String> {
     let prep_query = "SELECT * FROM (SELECT * FROM response_entity WHERE identity = :identity ORDER BY tick DESC) GROUP BY peer LIMIT 3;";

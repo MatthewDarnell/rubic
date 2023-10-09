@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Rubic - Qubic Wallet</title>
+    <style>
+        #headerTable{width:100%;}
+        #headerTable td{width:5%;}
+        #identityDiv{display: none;}
+        #myIdentitiesDiv{margin-top: 5%;}
+        #peersDiv{display: none;}
+        #screensDiv{margin-top: 3%;}
+        #peerTableHead{width:30%;}
+        #peerTableHead th{width:3%;}
+        #peerTable{width:30%;}
+        #peerTable td{width: 3%;}
+        #addIdentityTable{width: 100%;}
+        #addIdentityTable td{width: 50%;}
+        #addIdentityTable th{width: 50%;}
+        #seedInput{resize: none;}
+        #passwordInput{resize: none;}
+        #newIdentityPreview{display: none;}
+    </style>
+</head>
+<body>
+    <div id="mainDiv">
+        <table id="headerTable">
+            <tr>
+                <td>
+                    <b>Rubic - Qubic Wallet</b>
+                </td>
+
+                <td>
+                    <label for="serverIp">Qubic Server Running At: </label><input type="text" id="serverIp" value="http://127.0.0.1:3000">
+                </td>
+
+                <td>
+                    Connected Peers: <span id="numPeersSpan">0</span>
+                </td>
+            </tr>
+            <tr>
+                <td>
+                    <a href="#" onclick="switchToElement('identityDiv')">My Identities</a>
+                </td>
+                <td>
+                    <a href="#" onclick="switchToElement('peersDiv')">Connected Peers</a>
+                </td>
+            </tr>
+        </table>
+    </div>
+    <div id="screensDiv">
+        <div id="identityDiv">
+            <div id="importIdentityDiv">
+                <span>Import New Identity</span>
+                <table id="addIdentityTable">
+                    <thead>
+                    <tr>
+                        <th>Seed</th>
+                        <th>Password</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>
+                                <div style="text-align: center;">
+                                    <textarea onchange="previewNewIdentity()" id="seedInput" cols="55"></textarea>
+                                </div>
+                            </td>
+                            <td>
+                                <div style="text-align: center;">
+                                    <textarea cols="32" id="passwordInput"></textarea>
+                                </div>
+                            </td>
+                        </tr>
+                        <tr id="newIdentityPreview">
+                            <td>
+                                <span id="newIdentityPreviewSpan"></span>
+                            </td>
+                            <td>
+                                <button id="importNewIdentityBtn" onclick="addNewIdentity()" disabled>Import Identity</button>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+            <div id="myIdentitiesDiv">
+                <span>My Identities</span>
+                <table id="myIdentitiesTable">
+                    <thead>
+                    <tr>
+                        <th>Identity</th>
+                    </tr>
+                    </thead>
+                    <tbody id="identityTable">
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        <div id="peersDiv">
+            <table>
+                <thead id="peerTableHead">
+                <tr>
+                    <th>Ip</th>
+                    <th>NickName</th>
+                    <th>Last Responded</th>
+                </tr>
+                </thead>
+                <tbody id="peerTable">
+                </tbody>
+            </table>
+        </div>
+    </div>
+</body>
+<script type="text/javascript" src="index.js"></script>
+</html>
