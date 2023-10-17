@@ -182,6 +182,7 @@ async fn main() {
       .merge(("address", host.as_str()));
   let rock = rocket::custom(figment)
       .mount("/", routes![
+        routes::info::latest_tick,
         routes::info::info,
         routes::info::peers,
         routes::info::balance,

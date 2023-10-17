@@ -11,6 +11,42 @@ fn prepare_crud_statement<'a>(path: &'a str, connection: &'a sqlite::Connection,
         }
 }
 
+
+
+pub fn fetch_latest_tick(path: &str) -> Result<String, String> {
+    let prep_query = "SELECT tick FROM response_entity ORDER BY tick DESC LIMIT 1;";
+    match open_database(path, true) {
+        Ok(connection) => {
+            match prepare_crud_statement(path, &connection, prep_query) {
+                Ok(mut statement) => {
+                    match statement.next() {
+                        Ok(State::Row) => {
+                            let result: String = statement.read::<String, _>("tick").unwrap();
+                            Ok(result)
+                        },
+                        Ok(State::Done) => {
+                            println!("Finished Reading. Failed To Fetch Latest Tick.");
+                            Err("Peer Not Found!".to_string())
+                        },
+                        Err(err) => {
+                            Err(err.to_string())
+                        }
+                    }
+                },
+                Err(err) => {
+                    println!("Error in fetch_latest_tick! : {}", &err);
+                    Err(err)
+                }
+            }
+        },
+        Err(err) => {
+            println!("Error in fetch_latest_tick! : {}", &err);
+            Err(err)
+        }
+    }
+}
+
+
 //    stream: Option<TcpStream>,
 //     ping_time: u32,
 //     ip_addr: String,
