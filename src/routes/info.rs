@@ -81,17 +81,27 @@ pub fn add_peer(address: &str, mtx: &rocket::State<Mutex<Sender<HashMap<String, 
             }
         }
     }
-
-
-
-
-    //format!("Timed Out")
 }
 
 #[get("/identities")]
 pub fn get_identities() -> String {
     match store::sqlite::crud::fetch_all_identities(store::get_db_path().as_str()) {
-        Ok(v) => format!("{:?}", v),
+        Ok(v) => {
+            let mut response: Vec<(String, Vec<String>)> = vec![];
+            for identity in &v {
+                match store::sqlite::crud::fetch_balance_by_identity(store::get_db_path().as_str(), identity.as_str()) {
+                    Ok(b) => {
+                        println!("{} => {:?}", identity, b);
+                        response.push((identity.to_string(), b));
+                    },
+                    Err(err) => {
+                        println!("Error Getting Balance For Identity {} {:?}", &identity, &err);
+                    }
+                }
+            }
+            println!("{:?}", response);
+            format!("{:?}", v)
+        },
         Err(err) => format!("{}", err)
     }
 }
@@ -102,8 +112,8 @@ pub fn get_identity_from_seed(seed: &str) -> String {
     format!("{}", i.identity.as_str())
 }
 
-#[get("/identity/add/<identity>")]
-pub fn add_identity(identity: &str, mtx: &rocket::State<Mutex<Sender<HashMap<String, String>>>>, responses: &rocket::State<Mutex<Receiver<HashMap<String, String>>>>) -> String {
+#[get("/identity/add/<seed>")]
+pub fn add_identity(seed: &str, mtx: &rocket::State<Mutex<Sender<HashMap<String, String>>>>, responses: &rocket::State<Mutex<Receiver<HashMap<String, String>>>>) -> String {
     println!("Locking Mutex");
     let lock = mtx.lock().unwrap();
     let tx = lock.clone();
@@ -117,7 +127,7 @@ pub fn add_identity(identity: &str, mtx: &rocket::State<Mutex<Sender<HashMap<Str
     println!("Dropped Mutex Lock");
     let mut map: HashMap<String, String> = HashMap::new();
     map.insert("method".to_string(), "add_identity".to_string());
-    map.insert("identity".to_string(), identity.to_string());
+    map.insert("seed".to_string(), seed.to_string());
     let request_id: String = Uuid::new_v4().to_string();
     map.insert("message_id".to_string(), request_id.clone());
     tx.send(map).unwrap();
@@ -144,9 +154,4 @@ pub fn add_identity(identity: &str, mtx: &rocket::State<Mutex<Sender<HashMap<Str
             }
         }
     }
-
-
-
-
-    //format!("Timed Out")
 }

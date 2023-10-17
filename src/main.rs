@@ -7,6 +7,7 @@ extern crate dotenv_codegen;
 use network::peers::{PeerStrategy, PeerSet};
 use store::sqlite::crud;
 use store::get_db_path;
+use identity;
 use std::thread;
 use std::sync::mpsc;
 use std::thread::sleep;
@@ -16,6 +17,7 @@ mod routes;
 use rocket::http::Header;
 use rocket::{Request, Response};
 use rocket::fairing::{Fairing, Info, Kind};
+
 
 
 
@@ -82,9 +84,26 @@ async fn main() {
                 }
               }
               else if method == &"add_identity".to_string() {
-                let identity = map.get(&"identity".to_string()).unwrap();
-                println!("Inserting Identity: {}", identity.as_str());
-               // match crud::sq
+                let seed = map.get(&"seed".to_string()).unwrap();
+                let id: identity::Identity = identity::Identity::new(seed.as_str(), "");
+                println!("Inserting Identity: {}", seed.as_str());
+
+                let message_id = map.get(&"message_id".to_string()).unwrap();
+
+                let mut response: HashMap<String, String> = HashMap::new();
+                match crud::insert_new_identity(get_db_path().as_str(), &id) {
+                  Ok(v) => {
+                    response.insert("message_id".to_string(), message_id.to_string());
+                    response.insert("status".to_string(), "200".to_string());
+                    println!("Finished Inserting! {:?}", v);
+                  },
+                  Err(error) => {
+                    response.insert("message_id".to_string(), message_id.to_string());
+                    response.insert("status".to_string(), error.to_string());
+                    println!("Failed To Insert! {:?}", error);
+                  }
+                }
+                tx.send(response);
               }
             }
           },
@@ -93,15 +112,23 @@ async fn main() {
             //println!("Read TimeOut Error: {}", err.to_string());
           }
         }
-
-
-        let mut request = api::qubic_api_t::get_identity_balance("BAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAARMID");
-        match peer_set.make_request(request) {
-          Ok(_) => {},
-          //Ok(_) => println!("{:?}", request.response_data),
-          Err(err) => println!("{}", err)
+        match crud::fetch_all_identities(get_db_path().as_str()) {
+          Ok(identities) => {
+            println!("{:?}", identities);
+            for identity in identities {
+              let mut request = api::qubic_api_t::get_identity_balance(identity.as_str());
+              match peer_set.make_request(request) {
+                Ok(_) => {},
+                //Ok(_) => println!("{:?}", request.response_data),
+                Err(err) => println!("{}", err)
+              }
+              std::thread::sleep(delay);
+            }
+          },
+          Err(err) => {
+            println!("Error: {:?}", err);
+          }
         }
-
         std::thread::sleep(delay);
       }
     });

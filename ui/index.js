@@ -74,33 +74,60 @@ const getConnectedPeers = () => {
 }
 
 
-const getIdentities = () => {
+const getIdentities = async () => {
     const serverIp = document.getElementById("serverIp").value;
     console.log('server Ip: ' + serverIp)
     const table = document.getElementById("identityTable");
-    makeHttpRequest(`${serverIp}/identities`).then(result => {
-        console.log(result)
-        /*
+    table.innerHTML = ""
+    try {
+        const result = await makeHttpRequest(`${serverIp}/identities`);
+        console.log(result);
         table.innerHTML = "";
         const res = JSON.parse(result);
-        for (const peer of res) {
-            const ip = peer[1];
-            const nick = peer[2].length > 1 ? peer[2] : "<NickName Not Set>";
-            const timeResponded = peer[5];
+        for (const identity of res) {
+            console.log('adding ' + identity)
             const tr = document.createElement("tr");
             const td = document.createElement("td");
-            const td2 = document.createElement("td");
-            const td3 = document.createElement("td");
-            td.innerText = ip;
-            td2.innerText = nick;
-            td3.innerText = timeResponded;
+            td.innerText = identity;
             tr.appendChild(td);
-            tr.appendChild(td2);
-            tr.appendChild(td3);
+
+            const balanceTd = document.createElement("td");
+            balanceTd.id = `${identity}:balance:td`
+
+            tr.appendChild(balanceTd);
             table.appendChild(tr);
         }
-         */
-    }).catch(alert);
+        return res;
+    } catch(error) {
+        console.log(`Error in getIdentities: ${error}`)
+    }
+}
+
+const getBalance = async identity => {
+    const serverIp = document.getElementById("serverIp").value;
+    console.log('server Ip: ' + serverIp)
+    const balanceTd = document.getElementById(`${identity}:balance:td`);
+    balanceTd.innerHTML = ""
+    try {
+        console.log('fetching balance')
+        const result = await makeHttpRequest(`${serverIp}/balance/${identity}`);
+        const res = JSON.parse(result);
+        console.log(res)
+        if (res.every(v => v === res[0])) {
+            balanceTd.innerHTML = `<b>${res[0]}</b>`
+        } else {
+            let html = `<span><b>Peer Responded Balance Mismatch: </b></span> [|`
+            for(const r of res) {
+                html += ` <b>${r}</b> |`
+            }
+            html += "]"
+            console.log(html)
+            balanceTd.innerHTML = html;
+        }
+        return res;
+    } catch(error) {
+        console.log(`Error in getBalance: ${error}`)
+    }
 }
 
 window.switchToElement = el => {
@@ -140,31 +167,34 @@ window.previewNewIdentity = () => {
 
 window.addNewIdentity = () => {
     console.log('importing!')
-    /*
     const serverIp = document.getElementById("serverIp").value;
     document.getElementById("newIdentityPreview").style.display = "none";
     const seed = document.getElementById("seedInput").value;
     const password = document.getElementById("passwordInput").value;
-    console.log(`${serverIp}/identity/from_seed/${seed}`)
-    makeHttpRequest(`${serverIp}/identity/from_seed/${seed}`).then(result => {
-        if(result === "AARQXIKNFIEZZEMOAVNVSUINZXAAXYBZZXVSWYOYIETZVPVKJPARMKTEKLKJ") { //invalid seed
-            document.getElementById("newIdentityPreview").style.display = "block";
-            document.getElementById("newIdentityPreviewSpan").innerText = "Invalid Seed!";
+    console.log(`${serverIp}/identity/add/${seed}`)
+    makeHttpRequest(`${serverIp}/identity/add/${seed}`).then(result => {
+        if(result === 200 || result === '200') {
+            document.getElementById("newIdentityPreview").style.display = "none";
+            document.getElementById("newIdentityPreviewSpan").innerText = ``;
+            alert("Imported!");
         } else {
-            document.getElementById("newIdentityPreview").style.display = "block";
-            document.getElementById("newIdentityPreviewSpan").innerText = `Importing Identity <${result}>`;
+            alert(result);
         }
     }).catch(alert);
-
-     */
-
 }
+
 window.onload = () => {
     console.log('loaded')
     setInterval(() => {
         getNumConnectedPeers();
         getConnectedPeers();
-        getIdentities();
-    }, 10000);
+        getIdentities()
+            .then(async identities => {
+                for(const id of identities) {
+                    await getBalance(id);
+                }
+            })
+            .catch(_ => {});
+    }, 3000);
 
 }
