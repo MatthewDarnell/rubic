@@ -100,7 +100,6 @@ pub fn get_identities() -> String {
             for identity in &v {
                 match store::sqlite::crud::fetch_balance_by_identity(store::get_db_path().as_str(), identity.as_str()) {
                     Ok(b) => {
-                        println!("{} => {:?}", identity, b);
                         response.push((identity.to_string(), b));
                     },
                     Err(err) => {
@@ -108,7 +107,6 @@ pub fn get_identities() -> String {
                     }
                 }
             }
-            println!("{:?}", response);
             format!("{:?}", v)
         },
         Err(err) => format!("{}", err)

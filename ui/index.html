@@ -31,7 +31,7 @@
                 </td>
 
                 <td>
-                    <label for="serverIp">Qubic Server Running At: </label><input type="text" id="serverIp" value="http://127.0.0.1:3000">
+                    <label for="serverIp">Qubic Server Running At: </label><input type="text" id="serverIp" value="http://127.0.0.1:3000"> <span id="connectedStatusSpan"></span>
                 </td>
 
                 <td>
@@ -100,17 +100,52 @@
             </div>
         </div>
         <div id="peersDiv">
-            <table>
-                <thead id="peerTableHead">
-                <tr>
-                    <th>Ip</th>
-                    <th>NickName</th>
-                    <th>Last Responded</th>
-                </tr>
-                </thead>
-                <tbody id="peerTable">
-                </tbody>
-            </table>
+            <div id="importPeerDiv">
+                <span>Add A Peer</span>
+                <table id="addPeerTable">
+                    <thead>
+                    <tr>
+                        <th>IP</th>
+                        <th>Port (optional, defaults to 21841)</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    <tr>
+                        <td>
+                            <div style="text-align: center;">
+                                <label for="addPeerIpInput"></label><input type="text" id="addPeerIpInput">
+                            </div>
+                        </td>
+                        <td>
+                            <div style="text-align: center;">
+                                <label for="addPeerPortInput"></label><input type="number" id="addPeerPortInput">
+                            </div>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td>
+                            <button id="addNewPeerBtn" onclick="addNewPeer()">Add Peer</button>
+                        </td>
+                        <td>
+
+                        </td>
+                    </tr>
+                    </tbody>
+                </table>
+            </div>
+            <div id="myPeersDiv">
+                <table>
+                    <thead id="peerTableHead">
+                    <tr>
+                        <th>Ip</th>
+                        <th>NickName</th>
+                        <th>Last Responded</th>
+                    </tr>
+                    </thead>
+                    <tbody id="peerTable">
+                    </tbody>
+                </table>
+            </div>
         </div>
     </div>
 </body>

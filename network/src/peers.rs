@@ -55,8 +55,17 @@ impl PeerSet {
         self.peers.len()
     }
     pub fn add_peer(&mut self, ip: &str) -> Result<(), String> {
-        if(self.get_peers().len() > 5) {
-            return Err("Already At Max Capacity of Connected Peers".to_string());
+        if let Ok(max_peers) = std::env::var("RUBIC_MAX_PEERS") {
+            if(self.get_peers().len() >= max_peers.parse::<usize>().unwrap()) {
+                return Err("Already At Max Capacity of Connected Peers".to_string());
+            }
+        } else {
+            //Don't worry about max peers
+        }
+        for peer in &self.get_peers() {
+            if peer.get_ip_addr() == ip {
+                return Err("Duplicate Peer".to_string());
+            }
         }
         let sock: SocketAddr = ip.parse().unwrap();
         match TcpStream::connect_timeout(&sock, Duration::from_millis(5000)) {

@@ -1,28 +1,49 @@
 
 
+const TIMEOUT_MS = 2000;
+
+const updateServerRespondingStatus = connected => {
+    const status = document.getElementById("connectedStatusSpan");
+    status.innerHTML = connected === true ? '\u2705' : '\u274c';
+}
+
 const makeHttpRequest = (url, data = null, returnObjectWithStatus = null) => {
     return new Promise( (res, rej) => {
         try {
             const xhr = new XMLHttpRequest();
             xhr.onreadystatechange = () => {
                 if (xhr.readyState === 4 && xhr.status === 200) {
+                    updateServerRespondingStatus(true);
                     if (returnObjectWithStatus) return res({status: true, result: xhr.responseText})
                     else return res(xhr.responseText)
                 } else if (xhr.status === 429) {
-                    if (returnObjectWithStatus) return rej({status: false, result: 'Too Many Requests!'})
-                    else return rej('Timed Out!')
+                    if (returnObjectWithStatus) {
+                        updateServerRespondingStatus(true);
+                        return rej({status: false, result: 'Too Many Requests!'})
+                    }
+                    else {
+                        updateServerRespondingStatus(false);
+                        return rej('Timed Out!')
+                    }
                 } else if (xhr.status >= 400) {
                     if (returnObjectWithStatus) return rej({status: false, result: xhr.status})
                     else return rej(status)
                 }
             }
+
+            xhr.onerror = function(e){
+                updateServerRespondingStatus(false);
+                return rej({status: false, result: "Unknown Error Occured. Server response not received."})
+            };
+
             xhr.ontimeout = (e) => {
+                updateServerRespondingStatus(false);
                 if (returnObjectWithStatus) return rej({status: false, result: 'Timed Out!'})
                 else return rej('Timed Out!')
             }
             xhr.open('GET',`${url}`, true);
 
-            xhr.timeout = 5000;
+            xhr.timeout = TIMEOUT_MS;
             xhr.send();
         } catch (error) {
             console.error(`Error making http request to ${url}${data ? '/' + data : ''} : <${error}>`)
@@ -38,7 +59,6 @@ const getNumConnectedPeers = async () => {
         const result = await makeHttpRequest(`${serverIp}/info`);
         span.innerHTML = `<b>${result}</b>`;
     } catch(error) {
-        console.log(`Error in getNumConnectedPeers: ${error}`)
     }
 }
 
@@ -79,7 +99,6 @@ const getConnectedPeers = async () => {
             table.appendChild(tr);
         }
     } catch(error) {
-        console.log(`Error in getConnectedPeers: ${error}`)
     }
 }
 
@@ -106,7 +125,6 @@ const getIdentities = async () => {
         }
         return res;
     } catch(error) {
-        console.log(`Error in getIdentities: ${error}`)
     }
 }
 
@@ -129,7 +147,6 @@ const getBalance = async identity => {
         }
         return res;
     } catch(error) {
-        console.log(`Error in getBalance: ${error}`)
     }
 }
 
@@ -167,6 +184,8 @@ window.previewNewIdentity = () => {
 }
 
 window.addNewIdentity = () => {
+    const serverIp = document.getElementById("serverIp").value;
+    document.getElementById("addNewPeerBtn").disabled = true;
     document.getElementById("newIdentityPreview").style.display = "none";
     const seed = document.getElementById("seedInput").value;
     const password = document.getElementById("passwordInput").value;
@@ -178,7 +197,36 @@ window.addNewIdentity = () => {
         } else {
             alert(result);
         }
-    }).catch(alert);
+        document.getElementById("addNewPeerBtn").disabled = false;
+    }).catch(result => {
+        document.getElementById("addNewPeerBtn").disabled = false;
+        alert(result);
+    });
+}
+
+window.addNewPeer = () => {
+    try {
+        const serverIp = document.getElementById("serverIp").value;
+        const ip = document.getElementById("addPeerIpInput").value;
+        const portEl = document.getElementById("addPeerPortInput").value;
+        console.log(ip)
+        console.log(portEl)
+        const port = portEl.length > 0 ? parseInt(portEl) : 21841;
+        const values = ip.split('.')
+        if(values.length > 0 && values.length !== 4) {
+            alert("Invalid Ipv4 Address!")
+            return;
+        }
+        if(port <= 0 || port > 99999) {
+            alert("Invalid Port!")
+            return;
+        }
+        const formattedPeerAddress = `${ip}:${port}`
+        console.log(`${serverIp}/peers/add/${formattedPeerAddress}`)
+        makeHttpRequest(`${serverIp}/peers/add/${formattedPeerAddress}`).then(result => {
+            alert(result);
+        }).catch(alert);
+    } catch {}
 }
 
 const getLatestTick = async identity => {
@@ -186,27 +234,35 @@ const getLatestTick = async identity => {
     const latestTickSpan = document.getElementById("latestTickSpan");
     try {
         const result = await makeHttpRequest(`${serverIp}/tick`);
+        console.log(result)
         latestTickSpan.innerHTML = `<b>${result}</b>`
         return result;
     } catch(error) {
-        console.log(`Error in getLatestTick: ${error}`)
     }
 }
+
+let numFuncsToCall = 4;
+const intervalLoopFunction = () => {
+    getLatestTick()
+        .then(getNumConnectedPeers)
+        .then(getConnectedPeers)
+        .then(getIdentities)
+        .then(async identities => {
+            numFuncsToCall = 4 + identities.length;
+            for(const id of identities) {
+                await getBalance(id);
+            }
+        })
+        .then(_ => {
+            //Finished Update Loop
+            setTimeout(intervalLoopFunction, (TIMEOUT_MS * numFuncsToCall) + 1000);
+        })
+        .catch(() => {
+            setTimeout(intervalLoopFunction, (TIMEOUT_MS * numFuncsToCall) + 1000);
+        })
+}
+
 window.onload = () => {
     console.log("Rubic JS Loaded!");
-    setInterval(() => {
-        getLatestTick()
-            .then(getNumConnectedPeers)
-            .then(getConnectedPeers)
-            .then(getIdentities)
-            .then(async identities => {
-                for(const id of identities) {
-                    await getBalance(id);
-                }
-            })
-            .then(_ => {
-                //Finished Update Loop
-            })
-    }, 3000);
-
+    setTimeout(intervalLoopFunction, (TIMEOUT_MS * numFuncsToCall) + 1000);
 }

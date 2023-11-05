@@ -71,7 +71,7 @@ async fn main() {
                 match peer_set.add_peer(peer_ip) {
                   Ok(_) => {
                     response.insert("message_id".to_string(), message_id.to_string());
-                    response.insert("status".to_string(), "200".to_string());
+                    response.insert("status".to_string(), "Peer Added".to_string());
                     println!("Sending {:?}", &response);
                     tx.send(response);
                   },
@@ -114,7 +114,6 @@ async fn main() {
         }
         match crud::fetch_all_identities(get_db_path().as_str()) {
           Ok(identities) => {
-            println!("{:?}", identities);
             for identity in identities {
               let mut request = api::qubic_api_t::get_identity_balance(identity.as_str());
               match peer_set.make_request(request) {

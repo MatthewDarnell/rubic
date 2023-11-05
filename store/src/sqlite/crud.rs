@@ -301,7 +301,6 @@ pub mod Peer {
                             .iterate(prep_query, |peers| {
                                 let mut each_peer: Vec<String> = Vec::new();
                                 for &(name, value) in peers.iter() {
-                                    println!("Iterating fetch_all_peers: {}", name);
                                     each_peer.push(value.unwrap().to_string());
                                 }
                                 ret_val.push(each_peer);
@@ -333,7 +332,6 @@ pub mod Peer {
                             .iterate(prep_query, |peers| {
                                 let mut each_peer: Vec<String> = Vec::new();
                                 for &(name, value) in peers.iter() {
-                                    println!("Iterating fetch_all_peers: {}", name);
                                     each_peer.push(value.unwrap().to_string());
                                 }
                                 ret_val.push(each_peer);
