@@ -46,7 +46,77 @@ pub fn fetch_latest_tick(path: &str) -> Result<String, String> {
     }
 }
 
-
+pub mod MasterPassword {
+    use std::collections::HashMap;
+    use std::time::{Duration, SystemTime, UNIX_EPOCH};
+    use sqlite::State;
+    use crate::sqlite::crud::{open_database, prepare_crud_statement};
+    pub fn set_master_password(path: &str, seed: &str, salt: &str, hash: &str) -> Result<(), String> {
+        let prep_query = "INSERT INTO master_password (seed, salt, hash) \
+        VALUES (:seed, :salt, :hash);";
+        match open_database(path, true) {
+            Ok(connection) => {
+                match prepare_crud_statement(path, &connection, prep_query) {
+                    Ok(mut statement) => {
+                        match statement.bind::<&[(&str, &str)]>(&[
+                            (":seed", seed),
+                            (":salt", salt),
+                            (":hash", hash)
+                        ][..]) {
+                            Ok(_) => {
+                                println!("Master Password Set!");
+                                match statement.next() {
+                                    Ok(State::Done) => Ok(()),
+                                    Err(error) => Err(error.to_string()),
+                                    _ => Err("Weird!".to_string())
+                                }
+                            },
+                            Err(err) => Err(err.to_string())
+                        }
+                    },
+                    Err(err) => {
+                        println!("Error in set_master_password! : {}", &err);
+                        Err(err)
+                    }
+                }
+            },
+            Err(err) => {
+                println!("Error in set_master_password! : {}", &err);
+                Err(err)
+            }
+        }
+    }
+    pub fn get_master_password(path: &str) -> Result<Vec<String>, String> {
+        let prep_query = "SELECT * FROM master_password LIMIT 1;";
+        match open_database(path, true) {
+            Ok(connection) => {
+                match prepare_crud_statement(path, &connection, prep_query) {
+                    Ok(_) => {
+                        let mut ret_val: Vec<String> = Vec::new();
+                        connection
+                            .iterate(prep_query, |master_pass| {
+                                let mut pass: Vec<String> = Vec::new();
+                                for &(name, value) in master_pass.iter() {
+                                    ret_val.push(value.unwrap().to_string());
+                                }
+                                true
+                            })
+                            .unwrap();
+                        Ok(ret_val)
+                    },
+                    Err(err) => {
+                        println!("Error in get_master_password! : {}", &err);
+                        Err(err)
+                    }
+                }
+            },
+            Err(err) => {
+                println!("Error in get_master_password! : {}", &err);
+                Err(err)
+            }
+        }
+    }
+}
 //    stream: Option<TcpStream>,
 //     ping_time: u32,
 //     ip_addr: String,
@@ -786,6 +856,62 @@ pub fn fetch_latest_response_entity_by_identity_group_peers(path: &str, identity
 
 #[cfg(test)]
 mod store_crud_tests {
+    pub mod master_password {
+        use serial_test::serial;
+        use std::fs;
+        use std::time::{Duration, SystemTime, UNIX_EPOCH};
+        use crate::sqlite::crud::MasterPassword::{set_master_password, get_master_password};
+
+        #[test]
+        #[serial]
+        fn set_a_master_password_and_fetch_it() {
+            match set_master_password("test.sqlite", "seed", "salt", "hash") {
+                Ok(_) => {
+                    match get_master_password("test.sqlite") {
+                        Ok(result) => {
+                            assert_eq!(result.get(0).unwrap(), &"1".to_string());
+                            assert_eq!(result.get(1).unwrap(), &"seed".to_string());
+                            assert_eq!(result.get(2).unwrap(), &"salt".to_string());
+                            assert_eq!(result.get(3).unwrap(), &"hash".to_string());
+                        },
+                        Err(err) => {
+                            println!("{}", err);
+                            assert_eq!(1, 2);
+                        }
+                    }
+                },
+                Err(err) => {
+                    println!("Failed To Insert Master Password: {}", err);
+                    assert_eq!(1, 2);
+                }
+            }
+            fs::remove_file("test.sqlite").unwrap();
+        }
+
+        #[test]
+        #[serial]
+        fn enforce_max_one_master_password_row() {
+            match set_master_password("test.sqlite", "seed", "salt", "hash") {
+                Ok(_) => {
+                    match set_master_password("test.sqlite", "seed1", "salt1", "hash1") {
+                        Ok(_) => {
+                            assert_eq!(1, 2);
+                        },
+                        Err(_) => {
+                            assert_eq!(1, 1);
+                        }
+                    }
+                },
+                Err(err) => {
+                    println!("Failed To Insert Master Password: {}", err);
+                    assert_eq!(1, 2);
+                }
+            }
+            fs::remove_file("test.sqlite").unwrap();
+        }
+    }
+
+
     pub mod peers {
         use std::alloc::System;
         use serial_test::serial;

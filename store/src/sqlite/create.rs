@@ -11,13 +11,12 @@ pub fn open_database(path: &str, create: bool) -> Result<sqlite::Connection, Str
       created DATETIME DEFAULT CURRENT_TIMESTAMP,
       connected BOOLEAN DEFAULT false
     );
-    CREATE TABLE IF NOT EXISTS account (
-        name TEXT UNIQUE NOT NULL PRIMARY KEY,
-        seed TEXT,
-        salt TEXT,
-        hash TEXT,
-        is_encrypted INTEGER,
-        created DATETIME DEFAULT CURRENT_TIMESTAMP
+    CREATE TABLE IF NOT EXISTS master_password (
+      id INTEGER PRIMARY KEY CHECK (id = 1),
+      seed TEXT UNIQUE NOT NULL,
+      salt TEXT NOT NULL,
+      hash TEXT NOT NULL,
+      created DATETIME DEFAULT CURRENT_TIMESTAMP
     );
     CREATE TABLE IF NOT EXISTS identities (
         seed TEXT,
