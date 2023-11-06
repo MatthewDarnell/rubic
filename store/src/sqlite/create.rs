@@ -20,11 +20,12 @@ pub fn open_database(path: &str, create: bool) -> Result<sqlite::Connection, Str
         created DATETIME DEFAULT CURRENT_TIMESTAMP
     );
     CREATE TABLE IF NOT EXISTS identities (
-        account TEXT NOT NULL,
-        identity_index INTEGER,
+        seed TEXT,
+        salt TEXT,
+        hash TEXT,
+        is_encrypted INTEGER,
         identity TEXT UNIQUE,
-        created DATETIME DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY(account) REFERENCES account(name)
+        created DATETIME DEFAULT CURRENT_TIMESTAMP
     );
     CREATE TABLE IF NOT EXISTS response (
         peer TEXT NOT NULL,

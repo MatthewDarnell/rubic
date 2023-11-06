@@ -104,13 +104,13 @@ pub mod Peer {
                         }
                     },
                     Err(err) => {
-                        println!("Error in create_account! : {}", &err);
+                        println!("Error in create_peer! : {}", &err);
                         Err(err)
                     }
                 }
             },
             Err(err) => {
-                println!("Error in create_account! : {}", &err);
+                println!("Error in create_peer! : {}", &err);
                 Err(err)
             }
         }
@@ -354,137 +354,19 @@ pub mod Peer {
     }
 
 }
-
-pub fn create_account(path: &str, identity: &Identity) -> Result<(), String> {
-    let prep_query = "INSERT INTO account (name, seed, salt, hash, is_encrypted) VALUES (:name, :seed, :salt, :hash, :is_encrypted);";
+pub fn insert_new_identity(path: &str, identity: &Identity) -> Result<(), String> {
+    let prep_query = "INSERT INTO identities (seed, salt, hash, is_encrypted, identity) VALUES (:seed, :salt, :hash, :is_encrypted, :identity)";
     match open_database(path, true) {
         Ok(connection) => {
             match prepare_crud_statement(path, &connection, prep_query) {
                 Ok(mut statement) => {
                     match identity {
-                        Identity { account, hash, salt, identity, seed, encrypted } => {
+                        Identity { hash, salt, identity, seed, encrypted } => {
                             match statement.bind::<&[(&str, &str)]>(&[
-                                (":name", account.as_str()),
                                 (":seed", seed.as_str()),
                                 (":salt", salt.as_str()),
                                 (":hash", hash.as_str()),
                                 (":is_encrypted", encrypted.to_string().as_str()),
-                            ][..]) {
-                                Ok(_) => {
-                                    match statement.next() {
-                                        Ok(State::Done) => Ok(()),
-                                        Err(error) => Err(error.to_string()),
-                                        _ => Err("Weird!".to_string())
-                                    }
-                                },
-                                Err(err) => Err(err.to_string())
-                            }
-                        }
-                    }
-                },
-                Err(err) => {
-                    println!("Error in create_account! : {}", &err);
-                    Err(err)
-                }
-            }
-        },
-        Err(err) => {
-            println!("Error in create_account! : {}", &err);
-            Err(err)
-        }
-    }
-}
-pub fn fetch_all_accounts(path: &str) -> Result<LinkedList<String>, String> {
-    let prep_query = "SELECT name FROM account;";
-    match open_database(path, true) {
-        Ok(connection) => {
-            match prepare_crud_statement(path, &connection, prep_query) {
-                        Ok(_) => {
-                            let mut ret_val: LinkedList<String> = LinkedList::new();
-                            connection
-                                .iterate(prep_query, |accounts| {
-                                    for &(name, value) in accounts.iter() {
-                                        ret_val.push_back(name.to_string());
-                                    }
-                                    true
-                                })
-                                .unwrap();
-                            Ok(ret_val)
-                        },
-                Err(err) => {
-                    println!("Error in fetch_account! : {}", &err);
-                    Err(err)
-                }
-            }
-        },
-        Err(err) => {
-            println!("Error in fetch_account! : {}", &err);
-            Err(err)
-        }
-    }
-}
-pub fn fetch_account(path: &str, name: &str) -> Result<Identity, String> {
-    let prep_query = "SELECT * FROM account WHERE name = :name LIMIT 1;";
-    match open_database(path, true) {
-        Ok(connection) => {
-            match prepare_crud_statement(path, &connection, prep_query) {
-                Ok(mut statement) => {
-                    match statement.bind::<&[(&str, &str)]>(&[
-                        (":name", name),
-                    ][..]) {
-                        Ok(_) => {
-                            match statement.next() {
-                                Ok(State::Row) => {
-                                    let id: Identity = Identity::from_vars(
-                                        statement.read::<String, _>("name").unwrap().as_str(),
-                                        statement.read::<String, _>("seed").unwrap().as_str(),
-                                        statement.read::<String, _>("hash").unwrap().as_str(),
-                                        statement.read::<String, _>("salt").unwrap().as_str(),
-                                        "",
-                                        statement.read::<String, _>("is_encrypted").unwrap().as_str() == "true"
-                                    );
-                                    Ok(id)
-                                },
-                                Ok(State::Done) => {
-                                    println!("Finished Reading. Failed To Fetch Account.");
-                                    Err("Account Not Found!".to_string())
-                                },
-                                Err(err) => {
-                                    Err(err.to_string())
-                                }
-                            }
-                        },
-                        Err(err) => Err(err.to_string())
-                    }
-                },
-                Err(err) => {
-                    println!("Error in fetch_account! : {}", &err);
-                    Err(err)
-                }
-            }
-        },
-        Err(err) => {
-            println!("Error in fetch_account! : {}", &err);
-            Err(err)
-        }
-    }
-}
-
-
-pub fn insert_new_identity(path: &str, identity: &Identity) -> Result<(), String> {
-
-    {   //First time creating an identity for this account
-        create_account(path, identity).ok();
-    }
-    let prep_query = "INSERT INTO identities (account, identity) VALUES (:account, :identity)";
-    match open_database(path, true) {
-        Ok(connection) => {
-            match prepare_crud_statement(path, &connection, prep_query) {
-                Ok(mut statement) => {
-                    match identity {
-                        Identity { account, hash, salt, identity, seed, encrypted } => {
-                            match statement.bind::<&[(&str, &str)]>(&[
-                                (":account", account.as_str()),
                                 (":identity", identity.as_str())
                             ][..]) {
                                 Ok(val) => {
@@ -507,39 +389,6 @@ pub fn insert_new_identity(path: &str, identity: &Identity) -> Result<(), String
         },
         Err(err) => {
             println!("Error in insert_new_identity! : {}", &err);
-            Err(err)
-        }
-    }
-}
-pub fn fetch_all_identities_by_account(path: &str, account: &str) -> Result<LinkedList<String>, String> {
-    let prep_query = "SELECT identity FROM identities WHERE account=:account;";
-    match open_database(path, true) {
-        Ok(connection) => {
-            match prepare_crud_statement(path, &connection, prep_query) {
-                Ok(mut statement) => {
-                    match statement.bind::<&[(&str, &str)]>(&[
-                        (":account", account),
-                    ][..]) {
-                        Ok(_) => {
-                            let mut ret_val: LinkedList<String> = LinkedList::new();
-                            while let Ok(State::Row) = statement.next() {
-                                ret_val.push_back(
-                                    statement.read::<String, _>("identity").unwrap()
-                                );
-                            }
-                            Ok(ret_val)
-                        },
-                        Err(err) => Err(err.to_string())
-                    }
-                },
-                Err(err) => {
-                    println!("Error in fetch_identity! : {}", &err);
-                    Err(err)
-                }
-            }
-        },
-        Err(err) => {
-            println!("Error in fetch_account! : {}", &err);
             Err(err)
         }
     }
@@ -572,6 +421,48 @@ pub fn fetch_all_identities(path: &str) -> Result<LinkedList<String>, String> {
         },
         Err(err) => {
             println!("Error in fetch_all_identities! : {}", &err);
+            Err(err)
+        }
+    }
+}
+pub fn fetch_all_identities_full(path: &str) -> Result<LinkedList<Identity>, String> {
+    let prep_query = "SELECT * FROM identities;";
+    match open_database(path, true) {
+        Ok(connection) => {
+            match prepare_crud_statement(path, &connection, prep_query) {
+                Ok(mut statement) => {
+                    match statement.bind::<&[(&str, &str)]>(&[
+                    ][..]) {
+                        Ok(_) => {
+                            let mut ret_val: LinkedList<Identity> = LinkedList::new();
+                            while let Ok(State::Row) = statement.next() {
+                                let temp_identity: String = statement.read::<String, _>("identity").unwrap();
+                                let temp_seed: String = statement.read::<String, _>("seed").unwrap();
+                                let temp_salt: String = statement.read::<String, _>("salt").unwrap();
+                                let temp_hash: String = statement.read::<String, _>("hash").unwrap();
+                                let temp_is_encrypted: String = statement.read::<String, _>("is_encrypted").unwrap();
+                                println!("Fetching All Identities Full: {}, {}", &temp_identity, &temp_is_encrypted);
+                                ret_val.push_back(Identity::from_vars(
+                                    temp_seed.as_str(),
+                                    temp_hash.as_str(),
+                                    temp_salt.as_str(),
+                                    temp_identity.as_str(),
+                                    temp_is_encrypted == "true"
+                                ));
+                            }
+                            Ok(ret_val)
+                        },
+                        Err(err) => Err(err.to_string())
+                    }
+                },
+                Err(err) => {
+                    println!("Error in fetch_all_identities_full! : {}", &err);
+                    Err(err)
+                }
+            }
+        },
+        Err(err) => {
+            println!("Error in fetch_all_identities_full! : {}", &err);
             Err(err)
         }
     }
@@ -612,7 +503,7 @@ pub fn fetch_balance_by_identity(path: &str, identity: &str) -> Result<Vec<Strin
     }
 }
 pub fn fetch_identity(path: &str, identity: &str) -> Result<Identity, String> {
-    let prep_query = "SELECT * FROM identities i INNER JOIN account a ON a.name=i.account WHERE i.identity = :identity  LIMIT 1;";
+    let prep_query = "SELECT * FROM identities WHERE identity = :identity LIMIT 1;";
     match open_database(path, true) {
         Ok(connection) => {
             match prepare_crud_statement(path, &connection, prep_query) {
@@ -624,7 +515,6 @@ pub fn fetch_identity(path: &str, identity: &str) -> Result<Identity, String> {
                             match statement.next() {
                                 Ok(State::Row) => {
                                     let id: Identity = Identity::from_vars(
-                                        statement.read::<String, _>("name").unwrap().as_str(),
                                         statement.read::<String, _>("seed").unwrap().as_str(),
                                         statement.read::<String, _>("hash").unwrap().as_str(),
                                         statement.read::<String, _>("salt").unwrap().as_str(),
@@ -723,13 +613,13 @@ pub fn create_peer_response(path: &str, peer: &str, data: &Vec<u8>) -> Result<()
                     }
                 },
                 Err(err) => {
-                    println!("Error in create_account! : {}", &err);
+                    println!("Error in create_peer_response! : {}", &err);
                     Err(err)
                 }
             }
         },
         Err(err) => {
-            println!("Error in create_account! : {}", &err);
+            println!("Error in create_peer_response! : {}", &err);
             Err(err)
         }
     }
@@ -990,66 +880,12 @@ mod store_crud_tests {
                 Ok(peers) => {
                     assert_eq!(peers.len(), 3);
                     let peer2: &Vec<String> = &peers[1];
-                    assert_eq!(peer2.len(), 7);
+                    println!("Peer2: {:?}", &peer2);
+                    assert_eq!(peer2.len(), 8);
                     assert_eq!(peer2[2], "nickname2");
                 },
                 Err(err) => {
                     println!("Peer Couldn't be Fetched!");
-                    assert_eq!(1, 2);
-                }
-            }
-            fs::remove_file("test.sqlite").unwrap();
-        }
-    }
-    pub mod accounts {
-
-        use identity::Identity;
-        use crate::sqlite::crud::{create_account, insert_new_identity, fetch_identity, delete_identity, fetch_all_accounts};
-        use serial_test::serial;
-        use std::fs;
-        use crate::sqlite::crud::fetch_account;
-
-        #[test]
-        #[serial]
-        fn create_account_and_insert() {
-
-            let id: Identity = Identity::new("lcehvbvddggkjfnokduyjuiyvkklrvrmsaozwbvjlzvgvfipqpnkkuf", "testAccount");
-            create_account("test.sqlite", &id).unwrap();
-            fs::remove_file("test.sqlite").unwrap();
-        }
-
-        #[test]
-        #[serial]
-        fn create_account_and_insert_and_fetch() {
-            let id: Identity = Identity::new("lcehvbvddggkjfnokduyjuiyvkklrvrmsaozwbvjlzvgvfipqpnkkuf", "testAccount");
-            create_account("test.sqlite", &id).unwrap();
-            match fetch_account("test.sqlite", "testAccount") {
-                Ok(id) => {
-                    assert_eq!(id.account.as_str(), "testAccount");
-                },
-                Err(err) => {
-                    println!("Account Couldn't be Fetched!");
-                    assert_eq!(1, 2);
-                }
-            }
-            fs::remove_file("test.sqlite").unwrap();
-        }
-
-        #[test]
-        #[serial]
-        fn create_multiple_accounts_and_insert_and_fetch() {
-            let id: Identity = Identity::new("lcehvbvddggkjfnokduyjuiyvkklrvrmsaozwbvjlzvgvfipqpnkkuf", "testAccount");
-            let id2: Identity = Identity::new("lcehvbvddggkjfnokduyjuiyvkklrvrmsaozwbvjlzvgvfipqpnkkuf", "testAccount2");
-            let id3: Identity = Identity::new("lcehvbvddggkjfnokduyjuiyvkklrvrmsaozwbvjlzvgvfipqpnkkuf", "testAccount3");
-            create_account("test.sqlite", &id).unwrap();
-            create_account("test.sqlite", &id2).unwrap();
-            create_account("test.sqlite", &id3).unwrap();
-            match fetch_all_accounts("test.sqlite",) {
-                Ok(list) => {
-                    assert_eq!(list.len(), 3);
-                },
-                Err(err) => {
-                    println!("Account Couldn't be Fetched!");
                     assert_eq!(1, 2);
                 }
             }
@@ -1143,7 +979,6 @@ mod store_crud_tests {
                     //assert_eq!(response_vec[0].peer.as_ref().unwrap().as_str(), "127.0.0.1");
                 },
                 Err(err) => {
-                    println!("Account Couldn't be Fetched!");
                     assert_eq!(1, 2);
                 }
             }
@@ -1158,14 +993,14 @@ mod store_crud_tests {
 
     pub mod identities {
         use identity::Identity;
-        use crate::sqlite::crud::{insert_new_identity, fetch_identity, delete_identity, fetch_all_identities_by_account};
+        use crate::sqlite::crud::{insert_new_identity, fetch_identity, delete_identity};
         use serial_test::serial;
         use std::fs;
         #[test]
         #[serial]
         fn create_identity_and_insert() {
             {
-                let id: Identity = Identity::new("lcehvbvddggkjfnokduyjuiyvkklrvrmsaozwbvjlzvgvfipqpnkkuf", "testAccount");
+                let id: Identity = Identity::new("lcehvbvddggkjfnokduyjuiyvkklrvrmsaozwbvjlzvgvfipqpnkkuf");
                 println!("{:?}", &id);
                 match insert_new_identity("test.sqlite", &id) {
                     Ok(_) => {
@@ -1184,7 +1019,7 @@ mod store_crud_tests {
         #[serial]
         fn create_identity_and_delete() {
             {
-                let id: Identity = Identity::new("lcehvbvddggkjfnokduyjuiyvkklrvrmsaozwbvjlzvgvfipqpnkkuf", "testAccount");
+                let id: Identity = Identity::new("lcehvbvddggkjfnokduyjuiyvkklrvrmsaozwbvjlzvgvfipqpnkkuf");
                 println!("{:?}", &id);
                 match insert_new_identity("test.sqlite", &id) {
                     Ok(_) => {
@@ -1219,7 +1054,7 @@ mod store_crud_tests {
         #[serial]
         fn create_identity_and_insert_and_fetch() {
             {
-                let id: Identity = Identity::new("lcehvbvddggkjfnokduyjuiyvkklrvrmsaozwbvjlzvgvfipqpnkkuf", "testAccount");
+                let id: Identity = Identity::new("lcehvbvddggkjfnokduyjuiyvkklrvrmsaozwbvjlzvgvfipqpnkkuf");
                 println!("{:?}", &id);
                 match insert_new_identity("test.sqlite", &id) {
                     Ok(_) => {
@@ -1243,44 +1078,11 @@ mod store_crud_tests {
             fs::remove_file("test.sqlite").unwrap();
         }
 
-
-        #[test]
-        #[serial]
-        fn create_identities_and_insert_and_fetch_all_by_account() {
-            {
-                let id: Identity = Identity::new("lcehvbvddggkjfnokduyjuiyvkklrvrmsaozwbvjlzvgvfipqpnkkuf", "testAccount");
-                let id2: Identity = Identity::new("twohvbvddggkjfnokduyjuiyvkklrvrmsaozwbvjlzvgvfipqpnkkuf", "testAccount");
-                let id3: Identity = Identity::new("threebvddggkjfnokduyjuiyvkklrvrmsaozwbvjlzvgvfipqpnkkuf", "testAccount");
-                println!("{:?}", &id);
-                insert_new_identity("test.sqlite", &id).unwrap();
-                insert_new_identity("test.sqlite", &id2).unwrap();
-                match insert_new_identity("test.sqlite", &id3) {
-                    Ok(_) => {
-                        match fetch_all_identities_by_account("test.sqlite", "testAccount") {
-                            Ok(identities) => {
-                                println!("{:?}", &identities);
-                                assert_eq!(identities.len(), 3);
-                            },
-                            Err(err) => {
-                                println!("Failed To Fetch Identity! : {}", err.as_str());
-                                assert_eq!(1, 2);
-                            }
-                        }
-                    },
-                    Err(err) => {
-                        println!("{}", err);
-                        assert_eq!(1, 2);
-                    }
-                }
-            }
-            fs::remove_file("test.sqlite").unwrap();
-        }
-
         #[test]
         #[serial]
         fn create_identity_encrypt_and_insert_and_fetch() {
             {
-                let mut id: Identity = Identity::new("lcehvbvddggkjfnokduyjuiyvkklrvrmsaozwbvjlzvgvfipqpnkkuf", "testAccount",);
+                let mut id: Identity = Identity::new("lcehvbvddggkjfnokduyjuiyvkklrvrmsaozwbvjlzvgvfipqpnkkuf",);
                 id =  id.encrypt_identity("password").unwrap();
                 match insert_new_identity("test.sqlite", &id) {
                     Ok(_) => {

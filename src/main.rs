@@ -85,7 +85,7 @@ async fn main() {
               }
               else if method == &"add_identity".to_string() {
                 let seed = map.get(&"seed".to_string()).unwrap();
-                let id: identity::Identity = identity::Identity::new(seed.as_str(), "");
+                let id: identity::Identity = identity::Identity::new(seed.as_str());
                 println!("Inserting Identity: {}", seed.as_str());
 
                 let message_id = map.get(&"message_id".to_string()).unwrap();
@@ -184,6 +184,7 @@ async fn main() {
         routes::info::latest_tick,
         routes::info::info,
         routes::info::peers,
+        routes::info::download_wallet,
         routes::info::balance,
         routes::info::add_peer,
         routes::info::add_identity,

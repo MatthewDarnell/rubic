@@ -39,6 +39,28 @@ pub fn peers() -> String {
     }
 }
 
+#[get("/wallet/download/<password>")]
+pub fn download_wallet(password: &str) -> String {
+    match store::sqlite::crud::fetch_all_identities(store::get_db_path().as_str()) {
+        Ok(v) => {
+            let mut response: Vec<(String, Vec<String>)> = vec![];
+            for identity in &v {
+                match store::sqlite::crud::fetch_balance_by_identity(store::get_db_path().as_str(), identity.as_str()) {
+                    Ok(b) => {
+                        response.push((identity.to_string(), b));
+                    },
+                    Err(err) => {
+                        println!("Error Getting Balance For Identity {} {:?}", &identity, &err);
+                    }
+                }
+            }
+            format!("{:?}", v)
+        },
+        Err(err) => format!("{}", err)
+    }
+}
+
+
 #[get("/balance/<address>")]
 pub fn balance(address: &str) -> String {
     match store::sqlite::crud::fetch_balance_by_identity(store::get_db_path().as_str(), address) {
@@ -115,7 +137,7 @@ pub fn get_identities() -> String {
 
 #[get("/identity/from_seed/<seed>")]
 pub fn get_identity_from_seed(seed: &str) -> String {
-    let i: identity::Identity = identity::Identity::new(seed, "");
+    let i: identity::Identity = identity::Identity::new(seed);
     format!("{}", i.identity.as_str())
 }
 

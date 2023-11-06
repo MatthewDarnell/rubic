@@ -49,7 +49,6 @@ pub fn get_public_key_from_identity(identity: &str) -> Result<Vec<u8>, ()> {
 
 #[derive(Debug)]
 pub struct Identity {
-    pub account: String,
     pub seed: String,
     pub hash: String,
     pub salt: String,
@@ -73,9 +72,8 @@ impl Identity {
             Ok(Vec::from(public_key))
         }
     }
-    pub fn from_vars(account: &str, seed: &str, hash: &str, salt: &str, identity: &str, is_encrypted: bool) -> Self {
+    pub fn from_vars(seed: &str, hash: &str, salt: &str, identity: &str, is_encrypted: bool) -> Self {
         Identity {
-            account: String::from(account),
             seed: String::from(seed),
             hash: String::from(hash),
             salt: String::from(salt),
@@ -84,12 +82,11 @@ impl Identity {
         }
     }
     pub fn contains_seed(&self) -> bool { self.seed.len() == 55}
-    pub fn new(seed: &str, account: &str) -> Self {
+    pub fn new(seed: &str) -> Self {
         let id = identity(seed);
         match identity_to_address(&id) {
             Ok(address) => {
                 Identity {
-                    account: String::from(account),
                     seed: String::from(seed),
                     hash: String::from(""),
                     salt: String::from(""),
@@ -100,7 +97,6 @@ impl Identity {
             Err(err) => {
                 println!("Error Generating Identity! : {}", err.to_string());
                 Identity {
-                    account: String::from(""),
                     seed: String::from(""),
                     hash: String::from(""),
                     salt: String::from(""),
@@ -119,7 +115,6 @@ impl Identity {
                 match crypto::passwords::hash_password(password) {
                     Ok(hashed_password) => {
                         Ok(Identity {
-                            account: self.account.to_owned(),
                             seed: ciphertext,
                             hash: hashed_password,
                             salt: nonce,
@@ -145,7 +140,6 @@ impl Identity {
                 match crypto::encryption::decrypt(self.salt.as_str(), self.seed.as_str(), password) {
                     Ok(seed) => {
                         Ok(Identity {
-                            account: self.account.to_owned(),
                             seed: seed,
                             hash: self.hash.to_owned(),
                             salt: self.salt.to_owned(),
@@ -174,7 +168,7 @@ mod create_identity {
 
         #[test]
         fn create_new_identity() {
-            let id: Identity = Identity::new("lcehvbvddggkjfnokduyjuiyvkklrvrmsaozwbvjlzvgvfipqpnkkuf", "testAccount");
+            let id: Identity = Identity::new("lcehvbvddggkjfnokduyjuiyvkklrvrmsaozwbvjlzvgvfipqpnkkuf");
             println!("{:?}", &id);
             assert_eq!(id.identity.as_str(), "EPYWDREDNLHXOFYVGQUKPHJGOMPBSLDDGZDPKVQUMFXAIQYMZGEHPZTAAWON");
         }
@@ -182,7 +176,6 @@ mod create_identity {
         #[test]
         fn create_new_identity_from_vars() {
             let id: Identity = Identity::from_vars(
-                "testAccount",
                 "lcehvbvddggkjfnokduyjuiyvkklrvrmsaozwbvjlzvgvfipqpnkkuf",
                 "",
                 "",
@@ -197,7 +190,7 @@ mod create_identity {
         use crate::Identity;
         #[test]
         fn encrypt_an_identity() {
-            let mut id: Identity = Identity::new("lcehvbvddggkjfnokduyjuiyvkklrvrmsaozwbvjlzvgvfipqpnkkuf", "testAccount");
+            let mut id: Identity = Identity::new("lcehvbvddggkjfnokduyjuiyvkklrvrmsaozwbvjlzvgvfipqpnkkuf");
             assert_eq!(id.encrypted, false);
             assert_eq!(id.seed.as_str(), "lcehvbvddggkjfnokduyjuiyvkklrvrmsaozwbvjlzvgvfipqpnkkuf");
             id =  id.encrypt_identity("password").unwrap();
@@ -208,7 +201,7 @@ mod create_identity {
 
         #[test]
         fn decrypt_an_identity() {
-            let mut id: Identity = Identity::new("lcehvbvddggkjfnokduyjuiyvkklrvrmsaozwbvjlzvgvfipqpnkkuf", "testAccount");
+            let mut id: Identity = Identity::new("lcehvbvddggkjfnokduyjuiyvkklrvrmsaozwbvjlzvgvfipqpnkkuf");
             id =  id.encrypt_identity("password").unwrap();
             assert_eq!(id.encrypted, true);
             id = id.decrypt_identity("password").unwrap();
