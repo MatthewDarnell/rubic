@@ -1,19 +1,17 @@
-use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4, TcpStream};
 use std::io::prelude::*;
 use std::io::ErrorKind;
-use chrono::prelude::*;
 use crate::peer::Peer;
-use api::{qubic_api_t};
-use api::header::entity_type;
+use api::{QubicApiPacket};
+use api::header::EntityType;
 
-pub fn handle_new_peer(id: String, mut peer: Peer, rx: spmc::Receiver<qubic_api_t>, tx: std::sync::mpsc::Sender<qubic_api_t>) {
+pub fn handle_new_peer(id: String, peer: Peer, rx: spmc::Receiver<QubicApiPacket>, tx: std::sync::mpsc::Sender<QubicApiPacket>) {
     println!("Handling New Peer! {}", id.as_str());
     if peer.get_stream().is_none() {
        println!("Peer {} Missing TcpStream! Shutting Down Worker Thread.", peer.get_id());
         return;
     }
     let mut stream = peer.get_stream().unwrap();
-    let mut result: [u8; 1024] = [0; 1024];
+    let mut result: [u8; 1024];
     loop {
         match rx.recv() {
             Ok(mut request) => {
@@ -25,15 +23,15 @@ pub fn handle_new_peer(id: String, mut peer: Peer, rx: spmc::Receiver<qubic_api_
                     match stream.write(request.as_bytes().as_slice()) {
                         Ok(_) => {
                             result = [0; 1024];
-                            let response = ["Peer ", id.as_str(), " Responded At Time ", Utc::now().to_string().as_str()].join("");
+                            //let response = ["Peer ", id.as_str(), " Responded At Time ", Utc::now().to_string().as_str()].join("");
                             //println!( "Worker Thread Responding With {}", response.as_str());
                             match stream.read(&mut result) {
-                                Ok(bytes_read) => {
-                                    let api_response: Option<qubic_api_t> = qubic_api_t::format_response_from_bytes(peer.get_id(), result.to_vec());
-                                    //TODO: auto format result into qubic_api_t (add func qubic_api_t::from_bytes(result))
+                                Ok(_) => {
+                                    let api_response: Option<QubicApiPacket> = QubicApiPacket::format_response_from_bytes(peer.get_id(), result.to_vec());
+                                    //TODO: auto format result into QubicApiPacket (add func QubicApiPacket::from_bytes(result))
                                     //println!("Worker Thread Read Back {} Bytes!", bytes_read);
                                     //println!("Read {:?}", result);
-                                    if let Some(mut formatted_api_response) = api_response {
+                                    if let Some(formatted_api_response) = api_response {
                                         match tx.send(formatted_api_response) {
                                             Ok(_) => {},
                                             Err(err) => println!("Failed to send Message from Worker Thread.({}) To Handler... ({})", peer.get_id().as_str(), err.to_string())
@@ -67,8 +65,8 @@ pub fn handle_new_peer(id: String, mut peer: Peer, rx: spmc::Receiver<qubic_api_
                                 .to_vec();
                             println!("Failed To Send Data To Peer! {}", id.as_str());
                             println!("{}", err.to_string());
-                            let mut response: qubic_api_t = qubic_api_t::new(&error);
-                            response.api_type = entity_type::ERROR;
+                            let mut response: QubicApiPacket = QubicApiPacket::new(&error);
+                            response.api_type = EntityType::ERROR;
                             response.peer = Some(peer.get_id().to_owned());
                             match tx.send(response) {
                                 Ok(_) => {},

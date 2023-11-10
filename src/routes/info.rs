@@ -1,11 +1,10 @@
-#![feature(proc_macro_hygiene, decl_macro)]
 
 use std::collections::HashMap;
 use std::sync::Mutex;
 use std::sync::mpsc::Sender;
 use std::time::Duration;
 use spmc::Receiver;
-use rocket::{get, routes};
+use rocket::get;
 use uuid::Uuid;
 use store;
 use identity;
@@ -20,7 +19,7 @@ pub fn latest_tick() -> String {
 
 #[get("/info")]
 pub fn info() -> String {
-    match store::sqlite::crud::Peer::fetch_connected_peers(store::get_db_path().as_str()) {
+    match store::sqlite::crud::peer::fetch_connected_peers(store::get_db_path().as_str()) {
         Ok(value) => {
             format!("{}", value.len())
         }, Err(err) => {
@@ -30,7 +29,7 @@ pub fn info() -> String {
 }
 #[get("/peers")]
 pub fn peers() -> String {
-    match store::sqlite::crud::Peer::fetch_connected_peers(store::get_db_path().as_str()) {
+    match store::sqlite::crud::peer::fetch_connected_peers(store::get_db_path().as_str()) {
         Ok(value) => {
             format!("{:?}", value)
         }, Err(err) => {

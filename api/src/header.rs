@@ -1,6 +1,6 @@
 use crypto::random::random_bytes;
 #[derive(Debug, Copy, Clone)]
-pub struct request_response_header {
+pub struct RequestResponseHeader {
     pub _size: [u8; 3],
     pub _type: u8,
     pub _dejavu: [u8; 3],
@@ -8,17 +8,17 @@ pub struct request_response_header {
 }
 
 #[derive(Debug, Copy, Clone)]
-pub enum entity_type {
+pub enum EntityType {
     ERROR = 55, //This is for internal message passing, not a real value
     UNKNOWN = -1,
-    EXCHANGE_PEERS = 0,
-    REQUEST_ENTITY = 31,
-    RESPONSE_ENTITY = 32
+    ExchangePeers = 0,
+    RequestEntity = 31,
+    ResponseEntity = 32
 }
 
-impl request_response_header {
+impl RequestResponseHeader {
     pub fn from_vec(vec: &Vec<u8>) -> Self {
-        let mut header = request_response_header::new();
+        let mut header = RequestResponseHeader::new();
         header._size[0] = vec[0];
         header._size[1] = vec[1];
         header._size[2] = vec[2];
@@ -48,7 +48,7 @@ impl request_response_header {
         bytes
     }
     pub fn new() -> Self {
-        request_response_header {
+        RequestResponseHeader {
             _size: [0; 3],
             _type: 0,
             _dejavu: random_bytes(3).as_slice().try_into().unwrap(),
@@ -75,16 +75,16 @@ impl request_response_header {
         return size;
     }
 
-    pub fn set_type(&mut self, _type: entity_type) {
+    pub fn set_type(&mut self, _type: EntityType) {
         self._type = _type as u8;
     }
-    pub fn get_type(&self) -> entity_type {
+    pub fn get_type(&self) -> EntityType {
         match self._type {
-            0 => entity_type::EXCHANGE_PEERS,
-            31 => entity_type::REQUEST_ENTITY,
-            32 => entity_type::RESPONSE_ENTITY,
-            55 => entity_type::ERROR,
-            _ => entity_type::UNKNOWN
+            0 => EntityType::ExchangePeers,
+            31 => EntityType::RequestEntity,
+            32 => EntityType::ResponseEntity,
+            55 => EntityType::ERROR,
+            _ => EntityType::UNKNOWN
         }
     }
 }

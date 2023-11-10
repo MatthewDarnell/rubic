@@ -1,32 +1,28 @@
-use std::convert::TryInto;
 use std::io::prelude::*;
-use std::thread;
 use std::collections::HashMap;
-use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4, TcpStream};
-use std::thread::sleep;
-use api::qubic_api_t;
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::net::{SocketAddr, TcpStream};
+use api::QubicApiPacket;
+use std::time::{Duration, SystemTime};
 use store;
 use rand::seq::SliceRandom;
 use crate::worker;
 use crate::receive_response_worker;
-use uuid::Uuid;
 use crate::peer::Peer;
 
 
 
 #[derive(Debug)]
 pub enum PeerStrategy {
-    PRIORITIZE_LOW_PING = 0,
-    PRIORITIZE_LONGEST_UNUSED_CONN = 1,
+    PrioritizeLowPing = 0,
+    PrioritizeLongestUnusedConn = 1,
     RANDOM = 2
 }
 
 pub struct PeerSet {
   strategy: PeerStrategy,
   peers: Vec<Peer>,
-  req_channel: (spmc::Sender<qubic_api_t>, spmc::Receiver<qubic_api_t>),
-  resp_channel: std::sync::mpsc::Sender<qubic_api_t>,
+  req_channel: (spmc::Sender<QubicApiPacket>, spmc::Receiver<QubicApiPacket>),
+  resp_channel: std::sync::mpsc::Sender<QubicApiPacket>,
   threads: HashMap<String, std::thread::JoinHandle<()>>
 }
 
@@ -35,12 +31,12 @@ pub struct PeerSet {
 
 impl PeerSet {
     pub fn new(strategy: PeerStrategy) -> Self {
-        let channel = std::sync::mpsc::channel::<qubic_api_t>();
+        let channel = std::sync::mpsc::channel::<QubicApiPacket>();
         let peer_set = PeerSet {
             strategy: strategy,
             peers: vec![],
             threads: HashMap::new(),
-            req_channel: spmc::channel::<qubic_api_t>(),
+            req_channel: spmc::channel::<QubicApiPacket>(),
             resp_channel: channel.0,
         };
         {
@@ -56,7 +52,7 @@ impl PeerSet {
     }
     pub fn add_peer(&mut self, ip: &str) -> Result<(), String> {
         if let Ok(max_peers) = std::env::var("RUBIC_MAX_PEERS") {
-            if(self.get_peers().len() >= max_peers.parse::<usize>().unwrap()) {
+            if self.get_peers().len() >= max_peers.parse::<usize>().unwrap() {
                 return Err("Already At Max Capacity of Connected Peers".to_string());
             }
         } else {
@@ -69,7 +65,7 @@ impl PeerSet {
         }
         let sock: SocketAddr = ip.parse().unwrap();
         match TcpStream::connect_timeout(&sock, Duration::from_millis(5000)) {
-            Ok(mut stream) => {
+            Ok(stream) => {
                 println!("Adding Peer {}", ip);
                 let new_peer = Peer::new(ip, None, "");
                 let id = new_peer.get_id().to_owned();
@@ -84,7 +80,7 @@ impl PeerSet {
                     self.threads.insert(copied_id, t);
                 }
                 self.peers.push(new_peer);
-                match store::sqlite::crud::Peer::set_peer_connected(
+                match store::sqlite::crud::peer::set_peer_connected(
                     store::get_db_path().as_str(),
                     id.as_str()
                 ) {
@@ -110,7 +106,7 @@ impl PeerSet {
                             return true;
                         }
                     },
-                    Err(error) => {}
+                    Err(_) => {}
                 }
             }
         }
@@ -139,12 +135,12 @@ impl PeerSet {
         }
     }
 
-    pub fn make_request(&mut self, mut request: qubic_api_t) -> Result<(), String> {
+    pub fn make_request(&mut self, mut request: QubicApiPacket) -> Result<(), String> {
         if self.num_peers() < 1 {
             return Err("Cannot send request, 0 peers! Add some!".to_string())
         }
         let peer: &mut Peer = match self.strategy {
-            PeerStrategy::PRIORITIZE_LOW_PING => {
+            PeerStrategy::PrioritizeLowPing => {
                 let mut temp = &self.peers[0];
                 let mut temp_index = 0;
                 for (index, peer) in self.peers.iter().enumerate() {
@@ -155,7 +151,7 @@ impl PeerSet {
                 }
                 &mut self.peers[temp_index]
             },
-            PeerStrategy::PRIORITIZE_LONGEST_UNUSED_CONN => {
+            PeerStrategy::PrioritizeLongestUnusedConn => {
                 let mut temp = &self.peers[0];
                 let mut temp_index = 0;
                 for (index, peer) in self.peers.iter().enumerate() {

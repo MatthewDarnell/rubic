@@ -1,29 +1,28 @@
-use std::alloc::System;
 use std::time::SystemTime;
-use chrono::prelude::*;
-use crate::{qubic_api_t, request_response_header};
-use crate::header::entity_type;
+use crate::QubicApiPacket;
+use crate::header::EntityType;
 use crate::response::exchange_peers::ExchangePeersEntity;
 use crate::response::response_entity::ResponseEntity;
-use store::sqlite::crud::{create_response_entity, Peer::update_peer_last_responded};
+use store::sqlite::crud::{create_response_entity, peer::update_peer_last_responded};
 pub mod exchange_peers;
 pub mod response_entity;
 
 pub trait FormatQubicResponseDataToStructure {
-    fn format_qubic_response_data_to_structure(response: & mut qubic_api_t) -> Self;
+    fn format_qubic_response_data_to_structure(response: & mut QubicApiPacket) -> Self;
 }
 
-pub fn get_formatted_response(response: &mut qubic_api_t) {
+pub fn get_formatted_response(response: &mut QubicApiPacket) {
     let path = store::get_db_path();
     println!("API MODULE GOT PATH {}", path.as_str());
     match response.api_type {
-        entity_type::EXCHANGE_PEERS => {
+        EntityType::ExchangePeers => {
             let resp: ExchangePeersEntity = ExchangePeersEntity::format_qubic_response_data_to_structure(response);
             println!("ExchangePeersEntity: {:?}", resp);
             update_peer_last_responded(path.as_str(), resp.peer.as_str(), SystemTime::now()).unwrap();
         },
-        entity_type::RESPONSE_ENTITY => {
+        EntityType::ResponseEntity => {
             let resp: ResponseEntity = ResponseEntity::format_qubic_response_data_to_structure(response);
+            //println!("Got ResponseEntity: {:?}", &resp);
             create_response_entity(path.as_str(),
                                    resp.peer.as_str(),
                                    resp.identity.as_str(),
@@ -40,9 +39,12 @@ pub fn get_formatted_response(response: &mut qubic_api_t) {
             update_peer_last_responded(path.as_str(), resp.peer.as_str(), SystemTime::now()).unwrap();
             println!("Inserted Response Entity!");
         },
-        entity_type::ERROR => {
+        EntityType::ERROR => {
             let error_type = String::from_utf8(response.data.clone()).unwrap();
             println!("Response Thread Handler Got Error! Message Received: ({})", error_type.as_str());
+            println!("{:?}", &response);
+            println!("{:?}", &response.data);
+            panic!("exiting");
         }
         _ => {/*  println!("Unknown Entity Type"); */ }
     }
@@ -51,8 +53,8 @@ pub fn get_formatted_response(response: &mut qubic_api_t) {
         return ;
     }
     //todo: check header reported size against len of full data body
-    let header = request_response_header::from_vec(response);
-    let size = std::mem::size_of::<request_response_header>();
+    let header = RequestResponseHeader::from_vec(response);
+    let size = std::mem::size_of::<RequestResponseHeader>();
     if header.get_type().is_none() {
         println!("unknown type");
         return;
@@ -67,14 +69,14 @@ pub fn get_formatted_response(response: &mut qubic_api_t) {
     let header_slice = &response.as_slice()[..8];
     let address_slice = &response.as_slice()[8..8+32];
      match resp_type {
-        entity_type::EXCHANGE_PEERS => {
+        EntityType::ExchangePeers => {
            match exchange_peers::handle_exchange_peers(response) {
                Some(_) => {},
                None => println!("Error Formatting Exchange Peers!")
            }
         },
-        entity_type::REQUEST_ENTITY => { /* this isn't a response... */ },
-        entity_type::RESPONSE_ENTITY => {
+        EntityType::RequestEntity => { /* this isn't a response... */ },
+        EntityType::ResponseEntity => {
             match response_entity::handle_response_entity(response) {
                 Some(value) => {
 

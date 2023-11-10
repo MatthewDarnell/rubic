@@ -3,34 +3,33 @@ pub mod response;
 extern crate crypto;
 extern crate identity;
 use identity::get_public_key_from_identity;
-use crypto::random::random_bytes;
-use crate::header::{ entity_type, request_response_header };
+use crate::header::{ EntityType, RequestResponseHeader };
 
 //Takes a public key
 #[derive(Debug, Copy, Clone)]
-pub struct requested_entity {
+pub struct RequestedEntity {
     pub public_key: [u8; 32]
 }
 
 #[derive(Debug, Clone)]
-pub struct qubic_api_t {
-    pub api_type: entity_type,
+pub struct QubicApiPacket {
+    pub api_type: EntityType,
     pub peer: Option<String>,
-    pub header: request_response_header,
+    pub header: RequestResponseHeader,
     pub data: Vec<u8>,
     pub response_data: Option<Vec<u8>>
 }
-impl qubic_api_t {
+impl QubicApiPacket {
     pub fn get_identity_balance(id: &str) -> Self {
-        let entity: entity_type = entity_type::REQUEST_ENTITY;
-        let mut header = request_response_header::new();
-        header.set_type(entity_type::REQUEST_ENTITY);
+        //let entity: EntityType = EntityType::RequestEntity;
+        let mut header = RequestResponseHeader::new();
+        header.set_type(EntityType::RequestEntity);
 
-        let mut data: Vec<u8> = get_public_key_from_identity(id).unwrap();
-        let size = std::mem::size_of::<request_response_header>() + data.len();
+        let data: Vec<u8> = get_public_key_from_identity(id).unwrap();
+        let size = std::mem::size_of::<RequestResponseHeader>() + data.len();
         header.set_size(size);
-        qubic_api_t {
-            api_type: entity_type::REQUEST_ENTITY,
+        QubicApiPacket {
+            api_type: EntityType::RequestEntity,
             peer: None,
             header: header,
             data: data,
@@ -43,18 +42,18 @@ impl qubic_api_t {
         res
     }
     pub fn new(data: &Vec<u8>) -> Self {    //todo: remove this, should only be able to create by specific api call
-        qubic_api_t {
-            api_type: entity_type::UNKNOWN,
+        QubicApiPacket {
+            api_type: EntityType::UNKNOWN,
             peer: None,
-            header: request_response_header::new(),
+            header: RequestResponseHeader::new(),
             data: data.clone(),
             response_data: None
         }
     }
     pub fn format_response_from_bytes(peer_id: &String, data: Vec<u8>) -> Option<Self> {
-        let header: request_response_header = request_response_header::from_vec(&data);
+        let header: RequestResponseHeader = RequestResponseHeader::from_vec(&data);
 
-        Some(qubic_api_t {
+        Some(QubicApiPacket {
             api_type: header.get_type().to_owned(),
             peer: Some(peer_id.to_owned()),
             header: header,
@@ -66,16 +65,16 @@ impl qubic_api_t {
 
 #[cfg(test)]
 pub mod api_formatting_tests {
-    use crate::qubic_api_t;
+    use crate::QubicApiPacket;
     #[test]
     fn create_identity_balance_request_entity() {
-        let req = qubic_api_t::get_identity_balance("EPYWDREDNLHXOFYVGQUKPHJGOMPBSLDDGZDPKVQUMFXAIQYMZGEHPZTAAWON");
+        let req = QubicApiPacket::get_identity_balance("EPYWDREDNLHXOFYVGQUKPHJGOMPBSLDDGZDPKVQUMFXAIQYMZGEHPZTAAWON");
         println!("{:?}", req);
     }
 
     #[test]
     fn create_entity_get_full_request_as_bytes() {
-        let mut req = qubic_api_t::get_identity_balance("EPYWDREDNLHXOFYVGQUKPHJGOMPBSLDDGZDPKVQUMFXAIQYMZGEHPZTAAWON");
+        let mut req = QubicApiPacket::get_identity_balance("EPYWDREDNLHXOFYVGQUKPHJGOMPBSLDDGZDPKVQUMFXAIQYMZGEHPZTAAWON");
         req.header.zero_dejavu();   //Dejavu is random 3 byte value
         let bytes = req.as_bytes();
         assert_eq!(bytes.len(), 68);

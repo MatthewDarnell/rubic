@@ -1,16 +1,14 @@
 #![feature(proc_macro_hygiene, decl_macro)]
 
 use std::collections::HashMap;
-use rocket::{get, routes};
-#[macro_use]
+use rocket::routes;
+
 extern crate dotenv_codegen;
 use network::peers::{PeerStrategy, PeerSet};
 use store::sqlite::crud;
 use store::get_db_path;
 use identity;
-use std::thread;
 use std::sync::mpsc;
-use std::thread::sleep;
 use std::time::Duration;
 mod env;
 mod routes;
@@ -34,7 +32,7 @@ use rocket::fairing::{Fairing, Info, Kind};
 #[rocket::main]
 async fn main() {
   let path = store::get_db_path();
-  crud::Peer::set_all_peers_disconnected(path.as_str());
+  crud::peer::set_all_peers_disconnected(path.as_str()).unwrap();
   let peer_ips = vec!["85.10.199.154:21841",
                       "148.251.184.163:21841",
                       "62.2.98.75:21841",
@@ -45,7 +43,7 @@ async fn main() {
   let mut peer_set = PeerSet::new(PeerStrategy::RANDOM);
   for ip in peer_ips {
     println!("Adding Peer {}", ip);
-    peer_set.add_peer(ip);
+    peer_set.add_peer(ip).unwrap();
     println!("Peer Added");
   }
 
@@ -55,7 +53,7 @@ async fn main() {
   {
     let mut tx = tx2;
     let rx = rx;  //Move rx into scope and then thread
-    let t = std::thread::spawn(move || {
+    std::thread::spawn(move || {
       let delay = Duration::from_millis(500);
       loop {
         match rx.recv_timeout(Duration::from_secs(5)) {
@@ -73,13 +71,13 @@ async fn main() {
                     response.insert("message_id".to_string(), message_id.to_string());
                     response.insert("status".to_string(), "Peer Added".to_string());
                     println!("Sending {:?}", &response);
-                    tx.send(response);
+                    tx.send(response).unwrap();
                   },
                   Err(err) => {
                     response.insert("message_id".to_string(), message_id.to_string());
                     response.insert("status".to_string(), err);
                     println!("Sending {:?}", &response);
-                    tx.send(response);
+                    tx.send(response).unwrap();
                   }
                 }
               }
@@ -103,11 +101,11 @@ async fn main() {
                     println!("Failed To Insert! {:?}", error);
                   }
                 }
-                tx.send(response);
+                tx.send(response).unwrap();
               }
             }
           },
-          Err(err) => {
+          Err(_) => {
             //No Error, just timed out due to no web requests
             //println!("Read TimeOut Error: {}", err.to_string());
           }
@@ -115,7 +113,7 @@ async fn main() {
         match crud::fetch_all_identities(get_db_path().as_str()) {
           Ok(identities) => {
             for identity in identities {
-              let mut request = api::qubic_api_t::get_identity_balance(identity.as_str());
+              let request = api::QubicApiPacket::get_identity_balance(identity.as_str());
               match peer_set.make_request(request) {
                 Ok(_) => {},
                 //Ok(_) => println!("{:?}", request.response_data),
@@ -137,7 +135,7 @@ async fn main() {
   let t = std::thread::spawn(move || {
     let delay = Duration::from_secs(3);
     loop {
-      let mut request = api::qubic_api_t::get_identity_balance("BAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAARMID");
+      let mut request = api::QubicApiPacket::get_identity_balance("BAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAARMID");
       match peer_set.make_request(request) {
         Ok(_) => {},
         //Ok(_) => println!("{:?}", request.response_data),
@@ -179,7 +177,7 @@ async fn main() {
   let figment = rocket::Config::figment()
       .merge(("port", port))
       .merge(("address", host.as_str()));
-  let rock = rocket::custom(figment)
+  rocket::custom(figment)
       .mount("/", routes![
         routes::info::latest_tick,
         routes::info::info,

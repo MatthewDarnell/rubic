@@ -4,7 +4,7 @@ use base64::{engine::general_purpose, Engine as _};
 use crate::sqlite::create::open_database;
 use sqlite::State;
 
-fn prepare_crud_statement<'a>(path: &'a str, connection: &'a sqlite::Connection, prep_query: &'a str) -> Result<sqlite::Statement<'a>, String> {
+fn prepare_crud_statement<'a>(connection: &'a sqlite::Connection, prep_query: &'a str) -> Result<sqlite::Statement<'a>, String> {
         match connection.prepare(prep_query) {
             Ok(stmt) => Ok(stmt),
             Err(err) => Err(err.to_string())
@@ -17,7 +17,7 @@ pub fn fetch_latest_tick(path: &str) -> Result<String, String> {
     let prep_query = "SELECT tick FROM response_entity ORDER BY tick DESC LIMIT 1;";
     match open_database(path, true) {
         Ok(connection) => {
-            match prepare_crud_statement(path, &connection, prep_query) {
+            match prepare_crud_statement(&connection, prep_query) {
                 Ok(mut statement) => {
                     match statement.next() {
                         Ok(State::Row) => {
@@ -46,9 +46,7 @@ pub fn fetch_latest_tick(path: &str) -> Result<String, String> {
     }
 }
 
-pub mod MasterPassword {
-    use std::collections::HashMap;
-    use std::time::{Duration, SystemTime, UNIX_EPOCH};
+pub mod master_password {
     use sqlite::State;
     use crate::sqlite::crud::{open_database, prepare_crud_statement};
     pub fn set_master_password(path: &str, seed: &str, salt: &str, hash: &str) -> Result<(), String> {
@@ -56,7 +54,7 @@ pub mod MasterPassword {
         VALUES (:seed, :salt, :hash);";
         match open_database(path, true) {
             Ok(connection) => {
-                match prepare_crud_statement(path, &connection, prep_query) {
+                match prepare_crud_statement(&connection, prep_query) {
                     Ok(mut statement) => {
                         match statement.bind::<&[(&str, &str)]>(&[
                             (":seed", seed),
@@ -90,13 +88,12 @@ pub mod MasterPassword {
         let prep_query = "SELECT * FROM master_password LIMIT 1;";
         match open_database(path, true) {
             Ok(connection) => {
-                match prepare_crud_statement(path, &connection, prep_query) {
+                match prepare_crud_statement(&connection, prep_query) {
                     Ok(_) => {
                         let mut ret_val: Vec<String> = Vec::new();
                         connection
                             .iterate(prep_query, |master_pass| {
-                                let mut pass: Vec<String> = Vec::new();
-                                for &(name, value) in master_pass.iter() {
+                                for &(_, value) in master_pass.iter() {
                                     ret_val.push(value.unwrap().to_string());
                                 }
                                 true
@@ -132,9 +129,9 @@ pub mod MasterPassword {
 //       whitelisted INTEGER,
 //       ping UNSIGNED INTEGER,
 //       last_responded UNSIGNED INTEGER,
-pub mod Peer {
+pub mod peer {
     use std::collections::HashMap;
-    use std::time::{Duration, SystemTime, UNIX_EPOCH};
+    use std::time::{SystemTime, UNIX_EPOCH};
     use sqlite::State;
     use crate::sqlite::crud::{open_database, prepare_crud_statement};
     pub fn create_peer(path: &str, id: &str, ip: &str, nick: &str, ping_time: u32, whitelisted: bool, last_responded: SystemTime) -> Result<(), String> {
@@ -143,7 +140,7 @@ pub mod Peer {
          ON CONFLICT(ip) DO NOTHING;";
         match open_database(path, true) {
             Ok(connection) => {
-                match prepare_crud_statement(path, &connection, prep_query) {
+                match prepare_crud_statement(&connection, prep_query) {
                     Ok(mut statement) => {
                         let whitelisted_string: String = match whitelisted {
                             true => "1".to_string(),
@@ -189,7 +186,7 @@ pub mod Peer {
         let prep_query = "UPDATE peer SET last_responded=:last_responded WHERE id=:id;";
         match open_database(path, true) {
             Ok(connection) => {
-                match prepare_crud_statement(path, &connection, prep_query) {
+                match prepare_crud_statement(&connection, prep_query) {
                     Ok(mut statement) => {
                         let last_responded_unix_time: String = last_responded
                             .duration_since(UNIX_EPOCH)
@@ -226,7 +223,7 @@ pub mod Peer {
         let prep_query = "UPDATE peer SET connected = true WHERE id=:id;";
         match open_database(path, true) {
             Ok(connection) => {
-                match prepare_crud_statement(path, &connection, prep_query) {
+                match prepare_crud_statement(&connection, prep_query) {
                     Ok(mut statement) => {
                         match statement.bind::<&[(&str, &str)]>(&[
                             (":id", id)
@@ -274,7 +271,7 @@ pub mod Peer {
         let prep_query = "SELECT * FROM peer WHERE ip = :ip LIMIT 1;";
         match open_database(path, true) {
             Ok(connection) => {
-                match prepare_crud_statement(path, &connection, prep_query) {
+                match prepare_crud_statement(&connection, prep_query) {
                     Ok(mut statement) => {
                         match statement.bind::<&[(&str, &str)]>(&[
                             (":ip", ip),
@@ -319,7 +316,7 @@ pub mod Peer {
         let prep_query = "SELECT * FROM peer WHERE id = :id LIMIT 1;";
         match open_database(path, true) {
             Ok(connection) => {
-                match prepare_crud_statement(path, &connection, prep_query) {
+                match prepare_crud_statement(&connection, prep_query) {
                     Ok(mut statement) => {
                         match statement.bind::<&[(&str, &str)]>(&[
                             (":id", id),
@@ -364,13 +361,13 @@ pub mod Peer {
         let prep_query = "SELECT * FROM peer;";
         match open_database(path, true) {
             Ok(connection) => {
-                match prepare_crud_statement(path, &connection, prep_query) {
+                match prepare_crud_statement(&connection, prep_query) {
                     Ok(_) => {
                         let mut ret_val: Vec<Vec<String>> = Vec::new();
                         connection
                             .iterate(prep_query, |peers| {
                                 let mut each_peer: Vec<String> = Vec::new();
-                                for &(name, value) in peers.iter() {
+                                for &(_, value) in peers.iter() {
                                     each_peer.push(value.unwrap().to_string());
                                 }
                                 ret_val.push(each_peer);
@@ -395,13 +392,13 @@ pub mod Peer {
         let prep_query = "SELECT * FROM peer WHERE connected = true;";
         match open_database(path, true) {
             Ok(connection) => {
-                match prepare_crud_statement(path, &connection, prep_query) {
+                match prepare_crud_statement(&connection, prep_query) {
                     Ok(_) => {
                         let mut ret_val: Vec<Vec<String>> = Vec::new();
                         connection
                             .iterate(prep_query, |peers| {
                                 let mut each_peer: Vec<String> = Vec::new();
-                                for &(name, value) in peers.iter() {
+                                for &(_, value) in peers.iter() {
                                     each_peer.push(value.unwrap().to_string());
                                 }
                                 ret_val.push(each_peer);
@@ -425,10 +422,11 @@ pub mod Peer {
 
 }
 pub fn insert_new_identity(path: &str, identity: &Identity) -> Result<(), String> {
+    //TODO: get master password
     let prep_query = "INSERT INTO identities (seed, salt, hash, is_encrypted, identity) VALUES (:seed, :salt, :hash, :is_encrypted, :identity)";
     match open_database(path, true) {
         Ok(connection) => {
-            match prepare_crud_statement(path, &connection, prep_query) {
+            match prepare_crud_statement(&connection, prep_query) {
                 Ok(mut statement) => {
                     match identity {
                         Identity { hash, salt, identity, seed, encrypted } => {
@@ -439,7 +437,7 @@ pub fn insert_new_identity(path: &str, identity: &Identity) -> Result<(), String
                                 (":is_encrypted", encrypted.to_string().as_str()),
                                 (":identity", identity.as_str())
                             ][..]) {
-                                Ok(val) => {
+                                Ok(_) => {
                                     match statement.next() {
                                         Ok(State::Done) => Ok(()),
                                         Err(error) => Err(error.to_string()),
@@ -467,7 +465,7 @@ pub fn fetch_all_identities(path: &str) -> Result<LinkedList<String>, String> {
     let prep_query = "SELECT identity FROM identities;";
     match open_database(path, true) {
         Ok(connection) => {
-            match prepare_crud_statement(path, &connection, prep_query) {
+            match prepare_crud_statement(&connection, prep_query) {
                 Ok(mut statement) => {
                     match statement.bind::<&[(&str, &str)]>(&[
                     ][..]) {
@@ -499,7 +497,7 @@ pub fn fetch_all_identities_full(path: &str) -> Result<LinkedList<Identity>, Str
     let prep_query = "SELECT * FROM identities;";
     match open_database(path, true) {
         Ok(connection) => {
-            match prepare_crud_statement(path, &connection, prep_query) {
+            match prepare_crud_statement(&connection, prep_query) {
                 Ok(mut statement) => {
                     match statement.bind::<&[(&str, &str)]>(&[
                     ][..]) {
@@ -544,7 +542,7 @@ pub fn fetch_balance_by_identity(path: &str, identity: &str) -> Result<Vec<Strin
     let mut response: Vec<String> = Vec::new();
     match open_database(path, true) {
         Ok(connection) => {
-            match prepare_crud_statement(path, &connection, prep_query) {
+            match prepare_crud_statement(&connection, prep_query) {
                 Ok(mut statement) => {
                     match statement.bind::<&[(&str, &str)]>(&[
                         (":identity", identity),
@@ -576,7 +574,7 @@ pub fn fetch_identity(path: &str, identity: &str) -> Result<Identity, String> {
     let prep_query = "SELECT * FROM identities WHERE identity = :identity LIMIT 1;";
     match open_database(path, true) {
         Ok(connection) => {
-            match prepare_crud_statement(path, &connection, prep_query) {
+            match prepare_crud_statement(&connection, prep_query) {
                 Ok(mut statement) => {
                     match statement.bind::<&[(&str, &str)]>(&[
                         (":identity", identity),
@@ -621,7 +619,7 @@ pub fn delete_identity(path: &str, identity: &str) -> Result<(), String> {
     let prep_query = "DELETE FROM identities WHERE identity = :identity;";
     match open_database(path, true) {
         Ok(connection) => {
-            match prepare_crud_statement(path, &connection, prep_query) {
+            match prepare_crud_statement(&connection, prep_query) {
                 Ok(mut statement) => {
                     match statement.bind::<&[(&str, &str)]>(&[
                         (":identity", identity),
@@ -661,7 +659,7 @@ pub fn create_peer_response(path: &str, peer: &str, data: &Vec<u8>) -> Result<()
     let prep_query = "INSERT INTO response (peer, header, type, data) VALUES (:peer, :header, :response_type, :data);";
     match open_database(path, true) {
         Ok(connection) => {
-            match prepare_crud_statement(path, &connection, prep_query) {
+            match prepare_crud_statement(&connection, prep_query) {
                 Ok(mut statement) => {
                     let header = &data[0..8];
                     let real_data = &data[8..];
@@ -698,7 +696,7 @@ pub fn fetch_peer_response_by_type(path: &str, response_type: u8) -> Result<Vec<
     let prep_query = "SELECT * FROM response WHERE type = :response_type ORDER BY created DESC;";
     match open_database(path, true) {
         Ok(connection) => {
-            match prepare_crud_statement(path, &connection, prep_query) {
+            match prepare_crud_statement(&connection, prep_query) {
                 Ok(mut statement) => {
                     match statement.bind::<&[(&str, &str)]>(&[
                         (":response_type", response_type.to_string().as_str()),
@@ -706,7 +704,7 @@ pub fn fetch_peer_response_by_type(path: &str, response_type: u8) -> Result<Vec<
                         Ok(_) => {
                             let mut response: Vec<Vec<u8>> = vec![];
                             while let Ok(State::Row) = statement.next() {
-                                let peer_ip = statement.read::<String, _>("peer").unwrap();
+                                //let peer_ip = statement.read::<String, _>("peer").unwrap();
                                 let mut header_bytes: Vec<u8> = general_purpose::STANDARD.decode(statement.read::<String, _>("header").unwrap()).unwrap();
                                 let mut data_bytes: Vec<u8> = general_purpose::STANDARD.decode(statement.read::<String, _>("data").unwrap()).unwrap();
                                 header_bytes.append(&mut data_bytes);
@@ -736,7 +734,7 @@ pub fn create_response_entity(path: &str, peer: &str, identity: &str, incoming: 
     );";
     match open_database(path, true) {
         Ok(connection) => {
-            match prepare_crud_statement(path, &connection, prep_query) {
+            match prepare_crud_statement(&connection, prep_query) {
                 Ok(mut statement) => {
                             match statement.bind::<&[(&str, &str)]>(&[
                                 (":peer", peer),
@@ -772,7 +770,7 @@ pub fn fetch_response_entity_by_identity(path: &str, identity: &str) -> Result<V
     let prep_query = "SELECT * FROM response_entity WHERE identity = :identity ORDER BY created DESC;";
     match open_database(path, true) {
         Ok(connection) => {
-            match prepare_crud_statement(path, &connection, prep_query) {
+            match prepare_crud_statement(&connection, prep_query) {
                 Ok(mut statement) => {
                     match statement.bind::<&[(&str, &str)]>(&[
                         (":identity", identity.to_string().as_str()),
@@ -814,7 +812,7 @@ pub fn fetch_latest_response_entity_by_identity_group_peers(path: &str, identity
     let prep_query = "SELECT * FROM (SELECT * FROM response_entity WHERE identity = :identity ORDER BY tick DESC) GROUP BY peer;";
     match open_database(path, true) {
         Ok(connection) => {
-            match prepare_crud_statement(path, &connection, prep_query) {
+            match prepare_crud_statement(&connection, prep_query) {
                 Ok(mut statement) => {
                     match statement.bind::<&[(&str, &str)]>(&[
                         (":identity", identity.to_string().as_str()),
@@ -860,7 +858,7 @@ mod store_crud_tests {
         use serial_test::serial;
         use std::fs;
         use std::time::{Duration, SystemTime, UNIX_EPOCH};
-        use crate::sqlite::crud::MasterPassword::{set_master_password, get_master_password};
+        use crate::sqlite::crud::master_password::{set_master_password, get_master_password};
 
         #[test]
         #[serial]

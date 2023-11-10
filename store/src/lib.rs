@@ -1,4 +1,3 @@
-#[macro_use]
 extern crate dotenv_codegen;
 
 use dotenv::dotenv;
@@ -35,7 +34,7 @@ pub fn get_db_path() -> String {
             }
             v
         },
-        Err(err) => {
+        Err(_) => {
             println!("RUBIC_DB not found in env vars! Defaulting...");
             let mut default_path: String = match std::env::consts::OS {
                 "windows" => {
