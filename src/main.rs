@@ -36,8 +36,9 @@ async fn main() {
   let peer_ips = vec!["85.10.199.154:21841",
                       "148.251.184.163:21841",
                       "62.2.98.75:21841",
-                      "193.135.9.63:21841",
-                      "144.2.106.163:21841"];
+                      //"193.135.9.63:21841",
+                      //"144.2.106.163:21841"
+  ];
   println!("Creating Peer Set");
 
   let mut peer_set = PeerSet::new(PeerStrategy::RANDOM);
@@ -55,7 +56,11 @@ async fn main() {
     let rx = rx;  //Move rx into scope and then thread
     std::thread::spawn(move || {
       let delay = Duration::from_millis(500);
+
+      //Main Thread Loop
       loop {
+
+        //Try To Receive Messages From Server Api
         match rx.recv_timeout(Duration::from_secs(5)) {
           Ok(map) => {
             println!("Received New Map: {:?}", map);
@@ -122,6 +127,8 @@ async fn main() {
             //println!("Read TimeOut Error: {}", err.to_string());
           }
         }
+
+        //Update Balances For All Stored Identities
         match crud::fetch_all_identities(get_db_path().as_str()) {
           Ok(identities) => {
             for identity in identities {
@@ -139,6 +146,7 @@ async fn main() {
           }
         }
 
+        //Check if Any Peers Have Been Set As 'Disconnected'. This means The TcpStream Connection Terminated. Delete them.
         for peer in peer_set.get_peer_ids() {
           match crud::peer::fetch_peer_by_id(get_db_path().as_str(), peer.as_str()) {
             Ok(temp_peer) => {
@@ -155,6 +163,30 @@ async fn main() {
         }
 
 
+        //Try To Spin up New Peers Until We Reach The Min Number
+        let min_peers: usize = env::get_min_peers();
+        let num_peers: usize = peer_set.get_peers().len();
+        if num_peers < min_peers {
+          println!("Number Of Peers.({}) Less Than Min Peers.({}). Adding More...", num_peers, min_peers);
+          match crud::peer::fetch_disconnected_peers(get_db_path().as_str()) {
+            Ok(disconnected_peers) => {
+              println!("Fetched {} Disconnected Peers", disconnected_peers.len());
+              for p in disconnected_peers {
+                let peer_id = &p[0];
+                let peer_ip = &p[1];
+                match peer_set.add_peer(peer_ip.as_str()) {
+                  Ok(_) => {
+                    println!("Peer.({}) Added {}", peer_ip.as_str(), peer_id.as_str());
+                  },
+                  Err(err) => {
+                    println!("Failed To Add Peer.({}) : ({:?})", peer_ip.as_str(), err);
+                  }
+                }
+              }
+            },
+            Err(_) => println!("Db Error Fetching Disconnected Peers")
+          }
+        }
 
         std::thread::sleep(delay);
       }

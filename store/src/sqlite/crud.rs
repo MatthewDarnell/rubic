@@ -457,6 +457,39 @@ pub mod peer {
         }
     }
 
+    pub fn fetch_disconnected_peers(path: &str) -> Result<Vec<Vec<String>>, String> {
+        let prep_query = "SELECT * FROM peer WHERE connected = false ORDER BY last_responded DESC;";
+        match open_database(path, true) {
+            Ok(connection) => {
+                match prepare_crud_statement(&connection, prep_query) {
+                    Ok(_) => {
+                        let mut ret_val: Vec<Vec<String>> = Vec::new();
+                        connection
+                            .iterate(prep_query, |peers| {
+                                let mut each_peer: Vec<String> = Vec::new();
+                                for &(_, value) in peers.iter() {
+                                    each_peer.push(value.unwrap().to_string());
+                                }
+                                ret_val.push(each_peer);
+                                true
+                            })
+                            .unwrap();
+                        Ok(ret_val)
+                    },
+                    Err(err) => {
+                        println!("Error in fetch_disconnected_peers! : {}", &err);
+                        Err(err)
+                    }
+                }
+            },
+            Err(err) => {
+                println!("Error in fetch_disconnected_peers! : {}", &err);
+                Err(err)
+            }
+        }
+    }
+
+
 }
 pub fn insert_new_identity(path: &str, identity: &Identity) -> Result<(), String> {
     //TODO: get master password

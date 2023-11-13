@@ -77,7 +77,7 @@ pub fn handle_new_peer(id: String, peer: Peer, rx: spmc::Receiver<QubicApiPacket
                 }
             },
             Err(err) => {
-                //println!("Failed To Receive Work In Thread! {}", err.to_string());
+                println!("Failed To Receive Work In Thread! {}", err.to_string());
             }
         }
     }
