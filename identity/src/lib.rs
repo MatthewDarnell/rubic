@@ -1,6 +1,7 @@
 extern crate libc;
 use crypto;
 use std::str::Utf8Error;
+
 extern {
     fn getSubseed(seed: *const u8, subseed: *mut u8) -> bool;
     fn getPrivateKey(subseed: *const u8, privateKey: *mut u8);
@@ -84,6 +85,8 @@ impl Identity {
     pub fn contains_seed(&self) -> bool { self.seed.len() == 55}
     pub fn new(seed: &str) -> Self {
         let id = identity(seed);
+
+
         match identity_to_address(&id) {
             Ok(address) => {
                 Identity {

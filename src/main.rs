@@ -89,6 +89,18 @@ async fn main() {
                 let message_id = map.get(&"message_id".to_string()).unwrap();
 
                 let mut response: HashMap<String, String> = HashMap::new();
+                if let Some(pass) = map.get(&"password".to_string()) {
+                  match crud::master_password::get_master_password(get_db_path().as_str()) {
+                    Ok(master_password) => {
+                      println!("{:?} ---- {:?}", pass, master_password);
+                    },
+                    Err(err) => {
+                      panic!("{}", err.to_string())
+                    }
+                  }
+                } else {
+                  println!("No password");
+                }
                 match crud::insert_new_identity(get_db_path().as_str(), &id) {
                   Ok(v) => {
                     response.insert("message_id".to_string(), message_id.to_string());
@@ -126,6 +138,24 @@ async fn main() {
             println!("Error: {:?}", err);
           }
         }
+
+        for peer in peer_set.get_peer_ids() {
+          match crud::peer::fetch_peer_by_id(get_db_path().as_str(), peer.as_str()) {
+            Ok(temp_peer) => {
+              if let Some(connected) = temp_peer.get(&"connected".to_string()) {
+                if connected.as_str() != "1" {
+                  //println!("{:?}", &temp_peer);
+                  println!("Is Peer {} connected? {}", peer.as_str(), &connected);
+                  peer_set.delete_peer_by_id(peer.as_str());
+                }
+              }
+            },
+            Err(err) => panic!("{}", err)
+          }
+        }
+
+
+
         std::thread::sleep(delay);
       }
     });
@@ -175,6 +205,7 @@ async fn main() {
 
 
   let figment = rocket::Config::figment()
+      .merge(("log_level", "critical"))
       .merge(("port", port))
       .merge(("address", host.as_str()));
   rocket::custom(figment)

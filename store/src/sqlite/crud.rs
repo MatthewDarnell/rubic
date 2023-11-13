@@ -49,17 +49,15 @@ pub fn fetch_latest_tick(path: &str) -> Result<String, String> {
 pub mod master_password {
     use sqlite::State;
     use crate::sqlite::crud::{open_database, prepare_crud_statement};
-    pub fn set_master_password(path: &str, seed: &str, salt: &str, hash: &str) -> Result<(), String> {
-        let prep_query = "INSERT INTO master_password (seed, salt, hash) \
-        VALUES (:seed, :salt, :hash);";
+    pub fn set_master_password(path: &str, ct: &str) -> Result<(), String> {
+        let prep_query = "INSERT INTO master_password (ct) \
+        VALUES (:ct);";
         match open_database(path, true) {
             Ok(connection) => {
                 match prepare_crud_statement(&connection, prep_query) {
                     Ok(mut statement) => {
                         match statement.bind::<&[(&str, &str)]>(&[
-                            (":seed", seed),
-                            (":salt", salt),
-                            (":hash", hash)
+                            (":ct", ct)
                         ][..]) {
                             Ok(_) => {
                                 println!("Master Password Set!");
@@ -99,7 +97,11 @@ pub mod master_password {
                                 true
                             })
                             .unwrap();
-                        Ok(ret_val)
+                        if ret_val.len() < 1 {
+                            Err("No Master Password Set!".to_string())
+                        } else {
+                            Ok(ret_val)
+                        }
                     },
                     Err(err) => {
                         println!("Error in get_master_password! : {}", &err);
@@ -219,6 +221,7 @@ pub mod peer {
             }
         }
     }
+
     pub fn set_peer_connected(path: &str, id: &str) -> Result<(), String> {
         let prep_query = "UPDATE peer SET connected = true WHERE id=:id;";
         match open_database(path, true) {
@@ -250,6 +253,38 @@ pub mod peer {
             }
         }
     }
+    pub fn set_peer_disconnected(path: &str, id: &str) -> Result<(), String> {
+        let prep_query = "UPDATE peer SET connected = false WHERE id=:id;";
+        match open_database(path, true) {
+            Ok(connection) => {
+                match prepare_crud_statement(&connection, prep_query) {
+                    Ok(mut statement) => {
+                        match statement.bind::<&[(&str, &str)]>(&[
+                            (":id", id)
+                        ][..]) {
+                            Ok(_) => {
+                                match statement.next() {
+                                    Ok(State::Done) => Ok(()),
+                                    Err(error) => Err(error.to_string()),
+                                    _ => Err("Weird!".to_string())
+                                }
+                            },
+                            Err(err) => Err(err.to_string())
+                        }
+                    },
+                    Err(err) => {
+                        println!("Error in set_peer_disconnected! : {}", &err);
+                        Err(err)
+                    }
+                }
+            },
+            Err(err) => {
+                println!("Error in set_peer_disconnected! : {}", &err);
+                Err(err)
+            }
+        }
+    }
+
     pub fn set_all_peers_disconnected(path: &str) -> Result<(), String> {
         let prep_query = "UPDATE peer SET connected = false;";
         match open_database(path, true) {
@@ -286,6 +321,7 @@ pub mod peer {
                                         result.insert("whitelisted".to_string(), statement.read::<String, _>("whitelisted").unwrap());
                                         result.insert("ping".to_string(), statement.read::<i64, _>("ping").unwrap().to_string());
                                         result.insert("last_responded".to_string(), statement.read::<i64, _>("last_responded").unwrap().to_string());
+                                        result.insert("connected".to_string(), statement.read::<String, _>("connected").unwrap().to_string());
                                         Ok(result)
                                     },
                                     Ok(State::Done) => {
@@ -331,6 +367,7 @@ pub mod peer {
                                         result.insert("whitelisted".to_string(), statement.read::<String, _>("whitelisted").unwrap());
                                         result.insert("ping".to_string(), statement.read::<i64, _>("ping").unwrap().to_string());
                                         result.insert("last_responded".to_string(), statement.read::<i64, _>("last_responded").unwrap().to_string());
+                                        result.insert("connected".to_string(), statement.read::<String, _>("connected").unwrap().to_string());
                                         Ok(result)
                                     },
                                     Ok(State::Done) => {
@@ -857,20 +894,17 @@ mod store_crud_tests {
     pub mod master_password {
         use serial_test::serial;
         use std::fs;
-        use std::time::{Duration, SystemTime, UNIX_EPOCH};
         use crate::sqlite::crud::master_password::{set_master_password, get_master_password};
 
         #[test]
         #[serial]
         fn set_a_master_password_and_fetch_it() {
-            match set_master_password("test.sqlite", "seed", "salt", "hash") {
+            match set_master_password("test.sqlite", "ciphertext") {
                 Ok(_) => {
                     match get_master_password("test.sqlite") {
                         Ok(result) => {
                             assert_eq!(result.get(0).unwrap(), &"1".to_string());
-                            assert_eq!(result.get(1).unwrap(), &"seed".to_string());
-                            assert_eq!(result.get(2).unwrap(), &"salt".to_string());
-                            assert_eq!(result.get(3).unwrap(), &"hash".to_string());
+                            assert_eq!(result.get(1).unwrap(), &"ciphertext".to_string());
                         },
                         Err(err) => {
                             println!("{}", err);
@@ -889,9 +923,9 @@ mod store_crud_tests {
         #[test]
         #[serial]
         fn enforce_max_one_master_password_row() {
-            match set_master_password("test.sqlite", "seed", "salt", "hash") {
+            match set_master_password("test.sqlite", "ciphertext") {
                 Ok(_) => {
-                    match set_master_password("test.sqlite", "seed1", "salt1", "hash1") {
+                    match set_master_password("test.sqlite", "ciphertext1") {
                         Ok(_) => {
                             assert_eq!(1, 2);
                         },
@@ -915,7 +949,7 @@ mod store_crud_tests {
         use serial_test::serial;
         use std::fs;
         use std::time::{Duration, SystemTime, UNIX_EPOCH};
-        use crate::sqlite::crud::Peer::{create_peer, fetch_peer_by_id, fetch_peer_by_ip, fetch_all_peers, update_peer_last_responded};
+        use crate::sqlite::crud::peer::{create_peer, fetch_peer_by_id, fetch_peer_by_ip, fetch_all_peers, update_peer_last_responded};
         #[test]
         #[serial]
         fn create_peer_and_insert() {

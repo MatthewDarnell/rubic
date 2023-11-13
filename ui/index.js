@@ -154,8 +154,10 @@ window.switchToElement = el => {
     const elToShow = document.getElementById(el);
     const identityDiv = document.getElementById('identityDiv');
     const peersDiv = document.getElementById('peersDiv');
+    const settingsDiv = document.getElementById('settingsDiv');
     identityDiv.style.display = "none";
     peersDiv.style.display = "none";
+    settingsDiv.style.display = "none";
     elToShow.style.display = "block";
 }
 
@@ -188,8 +190,8 @@ window.addNewIdentity = () => {
     document.getElementById("addNewPeerBtn").disabled = true;
     document.getElementById("newIdentityPreview").style.display = "none";
     const seed = document.getElementById("seedInput").value;
-    const password = document.getElementById("passwordInput").value;
-    makeHttpRequest(`${serverIp}/identity/add/${seed}`).then(result => {
+    const password = document.getElementById("passwordInput").value || "";
+    makeHttpRequest(`${serverIp}/identity/add/${seed}/${password}`).then(result => {
         if(result === 200 || result === '200') {
             document.getElementById("newIdentityPreview").style.display = "none";
             document.getElementById("newIdentityPreviewSpan").innerText = ``;
@@ -241,6 +243,34 @@ const getLatestTick = async identity => {
     }
 }
 
+
+window.exportDb = () => {
+    try {
+        const serverIp = document.getElementById("serverIp").value;
+        const password = document.getElementById("exportSettingsPasswordInput").value;
+        console.log(password);
+        const decrypt = password.length > 0 ? true : false;
+        console.log(`Decrypting: ${decrypt}`);
+        if(decrypt) {
+            makeHttpRequest(`${serverIp}/wallet/download/${password}`)
+                .then(result => {
+                    console.log(result)
+                })
+        } else {
+            makeHttpRequest(`${serverIp}/wallet/download`)
+                .then(result => {
+                    console.log(result)
+                })
+        }
+    } catch(error) {
+        alert(error);
+    }
+}
+
+
+/*
+    Runtime
+*/
 let numFuncsToCall = 4;
 const intervalLoopFunction = () => {
     getLatestTick()
@@ -264,5 +294,5 @@ const intervalLoopFunction = () => {
 
 window.onload = () => {
     console.log("Rubic JS Loaded!");
-    setTimeout(intervalLoopFunction, (TIMEOUT_MS * numFuncsToCall) + 1000);
+    intervalLoopFunction();
 }

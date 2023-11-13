@@ -13,9 +13,7 @@ pub fn open_database(path: &str, create: bool) -> Result<sqlite::Connection, Str
     );
     CREATE TABLE IF NOT EXISTS master_password (
       id INTEGER PRIMARY KEY CHECK (id = 1),
-      seed TEXT UNIQUE NOT NULL,
-      salt TEXT NOT NULL,
-      hash TEXT NOT NULL,
+      ct TEXT UNIQUE NOT NULL,
       created DATETIME DEFAULT CURRENT_TIMESTAMP
     );
     CREATE TABLE IF NOT EXISTS identities (

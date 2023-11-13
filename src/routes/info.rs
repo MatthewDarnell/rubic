@@ -140,8 +140,8 @@ pub fn get_identity_from_seed(seed: &str) -> String {
     format!("{}", i.identity.as_str())
 }
 
-#[get("/identity/add/<seed>")]
-pub fn add_identity(seed: &str, mtx: &rocket::State<Mutex<Sender<HashMap<String, String>>>>, responses: &rocket::State<Mutex<Receiver<HashMap<String, String>>>>) -> String {
+#[get("/identity/add/<seed>/<password>")]
+pub fn add_identity(seed: &str, password: &str, mtx: &rocket::State<Mutex<Sender<HashMap<String, String>>>>, responses: &rocket::State<Mutex<Receiver<HashMap<String, String>>>>) -> String {
     println!("Locking Mutex");
     let lock = mtx.lock().unwrap();
     let tx = lock.clone();
@@ -156,6 +156,9 @@ pub fn add_identity(seed: &str, mtx: &rocket::State<Mutex<Sender<HashMap<String,
     let mut map: HashMap<String, String> = HashMap::new();
     map.insert("method".to_string(), "add_identity".to_string());
     map.insert("seed".to_string(), seed.to_string());
+    if password.len() > 1 {
+        map.insert("password".to_string(), password.to_string());
+    }
     let request_id: String = Uuid::new_v4().to_string();
     map.insert("message_id".to_string(), request_id.clone());
     tx.send(map).unwrap();

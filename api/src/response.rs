@@ -44,7 +44,10 @@ pub fn get_formatted_response(response: &mut QubicApiPacket) {
             println!("Response Thread Handler Got Error! Message Received: ({})", error_type.as_str());
             println!("{:?}", &response);
             println!("{:?}", &response.data);
-            panic!("exiting");
+            if let Some(id) = &response.peer {
+                store::sqlite::crud::peer::set_peer_disconnected(store::get_db_path().as_str(), id.as_str());
+            }
+            //panic!("exiting");
         }
         _ => {/*  println!("Unknown Entity Type"); */ }
     }

@@ -47,6 +47,7 @@ impl PeerSet {
         peer_set
     }
     pub fn get_peers(&self) -> Vec<&Peer> { self.peers.iter().map(|x| x).collect() }
+    pub fn get_peer_ids(&self) -> Vec<String> { self.peers.iter().map(|x| x.get_id().to_owned()).collect() }
     pub fn num_peers(&self) -> usize {
         self.peers.len()
     }
@@ -107,6 +108,34 @@ impl PeerSet {
                         }
                     },
                     Err(_) => {}
+                }
+            }
+        }
+        false
+    }
+
+    pub fn delete_peer_by_id(&mut self, id: &str) -> bool {
+        println!("Deleting Peer {}", id);
+        for (index, connection) in self.peers.iter_mut().enumerate() {
+            if connection.get_id().as_str() == id { //this is the peer, disconnect its stream
+                if let Some(stream) = &mut connection.get_stream() {
+                    match stream.shutdown(std::net::Shutdown::Both) {
+                        Ok(_) => {},
+                        Err(_) => {}
+                    }
+                }
+                match store::sqlite::crud::peer::set_peer_disconnected(
+                    store::get_db_path().as_str(),
+                    id
+                ) {
+                    Ok(_) => {
+                        println!("Removed Peer {}", id);
+                        self.peers.remove(index);
+                        return true;
+                    },
+                    Err(err) => {
+                        println!("Error Deleting Peer By Id.({}) : {}", id, err.as_str());
+                    }
                 }
             }
         }

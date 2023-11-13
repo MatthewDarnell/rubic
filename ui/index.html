@@ -6,6 +6,7 @@
     <style>
         #headerTable{width:100%;}
         #headerTable td{width:5%;}
+        #settingsDiv{display: none;}
         #identityDiv{display: none;}
         #myIdentitiesDiv{margin-top: 5%;}
         #peersDiv{display: none;}
@@ -37,6 +38,10 @@
                 <td>
                     Connected Peers: <span id="numPeersSpan">0</span>
                 </td>
+
+                <td>
+                    Latest Tick: <span id="latestTickSpan">0</span>
+                </td>
             </tr>
             <tr>
                 <td>
@@ -46,7 +51,7 @@
                     <a href="#" onclick="switchToElement('peersDiv')">Connected Peers</a>
                 </td>
                 <td>
-                    Latest Tick: <span id="latestTickSpan">0</span>
+                    <a href="#" onclick="switchToElement('settingsDiv')">Settings</a>
                 </td>
             </tr>
         </table>
@@ -143,6 +148,32 @@
                     </tr>
                     </thead>
                     <tbody id="peerTable">
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        <div id="settingsDiv">
+            <div id="exportDbDiv">
+                <span>Export My Db</span>
+                <table id="exportSettingsTable">
+                    <thead>
+                    <tr>
+                        <th>Password (optional, dumped db will be decrypted if supplied)</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    <tr>
+                        <td>
+                            <div style="text-align: center;">
+                                <label for="exportSettingsPasswordInput">Password:</label><input type="password" id="exportSettingsPasswordInput">
+                            </div>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td>
+                            <button id="dumpDbBtn" onclick="exportDb()">Export</button>
+                        </td>
+                    </tr>
                     </tbody>
                 </table>
             </div>
