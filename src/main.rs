@@ -63,10 +63,8 @@ async fn main() {
         //Try To Receive Messages From Server Api
         match rx.recv_timeout(Duration::from_secs(5)) {
           Ok(map) => {
-            println!("Received New Map: {:?}", map);
             if let Some(method) = map.get(&"method".to_string()) {
               if method == &"add_peer".to_string() {
-                println!("Adding Peer!");
                 let peer_ip = map.get(&"peer_ip".to_string()).unwrap();
                 //todo: validate peer_ip
                 let message_id = map.get(&"message_id".to_string()).unwrap();
@@ -75,7 +73,6 @@ async fn main() {
                   Ok(_) => {
                     response.insert("message_id".to_string(), message_id.to_string());
                     response.insert("status".to_string(), "Peer Added".to_string());
-                    println!("Sending {:?}", &response);
                     tx.send(response).unwrap();
                   },
                   Err(err) => {
@@ -89,10 +86,7 @@ async fn main() {
               else if method == &"add_identity".to_string() {
                 let seed = map.get(&"seed".to_string()).unwrap();
                 let mut id: identity::Identity = identity::Identity::new(seed.as_str());
-                println!("Inserting Identity: {}", seed.as_str());
-
                 let message_id = map.get(&"message_id".to_string()).unwrap();
-
                 let mut response: HashMap<String, String> = HashMap::new();
                 if let Some(pass) = map.get(&"password".to_string()) {
                   match crud::master_password::get_master_password(get_db_path().as_str()) {
@@ -102,14 +96,12 @@ async fn main() {
                           if !verified {
                             response.insert("message_id".to_string(), message_id.to_string());
                             response.insert("status".to_string(), "Invalid Password!".to_string());
-                            println!("Invalid Master Password!");
                           } else {
                             id = id.encrypt_identity(pass.as_str()).unwrap();
                             match crud::insert_new_identity(get_db_path().as_str(), &id) {
                               Ok(v) => {
                                 response.insert("message_id".to_string(), message_id.to_string());
                                 response.insert("status".to_string(), "200".to_string());
-                                println!("Finished Inserting! {:?}", v);
                               },
                               Err(error) => {
                                 response.insert("message_id".to_string(), message_id.to_string());
@@ -137,7 +129,6 @@ async fn main() {
                     Ok(v) => {
                       response.insert("message_id".to_string(), message_id.to_string());
                       response.insert("status".to_string(), "200".to_string());
-                      println!("Finished Inserting! {:?}", v);
                     },
                     Err(error) => {
                       response.insert("message_id".to_string(), message_id.to_string());
@@ -280,6 +271,7 @@ async fn main() {
         routes::info::balance,
         routes::info::add_peer,
         routes::info::add_identity,
+        routes::info::create_random_identity,
         routes::info::add_identity_with_password,
         routes::info::get_identities,
         routes::info::get_identity_from_seed

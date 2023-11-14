@@ -36,7 +36,7 @@
                     <b>Rubic - Qubic Wallet</b>
                 </td>
                 <td>
-                    <label for="serverIp">Qubic Server Running At: </label><input type="text" id="serverIp" value="http://127.0.0.1:3000"> <span id="connectedStatusSpan"></span>
+                    <label for="serverIp">Rubic Server Running At: </label><input type="text" id="serverIp" value="http://127.0.0.1:3000"> <span id="connectedStatusSpan"></span>
                 </td>
             </tr>
         </table>
@@ -75,7 +75,7 @@
                     <thead>
                     <tr>
                         <th>Seed</th>
-                        <th>Wallet Password (optional)</th>
+                        <th>Encrypt Identity Password (Optional)</th>
                     </tr>
                     </thead>
                     <tbody>
@@ -99,6 +99,13 @@
                                 <button id="importNewIdentityBtn" onclick="addNewIdentity()" disabled>Import Identity</button>
                             </td>
                         </tr>
+                    <tr>
+                        <td>
+                            <div style="text-align: center;">
+                                <button id="generateRandomIdentityBtn" onclick="generateRandomIdentity()">Generate Random Identity</button>
+                            </div>
+                        </td>
+                    </tr>
                     </tbody>
                 </table>
             </div>
@@ -229,11 +236,14 @@
                     </tr>
                     <tr>
                         <td>
-                            <button id="dumpDbBtn" onclick="exportDb()">Export</button>
+                            <button id="dumpDbBtn" onclick="exportDb()">Export As CSV</button>
                         </td>
                     </tr>
                     </tbody>
                 </table>
+            </div>
+            <div style="margin-top: 10%;">
+                This software comes with no warranty, real or implied. Secure storage of seeds and passwords is paramount, total loss of funds may ensue otherwise.
             </div>
         </div>
     </div>

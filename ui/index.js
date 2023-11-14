@@ -197,6 +197,26 @@ window.previewNewIdentity = () => {
     }
 }
 
+window.generateRandomIdentity = () => {
+    const serverIp = document.getElementById("serverIp").value;
+    document.getElementById("generateRandomIdentityBtn").disabled = true;
+    let password = document.getElementById("passwordInput").value;
+    if(password.length < 4) {
+        password = "0"
+    }
+    makeHttpRequest(`${serverIp}/identity/new/${password}`).then(result => {
+        if(result === 200 || result === '200') {
+            alert("Created!");
+        } else {
+            alert(result);
+        }
+        document.getElementById("generateRandomIdentityBtn").disabled = false;
+    }).catch(result => {
+        document.getElementById("generateRandomIdentityBtn").disabled = false;
+        alert(result);
+    });
+}
+
 window.addNewIdentity = () => {
     const serverIp = document.getElementById("serverIp").value;
     document.getElementById("addNewPeerBtn").disabled = true;
@@ -367,29 +387,51 @@ window.exportDb = () => {
     Runtime
 */
 let numFuncsToCall = 4;
-const intervalLoopFunction = () => {
+
+const statusInfoLoopFunction = () => {
     getLatestTick()
         .then(getIsWalletEncrypted)
         .then(getNumConnectedPeers)
         .then(getConnectedPeers)
-        .then(getIdentities)
+        .then(_ => {
+            //Finished Update Loop
+            setTimeout(statusInfoLoopFunction, (TIMEOUT_MS * 4) + 250);
+        })
+        .catch(() => {
+            setTimeout(statusInfoLoopFunction, (TIMEOUT_MS * 4) + 250);
+        })
+}
+
+
+let loopCounter = 11;
+const intervalLoopFunction = () => {
+    loopCounter++;
+    getIdentities()
         .then(async identities => {
-            identities = identities.filter(x => x.length > 10);
-            numFuncsToCall = 4 + identities.length;
-            for(const id of identities) {
-                await getBalance(id);
+            if(loopCounter > 10) {
+                console.log('getting balances')
+                identities = identities.filter(x => x.length > 10);
+                numFuncsToCall = 1 + identities.length;
+                for(const id of identities) {
+                    await getBalance(id);
+                }
+                console.log('got balances')
+                loopCounter = 0;
+            } else {
+                numFuncsToCall = 1;
             }
         })
         .then(_ => {
             //Finished Update Loop
-            setTimeout(intervalLoopFunction, (TIMEOUT_MS * numFuncsToCall) + 250);
+            setTimeout(intervalLoopFunction, (TIMEOUT_MS * numFuncsToCall) + 1);
         })
         .catch(() => {
-            setTimeout(intervalLoopFunction, (TIMEOUT_MS * numFuncsToCall) + 250);
+            setTimeout(intervalLoopFunction, (TIMEOUT_MS * numFuncsToCall) + 1);
         })
 }
 
 window.onload = () => {
     console.log("Rubic JS Loaded!");
+    statusInfoLoopFunction();
     intervalLoopFunction();
 }
