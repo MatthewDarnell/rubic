@@ -143,6 +143,9 @@ const getBalance = async identity => {
     try {
         const result = await makeHttpRequest(`${serverIp}/balance/${identity}`);
         const res = JSON.parse(result);
+        if(res.length < 1) {
+            return balanceTd.innerHTML = `<span>Not Yet Reported</span>`
+        }
         if (res.every(v => v === res[0])) {
             balanceTd.innerHTML = `<b>${res[0]}</b>`
         } else {

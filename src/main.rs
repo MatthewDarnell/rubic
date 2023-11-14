@@ -88,7 +88,7 @@ async fn main() {
               }
               else if method == &"add_identity".to_string() {
                 let seed = map.get(&"seed".to_string()).unwrap();
-                let id: identity::Identity = identity::Identity::new(seed.as_str());
+                let mut id: identity::Identity = identity::Identity::new(seed.as_str());
                 println!("Inserting Identity: {}", seed.as_str());
 
                 let message_id = map.get(&"message_id".to_string()).unwrap();
@@ -97,25 +97,53 @@ async fn main() {
                 if let Some(pass) = map.get(&"password".to_string()) {
                   match crud::master_password::get_master_password(get_db_path().as_str()) {
                     Ok(master_password) => {
-                      println!("{:?} ---- {:?}", pass, master_password);
+                      match crypto::passwords::verify_password(pass.as_str(), master_password[1].as_str()) {
+                        Ok(verified) => {
+                          if !verified {
+                            response.insert("message_id".to_string(), message_id.to_string());
+                            response.insert("status".to_string(), "Invalid Password!".to_string());
+                            println!("Invalid Master Password!");
+                          } else {
+                            id = id.encrypt_identity(pass.as_str()).unwrap();
+                            match crud::insert_new_identity(get_db_path().as_str(), &id) {
+                              Ok(v) => {
+                                response.insert("message_id".to_string(), message_id.to_string());
+                                response.insert("status".to_string(), "200".to_string());
+                                println!("Finished Inserting! {:?}", v);
+                              },
+                              Err(error) => {
+                                response.insert("message_id".to_string(), message_id.to_string());
+                                response.insert("status".to_string(), error.to_string());
+                                println!("Failed To Insert! {:?}", error);
+                              }
+                            }
+                          }
+                        },
+                        Err(err) => {
+                          response.insert("message_id".to_string(), message_id.to_string());
+                          response.insert("status".to_string(), err.to_string());
+                          println!("Failed To Verify Master Password!");
+                        }
+                      }
+
+
                     },
                     Err(err) => {
                       panic!("{}", err.to_string())
                     }
                   }
                 } else {
-                  println!("No password");
-                }
-                match crud::insert_new_identity(get_db_path().as_str(), &id) {
-                  Ok(v) => {
-                    response.insert("message_id".to_string(), message_id.to_string());
-                    response.insert("status".to_string(), "200".to_string());
-                    println!("Finished Inserting! {:?}", v);
-                  },
-                  Err(error) => {
-                    response.insert("message_id".to_string(), message_id.to_string());
-                    response.insert("status".to_string(), error.to_string());
-                    println!("Failed To Insert! {:?}", error);
+                  match crud::insert_new_identity(get_db_path().as_str(), &id) {
+                    Ok(v) => {
+                      response.insert("message_id".to_string(), message_id.to_string());
+                      response.insert("status".to_string(), "200".to_string());
+                      println!("Finished Inserting! {:?}", v);
+                    },
+                    Err(error) => {
+                      response.insert("message_id".to_string(), message_id.to_string());
+                      response.insert("status".to_string(), error.to_string());
+                      println!("Failed To Insert! {:?}", error);
+                    }
                   }
                 }
                 tx.send(response).unwrap();
