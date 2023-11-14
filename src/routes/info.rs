@@ -85,7 +85,7 @@ pub fn add_peer(address: &str, mtx: &rocket::State<Mutex<Sender<HashMap<String, 
                 }
             },
             Err(err) => {
-                println!("got error {:?}", &err);
+               //println!("got error {:?}", &err);
                // return format!("{}", err.to_string());
             }
         }
@@ -154,7 +154,7 @@ pub fn add_identity(seed: &str, mtx: &rocket::State<Mutex<Sender<HashMap<String,
                 }
             },
             Err(err) => {
-                println!("got error {:?}", &err);
+                //println!("got error {:?}", &err);
                 // return format!("{}", err.to_string());
             }
         }
@@ -201,7 +201,7 @@ pub fn add_identity_with_password(seed: &str, password: &str, mtx: &rocket::Stat
                 }
             },
             Err(err) => {
-                println!("got error {:?}", &err);
+                // println!("got error {:?}", &err);
                 // return format!("{}", err.to_string());
             }
         }

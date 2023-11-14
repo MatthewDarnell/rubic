@@ -19,6 +19,5 @@ impl FormatQubicResponseDataToStructure for ExchangePeersEntity {
 }
 
 pub fn handle_exchange_peers(data: &mut QubicApiPacket) -> Option<ExchangePeersEntity> {
-    println!("Got Exchange Peer Data: {:?}", data);
     Some(ExchangePeersEntity::new(data.peer.as_ref().unwrap().as_str()))
 }

@@ -13,11 +13,11 @@ pub trait FormatQubicResponseDataToStructure {
 
 pub fn get_formatted_response(response: &mut QubicApiPacket) {
     let path = store::get_db_path();
-    println!("API MODULE GOT PATH {}", path.as_str());
+    //println!("API MODULE GOT PATH {}", path.as_str());
     match response.api_type {
         EntityType::ExchangePeers => {
             let resp: ExchangePeersEntity = ExchangePeersEntity::format_qubic_response_data_to_structure(response);
-            println!("ExchangePeersEntity: {:?}", resp);
+            //println!("ExchangePeersEntity: {:?}", resp);
             match update_peer_last_responded(path.as_str(), resp.peer.as_str(), SystemTime::now()) {
                 Ok(_) => {},
                 Err(err) => println!("Error Updating Peer {} Last Responded: {}", resp.peer.as_str(), err.as_str())
@@ -40,13 +40,9 @@ pub fn get_formatted_response(response: &mut QubicApiPacket) {
                                    resp.spectrum_index
             ).unwrap();
             update_peer_last_responded(path.as_str(), resp.peer.as_str(), SystemTime::now()).unwrap();
-            println!("Inserted Response Entity!");
         },
         EntityType::ERROR => {
             let error_type = String::from_utf8(response.data.clone()).unwrap();
-            println!("Response Thread Handler Got Error! Message Received: ({})", error_type.as_str());
-            println!("{:?}", &response);
-            println!("{:?}", &response.data);
             if let Some(id) = &response.peer {
                 store::sqlite::crud::peer::set_peer_disconnected(store::get_db_path().as_str(), id.as_str());
             }
