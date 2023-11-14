@@ -243,12 +243,16 @@ async fn main() {
   rocket::custom(figment)
       .mount("/", routes![
         routes::info::latest_tick,
+        routes::info::is_wallet_encrypted,
+        routes::info::encrypt_wallet,
+        routes::info::set_master_password,
         routes::info::info,
         routes::info::peers,
         routes::info::download_wallet,
         routes::info::balance,
         routes::info::add_peer,
         routes::info::add_identity,
+        routes::info::add_identity_with_password,
         routes::info::get_identities,
         routes::info::get_identity_from_seed
       ])

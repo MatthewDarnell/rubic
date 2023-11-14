@@ -89,18 +89,18 @@ pub mod master_password {
                 match prepare_crud_statement(&connection, prep_query) {
                     Ok(_) => {
                         let mut ret_val: Vec<String> = Vec::new();
-                        connection
+                        match connection
                             .iterate(prep_query, |master_pass| {
                                 for &(_, value) in master_pass.iter() {
                                     ret_val.push(value.unwrap().to_string());
                                 }
                                 true
-                            })
-                            .unwrap();
-                        if ret_val.len() < 1 {
-                            Err("No Master Password Set!".to_string())
-                        } else {
-                            Ok(ret_val)
+                            }) {
+                            Ok(_) => Ok(ret_val),
+                            Err(err) => {
+                                println!("Error in get_master_password! : {}", &err);
+                                Err(err.to_string())
+                            }
                         }
                     },
                     Err(err) => {
@@ -531,6 +531,50 @@ pub fn insert_new_identity(path: &str, identity: &Identity) -> Result<(), String
         }
     }
 }
+
+pub fn update_identity_encrypted(path: &str, identity: &Identity) -> Result<(), String> {
+    //TODO: get master password
+    let prep_query = "UPDATE identities SET seed = :seed, salt = :salt, hash = :hash, is_encrypted = :is_encrypted WHERE identity = :identity";
+    match open_database(path, true) {
+        Ok(connection) => {
+            match prepare_crud_statement(&connection, prep_query) {
+                Ok(mut statement) => {
+                    match identity {
+                        Identity { hash, salt, identity, seed, encrypted } => {
+                            match statement.bind::<&[(&str, &str)]>(&[
+                                (":seed", seed.as_str()),
+                                (":salt", salt.as_str()),
+                                (":hash", hash.as_str()),
+                                (":is_encrypted", encrypted.to_string().as_str()),
+                                (":identity", identity.as_str())
+                            ][..]) {
+                                Ok(_) => {
+                                    match statement.next() {
+                                        Ok(State::Done) => Ok(()),
+                                        Err(error) => Err(error.to_string()),
+                                        _ => Err("Weird!".to_string())
+                                    }
+                                },
+                                Err(err) => Err(err.to_string())
+                            }
+                        }
+                    }
+                },
+                Err(err) => {
+                    println!("Error in update_identity_encrypted! : {}", &err);
+                    Err(err)
+                }
+            }
+        },
+        Err(err) => {
+            println!("Error in update_identity_encrypted! : {}", &err);
+            Err(err)
+        }
+    }
+}
+
+
+
 pub fn fetch_all_identities(path: &str) -> Result<LinkedList<String>, String> {
     let prep_query = "SELECT identity FROM identities;";
     match open_database(path, true) {
@@ -579,7 +623,6 @@ pub fn fetch_all_identities_full(path: &str) -> Result<LinkedList<Identity>, Str
                                 let temp_salt: String = statement.read::<String, _>("salt").unwrap();
                                 let temp_hash: String = statement.read::<String, _>("hash").unwrap();
                                 let temp_is_encrypted: String = statement.read::<String, _>("is_encrypted").unwrap();
-                                println!("Fetching All Identities Full: {}, {}", &temp_identity, &temp_is_encrypted);
                                 ret_val.push_back(Identity::from_vars(
                                     temp_seed.as_str(),
                                     temp_hash.as_str(),

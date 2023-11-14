@@ -18,7 +18,10 @@ pub fn get_formatted_response(response: &mut QubicApiPacket) {
         EntityType::ExchangePeers => {
             let resp: ExchangePeersEntity = ExchangePeersEntity::format_qubic_response_data_to_structure(response);
             println!("ExchangePeersEntity: {:?}", resp);
-            update_peer_last_responded(path.as_str(), resp.peer.as_str(), SystemTime::now()).unwrap();
+            match update_peer_last_responded(path.as_str(), resp.peer.as_str(), SystemTime::now()) {
+                Ok(_) => {},
+                Err(err) => println!("Error Updating Peer {} Last Responded: {}", resp.peer.as_str(), err.as_str())
+            }
         },
         EntityType::ResponseEntity => {
             let resp: ResponseEntity = ResponseEntity::format_qubic_response_data_to_structure(response);

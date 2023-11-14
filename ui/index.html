@@ -4,8 +4,13 @@
     <meta charset="UTF-8">
     <title>Rubic - Qubic Wallet</title>
     <style>
-        #headerTable{width:100%;}
-        #headerTable td{width:5%;}
+        #exportSettingsTable{margin-bottom:2%;}
+        #setPasswordTable{margin-bottom:2%;}
+        .mainHeaderTable{width:50%;}
+        .mainHeaderTable td{width:5%;}
+        .mainHeaderTable{margin-bottom: 3%;}
+        .headerTable{width:100%;}
+        .headerTable td{width:5%;}
         #settingsDiv{display: none;}
         #identityDiv{display: none;}
         #myIdentitiesDiv{margin-top: 5%;}
@@ -25,22 +30,28 @@
 </head>
 <body>
     <div id="mainDiv">
-        <table id="headerTable">
+        <table class="mainHeaderTable">
             <tr>
                 <td>
                     <b>Rubic - Qubic Wallet</b>
                 </td>
-
                 <td>
                     <label for="serverIp">Qubic Server Running At: </label><input type="text" id="serverIp" value="http://127.0.0.1:3000"> <span id="connectedStatusSpan"></span>
                 </td>
-
+            </tr>
+        </table>
+        <table class="headerTable">
+            <tr>
                 <td>
                     Connected Peers: <span id="numPeersSpan">0</span>
                 </td>
 
                 <td>
                     Latest Tick: <span id="latestTickSpan">0</span>
+                </td>
+
+                <td>
+                    Wallet: <span id="isWalletEncryptedSpan"></span>
                 </td>
             </tr>
             <tr>
@@ -64,7 +75,7 @@
                     <thead>
                     <tr>
                         <th>Seed</th>
-                        <th>Password (optional)</th>
+                        <th>Wallet Password (optional)</th>
                     </tr>
                     </thead>
                     <tbody>
@@ -97,6 +108,8 @@
                     <thead>
                     <tr>
                         <th>Identity</th>
+                        <th>Balance</th>
+                        <th>Encrypted</th>
                     </tr>
                     </thead>
                     <tbody id="identityTable">
@@ -153,20 +166,65 @@
             </div>
         </div>
         <div id="settingsDiv">
-            <div id="exportDbDiv">
-                <span>Export My Db</span>
-                <table id="exportSettingsTable">
+            <div id="setPasswordTable">
+                <table>
                     <thead>
                     <tr>
-                        <th>Password (optional, dumped db will be decrypted if supplied)</th>
+                        <th style="text-align: left;">
+                            Set Wallet Encryption Master Password
+                        </th>
                     </tr>
                     </thead>
                     <tbody>
                     <tr>
                         <td>
-                            <div style="text-align: center;">
-                                <label for="exportSettingsPasswordInput">Password:</label><input type="password" id="exportSettingsPasswordInput">
-                            </div>
+                            <label for="setMasterPasswordInput">Password: </label><input type="text" id="setMasterPasswordInput">
+                        </td>
+                    </tr>
+                    <tr>
+                        <td>
+                            <button id="setDbPassBtn" onclick="setMasterPassword()">Set Password</button>
+                        </td>
+                    </tr>
+                    </tbody>
+                </table>
+            </div>
+            <div id="encryptAllIdentitiesDiv">
+                <table>
+                    <thead>
+                    <tr>
+                        <th style="text-align: left;">
+                            Encrypt All Identities With Master Password
+                        </th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    <tr>
+                        <td>
+                            <label for="encryptAllIdentitiesInput">Master Password (This will encrypt ALL identities in your Db!): </label><input type="password" id="encryptAllIdentitiesInput">
+                        </td>
+                    </tr>
+                    <tr>
+                        <td>
+                            <button id="encryptAllIdentitiesBtn" onclick="encryptAllIdentities()">Encrypt All Identities</button>
+                        </td>
+                    </tr>
+                    </tbody>
+                </table>
+            </div>
+            <div id="exportDbDiv">
+                <table>
+                    <thead>
+                    <tr>
+                        <th style="text-align: left;">
+                            Export Database
+                        </th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    <tr>
+                        <td>
+                            <label for="exportSettingsPasswordInput">Wallet Password (Optional, db will be decrypted if supplied): </label><input type="password" id="exportSettingsPasswordInput">
                         </td>
                     </tr>
                     <tr>
