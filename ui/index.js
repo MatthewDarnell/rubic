@@ -145,6 +145,38 @@ const getIdentities = async () => {
     }
 }
 
+const send = async (identity, isEncrypted) => {
+    console.log(isEncrypted)
+    const passInput = document.getElementById("sendModalPasswordInput");
+    if(passInput) {
+        passInput.innerHTML = "";
+    }
+    if(isEncrypted) {
+        const label = document.createElement("label");
+        label.for = "sendModalPassword";
+        label.innerHTML = "Master Password: ";
+
+        const input = document.createElement("input");
+        input.id = "sendModalPassword"
+        input.type = "password";
+        input.style.width = "80%";
+        const td = document.createElement("td");
+        td.appendChild(label);
+        td.appendChild(input);
+        passInput.appendChild(td);
+    }
+
+
+    document.getElementById("sendModalIdentitySpan").innerText = identity;
+    const modal = document.getElementById('sendModal');
+    modal.style.display = "block";
+    var span = document.getElementsByClassName("close")[0];
+    span.onclick = function() {
+        modal.style.display = "none";
+    }
+
+
+}
 const getBalance = async identity => {
     const serverIp = document.getElementById("serverIp").value;
     const balanceTd = document.getElementById(`${identity}:balance:td`);
@@ -155,8 +187,17 @@ const getBalance = async identity => {
         if(res.length < 1) {
             return balanceTd.innerHTML = `<span>Not Yet Reported</span>`
         }
+        const isEncrypted = document.getElementById(`${identity}:encrypted:td`).innerText.toLowerCase() === "true";
         if (res.every(v => v === res[0])) {
-            balanceTd.innerHTML = `<b>${res[0]}</b>`
+            try {
+                if(parseInt(res[0]) > 0) {
+                    balanceTd.innerHTML = `<a href="#" onclick="send('${identity}', ${isEncrypted})"><b>${res[0]}</b> <span >\u27A4</span></a>`
+                } else {
+                    balanceTd.innerHTML = `<b>${res[0]}</b>`
+                }
+            } catch(err) {
+                balanceTd.innerHTML = `<b>${res[0]}</b>`
+            }
         } else {
             let html = `<span><b>Peer Responded Balance Mismatch: </b></span> [|`
             for(const r of res) {
@@ -440,6 +481,14 @@ const intervalLoopFunction = () => {
         .catch(() => {
             setTimeout(intervalLoopFunction, 1000);
         })
+}
+
+//Clicking Outside of Send Modal Should Close It.
+window.onclick = function(event) {
+    const modal = document.getElementById('sendModal');
+    if (event.target == modal) {
+        modal.style.display = "none";
+    }
 }
 
 window.onload = () => {
