@@ -14,7 +14,7 @@ use crypto;
 pub fn latest_tick() -> String {
     match store::sqlite::crud::fetch_latest_tick(store::get_db_path().as_str()) {
         Ok(tick) => format!("{}", tick),
-        Err(err) => format!("Error! : {}", err.to_string())
+        Err(err) => format!("{}", err.to_string())
     }
 }
 
@@ -143,7 +143,6 @@ pub fn create_random_identity(password: &str, mtx: &rocket::State<Mutex<Sender<H
         }
 
     }
-
     if password.len() > 4 {
         map.insert("password".to_string(), password.to_string());
     }
@@ -255,8 +254,6 @@ pub fn add_identity_with_password(seed: &str, password: &str, mtx: &rocket::Stat
                 }
             },
             Err(err) => {
-                // println!("got error {:?}", &err);
-                // return format!("{}", err.to_string());
             }
         }
     }
@@ -283,49 +280,23 @@ pub fn set_master_password(password: &str) -> String {
         return format!("Password Too Short!");
     }
     match store::sqlite::crud::master_password::get_master_password(store::get_db_path().as_str()) {
-        Ok(pass) => {
-            if pass.len() > 0 {
-                return format!("Wallet Password Already Set!");
-            } else {
-                match crypto::passwords::hash_password(password) {
-                    Ok(hashed) => {
-                        match store::sqlite::crud::master_password::set_master_password(store::get_db_path().as_str(), hashed.as_str()) {
-                            Ok(_) => {
-                                match store::sqlite::crud::fetch_all_identities_full(store::get_db_path().as_str()) {
-                                    Ok(identities) => {
-                                        for mut id in identities {
-                                            if !(&id.encrypted) {
-                                                match id.encrypt_identity(password) {
-                                                    Ok(encrypted) => {
-                                                        match store::sqlite::crud::update_identity_encrypted(store::get_db_path().as_str(), &encrypted) {
-                                                            Ok(_) => println!("Updating Database, Identity.({}) Encrypted.", &encrypted.identity),
-                                                            Err(err) => println!("Failed To Encrypt Identity.({}) : <{}>", &encrypted.identity, err)
-                                                        }
-                                                    },
-                                                    Err(err) => {
-                                                        return format!("{}", err);
-                                                    }
-                                                }
-                                            }
-                                        }
-                                        return format!("ok");
-                                    },
-                                    Err(err) => {return format!("{}", err);}
-                                }
-                            },
-                            Err(err) => {
-                                return format!("{}", err);
-                            }
+        Ok(_) => { return format!("Wallet Password Already Set!"); },
+        Err(_) => {
+            match crypto::passwords::hash_password(password) {
+                Ok(hashed) => {
+                    match store::sqlite::crud::master_password::set_master_password(store::get_db_path().as_str(), hashed.as_str()) {
+                        Ok(_) => {
+                            return format!("Master Password Set!");
+                        },
+                        Err(err) => {
+                            return format!("{}", err);
                         }
-                    },
-                    Err(err) => {
-                        return format!("{}", err);
                     }
+                },
+                Err(err) => {
+                    return format!("{}", err);
                 }
             }
-        },
-        Err(err) => {
-            return format!("{:?}", err);
         }
     }
     format!("ok")
@@ -360,7 +331,7 @@ pub fn encrypt_wallet(password: &str) -> String {
                                         }
                                     }
                                 }
-                                return format!("ok");
+                                return format!("Wallet Encrypted!");
                             },
                             Err(err) => {return format!("{}", err);}
                         }

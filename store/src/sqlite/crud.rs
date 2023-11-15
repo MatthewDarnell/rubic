@@ -26,7 +26,7 @@ pub fn fetch_latest_tick(path: &str) -> Result<String, String> {
                         },
                         Ok(State::Done) => {
                             println!("Finished Reading. Failed To Fetch Latest Tick.");
-                            Err("Peer Not Found!".to_string())
+                            Err("No Tick Reported".to_string())
                         },
                         Err(err) => {
                             Err(err.to_string())
@@ -96,7 +96,13 @@ pub mod master_password {
                                 }
                                 true
                             }) {
-                            Ok(_) => Ok(ret_val),
+                            Ok(_) => {
+                                if ret_val.len() < 1 {
+                                    Err("No Master Password Set".to_string())
+                                } else {
+                                    Ok(ret_val)
+                                }
+                            },
                             Err(err) => {
                                 println!("Error in get_master_password! : {}", &err);
                                 Err(err.to_string())

@@ -26,6 +26,15 @@
         #seedInput{resize: none;}
         #passwordInput{resize: none;}
         #newIdentityPreview{display: none;}
+
+        #peerTable table, #peerTable th, #peerTable td {
+            border: 1px solid black;
+        }
+
+        #myIdentitiesTable table, #myIdentitiesTable th, #myIdentitiesTable td {
+            border: 1px solid black;
+        }
+
     </style>
 </head>
 <body>
@@ -75,7 +84,7 @@
                     <thead>
                     <tr>
                         <th>Seed</th>
-                        <th>Encrypt Identity Password (Optional)</th>
+                        <th>Encrypt With Master Password (Optional)</th>
                     </tr>
                     </thead>
                     <tbody>
@@ -87,7 +96,7 @@
                             </td>
                             <td>
                                 <div style="text-align: center;">
-                                    <textarea cols="32" id="passwordInput"></textarea>
+                                    <textarea cols="48" id="passwordInput"></textarea>
                                 </div>
                             </td>
                         </tr>

@@ -117,11 +117,10 @@ async fn main() {
                           println!("Failed To Verify Master Password!");
                         }
                       }
-
-
                     },
                     Err(err) => {
-                      panic!("{}", err.to_string())
+                      response.insert("message_id".to_string(), message_id.to_string());
+                      response.insert("status".to_string(), "No Master Password Set!".to_string());
                     }
                   }
                 } else {

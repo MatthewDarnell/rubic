@@ -105,11 +105,10 @@ const getConnectedPeers = async () => {
 const getIdentities = async () => {
     const serverIp = document.getElementById("serverIp").value;
     const table = document.getElementById("identityTable");
-    table.innerHTML = ""
     try {
         const result = await makeHttpRequest(`${serverIp}/identities`);
-        table.innerHTML = "";
         const res = JSON.parse(result);
+        const newTableElements = [];
         for (let i = 0; i < res.length; i += 2) {
             let identity = res[i];
             let encrypted = res[i + 1];
@@ -121,14 +120,24 @@ const getIdentities = async () => {
             const balanceTd = document.createElement("td");
             balanceTd.id = `${identity}:balance:td`
 
-            tr.appendChild(balanceTd);
+            let existingBalanceTd = document.getElementById(`${identity}:balance:td`);
+            if(existingBalanceTd) {
+                let existingBalance = existingBalanceTd.innerHTML ? existingBalanceTd.innerHTML : 0;
+                balanceTd.innerHTML = existingBalance;
+            } else {    //New Identity
+                balanceTd.innerHTML = `<b>0</b>`;
+            }
 
+            tr.appendChild(balanceTd);
             const encryptedId = document.createElement("td");
             encryptedId.id = `${identity}:encrypted:td`
             encryptedId.innerHTML = encrypted;
-
             tr.appendChild(encryptedId);
-
+            newTableElements.push(tr);
+            //table.appendChild(tr);
+        }
+        table.innerHTML = "";
+        for(const tr of newTableElements) {
             table.appendChild(tr);
         }
         return res;
@@ -139,10 +148,10 @@ const getIdentities = async () => {
 const getBalance = async identity => {
     const serverIp = document.getElementById("serverIp").value;
     const balanceTd = document.getElementById(`${identity}:balance:td`);
-    balanceTd.innerHTML = ""
     try {
         const result = await makeHttpRequest(`${serverIp}/balance/${identity}`);
         const res = JSON.parse(result);
+        console.log(res)
         if(res.length < 1) {
             return balanceTd.innerHTML = `<span>Not Yet Reported</span>`
         }
@@ -201,7 +210,9 @@ window.generateRandomIdentity = () => {
     const serverIp = document.getElementById("serverIp").value;
     document.getElementById("generateRandomIdentityBtn").disabled = true;
     let password = document.getElementById("passwordInput").value;
-    if(password.length < 4) {
+    const isPasswordInputDisabled = document.getElementById("passwordInput").disabled;
+    console.log(isPasswordInputDisabled)
+    if(isPasswordInputDisabled || password.length < 4) {
         password = "0"
     }
     makeHttpRequest(`${serverIp}/identity/new/${password}`).then(result => {
@@ -287,11 +298,14 @@ const getIsWalletEncrypted = async () => {
             document.getElementById('setDbPassBtn').disabled = true;
             document.getElementById('setMasterPasswordInput').disabled = true;
             document.getElementById('passwordInput').disabled = false;
-            document.getElementById('passwordInput').value = "";
+            if (document.getElementById('passwordInput').value == "You Can Set A Master Password In Settings" ) {
+              document.getElementById('passwordInput').value = "";
+            }
             document.getElementById('encryptAllIdentitiesInput').disabled = false;
             document.getElementById('encryptAllIdentitiesBtn').disabled = false;
         } else {
             document.getElementById('passwordInput').disabled = true;
+            document.getElementById('passwordInput').value = "You Can Set A Master Password In Settings";
             document.getElementById('encryptAllIdentitiesInput').disabled = true;
             document.getElementById('encryptAllIdentitiesBtn').disabled = true;
             document.getElementById('setMasterPasswordInput').disabled = false;
@@ -395,10 +409,10 @@ const statusInfoLoopFunction = () => {
         .then(getConnectedPeers)
         .then(_ => {
             //Finished Update Loop
-            setTimeout(statusInfoLoopFunction, (TIMEOUT_MS * 4) + 250);
+            setTimeout(statusInfoLoopFunction, 100);
         })
         .catch(() => {
-            setTimeout(statusInfoLoopFunction, (TIMEOUT_MS * 4) + 250);
+            setTimeout(statusInfoLoopFunction, 100);
         })
 }
 
@@ -409,13 +423,11 @@ const intervalLoopFunction = () => {
     getIdentities()
         .then(async identities => {
             if(loopCounter > 10) {
-                console.log('getting balances')
                 identities = identities.filter(x => x.length > 10);
                 numFuncsToCall = 1 + identities.length;
                 for(const id of identities) {
                     await getBalance(id);
                 }
-                console.log('got balances')
                 loopCounter = 0;
             } else {
                 numFuncsToCall = 1;
@@ -423,10 +435,10 @@ const intervalLoopFunction = () => {
         })
         .then(_ => {
             //Finished Update Loop
-            setTimeout(intervalLoopFunction, (TIMEOUT_MS * numFuncsToCall) + 1);
+            setTimeout(intervalLoopFunction, 1000);
         })
         .catch(() => {
-            setTimeout(intervalLoopFunction, (TIMEOUT_MS * numFuncsToCall) + 1);
+            setTimeout(intervalLoopFunction, 1000);
         })
 }
 
