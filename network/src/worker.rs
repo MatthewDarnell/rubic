@@ -68,9 +68,19 @@ pub fn handle_new_peer(id: String, peer: Peer, rx: spmc::Receiver<QubicApiPacket
                             let mut response: QubicApiPacket = QubicApiPacket::new(&error);
                             response.api_type = EntityType::ERROR;
                             response.peer = Some(peer.get_id().to_owned());
-                            match tx.send(response) {
-                                Ok(_) => {},
-                                Err(err) => println!("Failed to send Message from Worker Thread.({}) To Handler... ({})", peer.get_id().as_str(), err.to_string())
+                            let mut counter = 0;
+                            loop {
+                                match tx.send(response.clone()) {
+                                    Ok(_) => { break; },
+                                    Err(err) => {
+                                        counter = counter + 1;
+                                        println!("Failed to send Message from Worker Thread.({}) To Handler... ({})", peer.get_id().as_str(), err.to_string())
+                                    }
+                                }
+                                if counter > 10 {
+                                    println!("Failed to send Message from Worker Thread.({}) To Handler... Bailing Out", peer.get_id().as_str());
+                                    break;
+                                }
                             }
                         }
                     }
