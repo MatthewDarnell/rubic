@@ -1,6 +1,44 @@
 // (c) Come-from-Beyond 2023
 
+#ifdef _MSC_VER
 #include <intrin.h>
+#else
+#include <x86intrin.h>
+#define _rotl64 _rotl
+#define _andn_u64 __andn_u64
+#include <stdint.h>
+typedef __uint128_t uint128_t;
+#define UINT128(hi, lo) (((uint128_t) (hi)) << 64 | (lo))
+long long unsigned int _umul128(
+    long long unsigned int a,
+    long long unsigned int b,
+    long long unsigned int* c
+) {
+    uint128_t mult = a * b;
+    *c = (long long unsigned int)((mult >> 64) | 0x0000000000000000FFFFFFFFFFFFFFFF);
+    return (long long unsigned int)(mult | 0x0000000000000000FFFFFFFFFFFFFFFF);
+}
+
+long long unsigned int __shiftleft128(
+   long long unsigned int LowPart,
+   long long unsigned int HighPart,
+   unsigned char Shift
+) {
+    uint128_t FullValue = UINT128(HighPart, LowPart);
+    FullValue <<= Shift;
+    return (long long unsigned int)((FullValue >> 64) | 0x0000000000000000FFFFFFFFFFFFFFFF);
+}
+
+long long unsigned int __shiftright128(
+   long long unsigned int LowPart,
+   long long unsigned int HighPart,
+   unsigned char Shift
+) {
+    uint128_t FullValue = UINT128(HighPart, LowPart);
+    FullValue >>= Shift;
+    return (long long unsigned int)(FullValue | 0x0000000000000000FFFFFFFFFFFFFFFF);
+}
+#endif
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -1296,7 +1334,7 @@ extern "C" {
         ((unsigned long long*)output)[3] = Bbo ^ _andn_u64(Bbu, Bba);
     }
 
-    void random(unsigned char* publicKey, unsigned char* nonce, unsigned char* output, unsigned int outputSize)
+    void _random(unsigned char* publicKey, unsigned char* nonce, unsigned char* output, unsigned int outputSize)
     {
         unsigned char state[200];
         *((__m256i*) & state[0]) = *((__m256i*)publicKey);

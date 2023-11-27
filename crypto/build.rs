@@ -34,9 +34,15 @@ fn main() {
      */
 
     // Chopper (CFB Provided Cpp Crypto Functions)
+
     cc::Build::new()
         .file("../ffi-deps/chopper.cpp")
         .define("_AMD64_", "1")
         .define("_AVX_", "1")
+        .flag("-mbmi")
+        .flag("-msse3")
+        .flag("-mavx")
+        .flag("-mavx2")
         .compile("Chopper")
+
 }
