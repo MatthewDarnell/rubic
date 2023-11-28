@@ -1,6 +1,9 @@
 
 
 const TIMEOUT_MS = 5000;
+const TICK_OFFSET = 10;
+const MAX_AMOUNT = 1000000000000000;
+let globalLatestTick = 0;
 
 const updateServerRespondingStatus = connected => {
     const status = document.getElementById("connectedStatusSpan");
@@ -146,7 +149,6 @@ const getIdentities = async () => {
 }
 
 const send = async (identity, isEncrypted) => {
-    console.log(isEncrypted)
     const passInput = document.getElementById("sendModalPasswordInput");
     if(passInput) {
         passInput.innerHTML = "";
@@ -322,6 +324,8 @@ const getLatestTick = async identity => {
     try {
         const result = await makeHttpRequest(`${serverIp}/tick`);
         latestTickSpan.innerHTML = `<b>${result}</b>`
+        globalLatestTick = parseInt(result);
+        document.getElementById("sendModalExpirationTick").value = parseInt(result) + TICK_OFFSET;
         return result;
     } catch(error) {
     }
@@ -395,9 +399,7 @@ window.exportDb = () => {
     try {
         const serverIp = document.getElementById("serverIp").value;
         const password = document.getElementById("exportSettingsPasswordInput").value;
-        console.log(password);
         const decrypt = password.length > 0 ? true : false;
-        console.log(`Decrypting: ${decrypt}`);
         if(decrypt) {
             makeHttpRequest(`${serverIp}/wallet/download/${password}`)
                 .then(result => {
@@ -418,11 +420,8 @@ window.exportDb = () => {
         } else {
             makeHttpRequest(`${serverIp}/wallet/download/0`)
                 .then(result => {
-                    console.log(result)
                     let csvContent = "data:text/csv;charset=utf-8," + result;
                     var encodedUri = encodeURI(csvContent);
-                    console.log(encodedUri)
-                    console.log('opening')
                     const downloadLink = document.createElement("a");
                     downloadLink.href = encodedUri;
                     downloadLink.download = "rubic-db-encrypted.csv";
@@ -437,6 +436,40 @@ window.exportDb = () => {
     }
 }
 
+
+window.initiateTransfer = async () => {
+    try {
+        const serverIp = document.getElementById("serverIp").value;
+        const expirationTick = parseInt(document.getElementById("sendModalExpirationTick").value);
+        const sourceIdentity = document.getElementById("sendModalIdentitySpan").innerText;
+        const destinationIdentity = document.getElementById("sendModalDestinationInput").value;
+        const password = document.getElementById("sendModalPassword").value || "0";
+        const amountToSend = parseInt(document.getElementById("sendModalAmountInput").value);
+        if(isNaN(expirationTick) || expirationTick <= 0 || expirationTick < (globalLatestTick + TICK_OFFSET)) {
+            alert("Invalid Expiration Tick!");
+            return;
+        }
+        if(isNaN(amountToSend) || amountToSend <= 0 || amountToSend > MAX_AMOUNT) {
+            alert("Invalid Amount To Send!");
+            return;
+        }
+        if(sourceIdentity.length !== 60) {
+            alert("Invalid Source Identity!");
+            return;
+        }
+        if(destinationIdentity.length !== 60) {
+            alert("Invalid Destination Identity!");
+            return;
+        }
+        document.getElementById("sendQubicsBtn").disabled = true;
+        const result = await makeHttpRequest(`${serverIp}/transfer/${sourceIdentity}/${destinationIdentity}/${amountToSend}/${expirationTick}/${password}`);
+        document.getElementById("sendQubicsBtn").disabled = false;
+        alert(result);
+    } catch(error) {
+        console.log(`Error in initiateTransfer!`);
+        console.log(error);
+    }
+}
 
 /*
     Runtime

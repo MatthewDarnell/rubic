@@ -5,9 +5,11 @@ use rocket::routes;
 
 extern crate dotenv_codegen;
 use network::peers::{PeerStrategy, PeerSet};
+use logger::{info, debug, error};
 use store::sqlite::crud;
 use store::get_db_path;
 use identity;
+use api;
 use std::sync::mpsc;
 use std::time::Duration;
 mod env;
@@ -17,20 +19,9 @@ use rocket::{Request, Response};
 use rocket::fairing::{Fairing, Info, Kind};
 
 
-
-
-
-
-/*
-
-  TODO:
-    Create Worker Threads and queue:
-      1 for Receiving Requests from Server Routes
-      1 for PeerSet Work
-*/
-
 #[rocket::main]
 async fn main() {
+  info("Starting Rubic Application");
   let path = store::get_db_path();
   crud::peer::set_all_peers_disconnected(path.as_str()).unwrap();
   let peer_ips = vec!["85.10.199.154:21841",
@@ -39,13 +30,14 @@ async fn main() {
                       //"193.135.9.63:21841",
                       //"144.2.106.163:21841"
   ];
+  debug("Creating Peer Set");
   println!("Creating Peer Set");
 
   let mut peer_set = PeerSet::new(PeerStrategy::RANDOM);
   for ip in peer_ips {
-    println!("Adding Peer {}", ip);
+    debug(format!("Adding Peer {}", ip).as_str());
     peer_set.add_peer(ip).unwrap();
-    println!("Peer Added");
+    debug("Peer Added");
   }
 
   let (tx, rx) = mpsc::channel::<std::collections::HashMap<String, String>>();
@@ -83,6 +75,101 @@ async fn main() {
                   }
                 }
               }
+              else if method == &"transfer".to_string() {
+                //    let mut map: HashMap<String, String> = HashMap::new();
+                //     map.insert("method".to_string(), "transfer".to_string());
+                //     map.insert("source".to_string(), source_identity);
+                //     map.insert("dest".to_string(), dest_identity);
+                //     map.insert("amount".to_string(), string_amount);
+                //     map.insert("expiration".to_string(), string_expiration);
+                //
+                let message_id = map.get(&"message_id".to_string()).unwrap();
+                let mut response: HashMap<String, String> = HashMap::new();
+
+                let source = map.get(&"source".to_string()).unwrap();
+                let dest = map.get(&"dest".to_string()).unwrap();
+                let amount = map.get(&"amount".to_string()).unwrap();
+                let expiration = map.get(&"expiration".to_string()).unwrap();
+                ////
+
+                let mut id: identity::Identity = match store::sqlite::crud::fetch_identity(get_db_path().as_str(), source.as_str()) {
+                  Ok(identity) => identity,
+                  Err(err) => {
+                    response.insert("message_id".to_string(), message_id.to_string());
+                    response.insert("status".to_string(), "Unknown Source Identity!".to_string());
+                    tx.send(response).unwrap();
+                    continue;
+                  }
+                };
+
+                println!("Transfer: Fetched Identity: {:?}", &id);
+                if(id.encrypted) {
+                  if let Some(pass) = map.get(&"password".to_string()) {
+                    id = match crud::master_password::get_master_password(get_db_path().as_str()) {
+                      Ok(master_password) => {
+                        println!("{} : {:?}", pass.as_str(), &master_password);
+                        match crypto::passwords::verify_password(pass.as_str(), master_password[1].as_str()) {
+                          Ok(verified) => {
+                            if !verified {
+                              response.insert("message_id".to_string(), message_id.to_string());
+                              response.insert("status".to_string(), "Invalid Password!".to_string());
+                              tx.send(response).unwrap();
+                              continue;
+                            } else {
+                              match id.decrypt_identity(pass.as_str()) {
+                                Ok(identity) => identity,
+                                Err(error) => {
+                                  response.insert("message_id".to_string(), message_id.to_string());
+                                  response.insert("status".to_string(), "Invalid Password For This Identity!".to_string());
+                                  tx.send(response).unwrap();
+                                  continue;
+                                }
+                              }
+                            }
+                          },
+                          Err(err) => {
+                            response.insert("message_id".to_string(), message_id.to_string());
+                            response.insert("status".to_string(), "Failed To Verify Master Password Vs Supplied Password!".to_string());
+                            tx.send(response).unwrap();
+                            continue;
+                          }
+                        }
+                      },
+                      Err(err) => {
+                        response.insert("message_id".to_string(), message_id.to_string());
+                        response.insert("status".to_string(), "Identity Is Encrypted, Yet No Master Password Set! Weird!".to_string());
+                        tx.send(response).unwrap();
+                        continue;
+                      }
+                    };
+                  } else {
+                    response.insert("message_id".to_string(), message_id.to_string());
+                    response.insert("status".to_string(), "Must Enter A Password!".to_string());
+                    tx.send(response).unwrap();
+                    continue;
+                  }
+                } else {
+                  println!("is Not encrypted!");
+                }
+
+                println!("Got Transfer Request For Id: {:?}", &id);
+                let amt: u64 = amount.parse().unwrap();
+                let tck: u32 = expiration.parse().unwrap();
+                //src: &[u8], dest: &[u8], amount: u64, tick: u32, sig: &[u8]
+                //let t = api::transfer::TransferTransaction::from_vars(&id.identity, &dest, amt, tck, &dest);
+                //println!("{:?}", t);
+
+
+                response.insert("message_id".to_string(), message_id.to_string());
+                response.insert("status".to_string(), "200".to_string());
+
+                tx.send(response).unwrap();
+                continue;
+
+
+
+                ////
+              }
               else if method == &"add_identity".to_string() {
                 let seed = map.get(&"seed".to_string()).unwrap();
                 let mut id: identity::Identity = identity::Identity::new(seed.as_str());
@@ -103,10 +190,10 @@ async fn main() {
                                 response.insert("message_id".to_string(), message_id.to_string());
                                 response.insert("status".to_string(), "200".to_string());
                               },
-                              Err(error) => {
+                              Err(err) => {
                                 response.insert("message_id".to_string(), message_id.to_string());
-                                response.insert("status".to_string(), error.to_string());
-                                println!("Failed To Insert! {:?}", error);
+                                response.insert("status".to_string(), err.to_string());
+                                error(format!("Failed To Insert! {:?}", err).as_str());
                               }
                             }
                           }
@@ -114,7 +201,7 @@ async fn main() {
                         Err(err) => {
                           response.insert("message_id".to_string(), message_id.to_string());
                           response.insert("status".to_string(), err.to_string());
-                          println!("Failed To Verify Master Password!");
+                          error("Failed To Verify Master Password!");
                         }
                       }
                     },
@@ -129,10 +216,10 @@ async fn main() {
                       response.insert("message_id".to_string(), message_id.to_string());
                       response.insert("status".to_string(), "200".to_string());
                     },
-                    Err(error) => {
+                    Err(err) => {
                       response.insert("message_id".to_string(), message_id.to_string());
-                      response.insert("status".to_string(), error.to_string());
-                      println!("Failed To Insert! {:?}", error);
+                      response.insert("status".to_string(), err.to_string());
+                      error(format!("Failed To Insert! {:?}", err).as_str());
                     }
                   }
                 }
@@ -160,7 +247,7 @@ async fn main() {
             }
           },
           Err(err) => {
-            println!("Error: {:?}", err);
+            error(format!("Error: {:?}", err).as_str());
           }
         }
 
@@ -171,7 +258,7 @@ async fn main() {
               if let Some(connected) = temp_peer.get(&"connected".to_string()) {
                 if connected.as_str() != "1" {
                   //println!("{:?}", &temp_peer);
-                  println!("Is Peer {} connected? {}", peer.as_str(), &connected);
+                  error(format!("Is Peer {} connected? {}", peer.as_str(), &connected).as_str());
                   peer_set.delete_peer_by_id(peer.as_str());
                 }
               }
@@ -273,7 +360,8 @@ async fn main() {
         routes::info::create_random_identity,
         routes::info::add_identity_with_password,
         routes::info::get_identities,
-        routes::info::get_identity_from_seed
+        routes::info::get_identity_from_seed,
+        routes::info::transfer
       ])
       .manage(std::sync::Mutex::new(tx))
       .manage(std::sync::Mutex::new(rx_server_route_responses_from_thread))

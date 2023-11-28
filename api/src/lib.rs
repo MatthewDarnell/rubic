@@ -1,7 +1,10 @@
 pub mod header;
 pub mod response;
+pub mod transfer;
 extern crate crypto;
 extern crate identity;
+extern crate core;
+
 use identity::get_public_key_from_identity;
 use crate::header::{ EntityType, RequestResponseHeader };
 

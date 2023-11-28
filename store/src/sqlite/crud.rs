@@ -1049,7 +1049,7 @@ mod store_crud_tests {
             update_peer_last_responded("test.sqlite", "id", SystemTime::now()).unwrap();
             match fetch_peer_by_ip("test.sqlite", "ip") {
                 Ok(peer) => {
-                    assert_eq!(peer.keys().len(), 6);
+                    assert_eq!(peer.keys().len(), 7);
                     let time_secs: u64 = peer.get("last_responded").unwrap().parse().unwrap();
                     let nineteen_seventy: SystemTime = SystemTime::UNIX_EPOCH;
                     assert_eq!(nineteen_seventy.duration_since(UNIX_EPOCH).unwrap().as_secs(), 0);
@@ -1069,7 +1069,7 @@ mod store_crud_tests {
             create_peer("test.sqlite", "id", "ip", "nickname", 3000, false, SystemTime::now()).expect("Test Failed To Create Peer");
             match fetch_peer_by_ip("test.sqlite", "ip") {
                 Ok(peer) => {
-                    assert_eq!(peer.keys().len(), 6);
+                    assert_eq!(peer.keys().len(), 7);
                     assert_eq!(peer.get("nick").unwrap(), "nickname");
                 },
                 Err(err) => {
@@ -1086,7 +1086,7 @@ mod store_crud_tests {
             create_peer("test.sqlite", "id", "ip", "nickname", 3000, false, SystemTime::now()).expect("Test Failed To Create Peer");
             match fetch_peer_by_id("test.sqlite", "id") {
                 Ok(peer) => {
-                    assert_eq!(peer.keys().len(), 6);
+                    assert_eq!(peer.keys().len(), 7);
                     assert_eq!(peer.get("nick").unwrap(), "nickname");
                 },
                 Err(err) => {
@@ -1103,7 +1103,7 @@ mod store_crud_tests {
             create_peer("test.sqlite", "id", "ip", "nickname", 3000, false, SystemTime::now()).expect("Test Failed To Create Peer");
             match fetch_peer_by_id("test.sqlite", "id") {
                 Ok(peer) => {
-                    assert_eq!(peer.keys().len(), 6);
+                    assert_eq!(peer.keys().len(), 7);
                     assert_eq!(peer.get("nick").unwrap(), "nickname");
                 },
                 Err(err) => {

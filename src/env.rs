@@ -1,5 +1,7 @@
 use std::convert::TryInto;
 use dotenv::dotenv;
+
+
 pub fn get_host() -> String {
     dotenv().ok();
     return match std::env::var("RUBIC_HOST") {

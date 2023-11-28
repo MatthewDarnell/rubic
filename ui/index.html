@@ -294,10 +294,7 @@
         </div>
     </div>
 
-    <!-- The Modal -->
     <div id="sendModal" class="modal" style="display: none;">
-
-        <!-- Modal content -->
         <div class="modal-content">
             <span class="close">&times;</span>
             <table>
@@ -317,8 +314,16 @@
                         <label for="sendModalAmountInput">Amount To Send (Qus): </label><input type="number" id="sendModalAmountInput">
                     </td>
                 </tr>
-                <tr id="sendModalPasswordInput">
-
+                <tr>
+                    <td>
+                        <label for="sendModalExpirationTick">Expiration Tick: </label><input type="number" id="sendModalExpirationTick">
+                    </td>
+                </tr>
+                <tr id="sendModalPasswordInput"></tr>
+                <tr>
+                    <td>
+                        <button id="sendQubicsBtn" onclick="initiateTransfer()">Send</button>
+                    </td>
                 </tr>
                 </tbody>
             </table>

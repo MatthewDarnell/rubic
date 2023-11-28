@@ -1,3 +1,4 @@
+workspace = { members = ["logger"] }
 [package]
 name = "rubic"
 version = "0.1.0"
@@ -16,6 +17,7 @@ uuid = { version = "1.4.1", features = ["v4"] }
 api = { path = './api' }
 crypto =  { path = './crypto' }
 identity = { path = './identity' }
+logger = { path = './logger' }
 network = { path = './network' }
 server = { path = './server' }
 store = { path = './store' }

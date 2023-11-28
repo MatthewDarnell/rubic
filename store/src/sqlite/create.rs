@@ -45,6 +45,17 @@ pub fn open_database(path: &str, create: bool) -> Result<sqlite::Connection, Str
         spectrum_index INTEGER NOT NULL,
         created DATETIME DEFAULT CURRENT_TIMESTAMP
     );
+    CREATE TABLE IF NOT EXISTS transfer (
+        source_identity TEXT NOT NULL,
+        destination_identity TEXT NOT NULL,
+        amount UNSIGNED INTEGER NOT NULL,
+        input_type INTEGER NOT NULL,
+        input_size INTEGER NOT NULL,
+        tick UNSIGNED INTEGER NOT NULL,
+        signature TEXT NOT NULL,
+        created DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY(source_identity) REFERENCES identities(identity)
+    );
 ";
     //        FOREIGN KEY(identity) REFERENCES identities(identity)
     match sqlite::open(path) {
