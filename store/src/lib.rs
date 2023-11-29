@@ -2,6 +2,7 @@ extern crate dotenv_codegen;
 
 use dotenv::dotenv;
 pub mod sqlite;
+use logger::debug;
 
 pub fn get_db_path() -> String {
     dotenv().ok();
@@ -35,7 +36,7 @@ pub fn get_db_path() -> String {
             v
         },
         Err(_) => {
-            println!("RUBIC_DB not found in env vars! Defaulting...");
+            //println!("RUBIC_DB not found in env vars! Defaulting...");
             let mut default_path: String = match std::env::consts::OS {
                 "windows" => {
                     let mut home_path: String = std::env::var("USERPROFILE")
@@ -45,7 +46,6 @@ pub fn get_db_path() -> String {
                 },
                 _ => "~/.rubic/".to_string()
             };
-            println!("Defaulting to: {}", default_path);
             if !std::path::Path::new(default_path.as_str()).exists() {
                 println!("Path <{}> Does NOT Exist. Creating!", default_path.as_str());
                 match std::fs::create_dir(std::path::Path::new(default_path.as_str())) {
@@ -60,7 +60,6 @@ pub fn get_db_path() -> String {
                 };
             }
             default_path.push_str("rubic.sqlite");
-            println!("Using Db Path: <{}>", default_path.as_str());
             return default_path;
         }
     }

@@ -55,7 +55,7 @@ pub fn start_server(tx: Sender<String>) -> Result<(), rocket::Error> {
         Ok(v) => v,
         Err(err) => panic!("Invalid Server Port! {}", err.to_string())
     };
-    println!("Starting Rubic Server at.({}:{})", &host, port);
+    //println!("Starting Rubic Server at.({}:{})", &host, port);
     let figment = rocket::Config::figment()
         .merge(("port", port))
         .merge(("address", host.as_str()));

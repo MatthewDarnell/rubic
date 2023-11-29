@@ -47,6 +47,9 @@ pub fn get_formatted_response(response: &mut QubicApiPacket) {
                 store::sqlite::crud::peer::set_peer_disconnected(store::get_db_path().as_str(), id.as_str());
             }
             //panic!("exiting");
+        },
+        EntityType::BroadcastTransaction => {
+            println!("GOT BROADCAST TRANSACTION RESPONSE : {:?}", response);
         }
         _ => {/*  println!("Unknown Entity Type"); */ }
     }

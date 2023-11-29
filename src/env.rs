@@ -1,5 +1,6 @@
 use std::convert::TryInto;
 use dotenv::dotenv;
+use logger::debug;
 
 
 pub fn get_host() -> String {
@@ -7,9 +8,9 @@ pub fn get_host() -> String {
     return match std::env::var("RUBIC_HOST") {
         Ok(v) => v,
         Err(_) => {
-            println!("RUBIC_HOST not found in env vars! Defaulting...");
+            debug("RUBIC_HOST not found in env vars! Defaulting...");
             let default_host: String = "127.0.0.1".to_string();
-            println!("Using RUBIC_HOST: <{}>", default_host.as_str());
+            debug("Using RUBIC_HOST: <127.0.0.1>");
             return default_host;
         }
     }
@@ -19,9 +20,9 @@ pub fn get_port() -> String {
     return match std::env::var("RUBIC_PORT") {
         Ok(v) => v,
         Err(_) => {
-            println!("RUBIC_PORT not found in env vars! Defaulting...");
+            debug("RUBIC_PORT not found in env vars! Defaulting...");
             let default_port: String = "8080".to_string();
-            println!("Using RUBIC_PORT: <{}>", default_port.as_str());
+            debug("Using RUBIC_PORT: <8080>");
             return default_port;
         }
     }
@@ -40,9 +41,9 @@ pub fn get_min_peers() -> usize {
             }
         },
         Err(_) => {
-            println!("RUBIC_MIN_PEERS not found in env vars! Defaulting...");
+            debug("RUBIC_MIN_PEERS not found in env vars! Defaulting...");
             let default_min_peers: usize = 3;
-            println!("Using RUBIC_MIN_PEERS: <{}>", default_min_peers);
+            debug("Using RUBIC_MIN_PEERS: <3>");
             return default_min_peers;
         }
     }

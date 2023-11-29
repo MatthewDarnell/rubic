@@ -7,6 +7,7 @@ extern crate core;
 
 use identity::get_public_key_from_identity;
 use crate::header::{ EntityType, RequestResponseHeader };
+use crate::transfer::TransferTransaction;
 
 //Takes a public key
 #[derive(Debug, Copy, Clone)]
@@ -33,6 +34,22 @@ impl QubicApiPacket {
         header.set_size(size);
         QubicApiPacket {
             api_type: EntityType::RequestEntity,
+            peer: None,
+            header: header,
+            data: data,
+            response_data: None
+        }
+    }
+    pub fn broadcast_transaction(transaction: &TransferTransaction) -> Self {
+        //let entity: EntityType = EntityType::RequestEntity;
+        let mut header = RequestResponseHeader::new();
+        header.set_type(EntityType::BroadcastTransaction);
+
+        let data: Vec<u8> = transaction.as_bytes().to_vec();
+        let size = std::mem::size_of::<RequestResponseHeader>() + data.len();
+        header.set_size(size);
+        QubicApiPacket {
+            api_type: EntityType::BroadcastTransaction,
             peer: None,
             header: header,
             data: data,

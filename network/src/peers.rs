@@ -2,12 +2,14 @@ use std::io::prelude::*;
 use std::collections::HashMap;
 use std::net::{SocketAddr, TcpStream};
 use api::QubicApiPacket;
+use logger::debug;
 use std::time::{Duration, SystemTime};
 use store;
 use rand::seq::SliceRandom;
 use crate::worker;
 use crate::receive_response_worker;
 use crate::peer::Peer;
+
 
 
 
@@ -67,7 +69,6 @@ impl PeerSet {
         let sock: SocketAddr = ip.parse().unwrap();
         match TcpStream::connect_timeout(&sock, Duration::from_millis(5000)) {
             Ok(stream) => {
-                println!("Adding Peer {}", ip);
                 let new_peer = Peer::new(ip, None, "");
                 let id = new_peer.get_id().to_owned();
                 {
@@ -85,8 +86,8 @@ impl PeerSet {
                     store::get_db_path().as_str(),
                     id.as_str()
                 ) {
-                    Ok(_) => println!("Set Peer {} Connected.", id.as_str()),
-                    Err(err) => println!("Error Setting Peer {} Connected! : {}", id.as_str(), err.as_str())
+                    Ok(_) => { debug(format!("Set Peer {} Connected.", id.as_str()).as_str()); },
+                    Err(err) => { debug(format!("Error Setting Peer {} Connected! : {}", id.as_str(), err.as_str()).as_str()); }
                 }
                 Ok(())
             },
@@ -201,7 +202,7 @@ impl PeerSet {
                 }
             }
         };
-        //println!("Using Peer: {}", peer.get_ip_addr().as_str());
+        println!("Using Peer: {}", peer.get_ip_addr().as_str());
         request.peer = Some(peer.get_id().to_owned());
         match self.req_channel.0.send(request) {
             Ok(_) => Ok(()),

@@ -3,6 +3,7 @@ use identity::Identity;
 use base64::{engine::general_purpose, Engine as _};
 use crate::sqlite::create::open_database;
 use sqlite::State;
+use logger::{debug, error};
 
 fn prepare_crud_statement<'a>(connection: &'a sqlite::Connection, prep_query: &'a str) -> Result<sqlite::Statement<'a>, String> {
         match connection.prepare(prep_query) {
@@ -168,7 +169,6 @@ pub mod peer {
                             (":last_responded", last_responded_unix_time.as_str()),
                         ][..]) {
                             Ok(_) => {
-                                println!("Peer Created!");
                                 match statement.next() {
                                     Ok(State::Done) => Ok(()),
                                     Err(error) => Err(error.to_string()),
@@ -882,10 +882,15 @@ pub fn create_response_entity(path: &str, peer: &str, identity: &str, incoming: 
                             }
 
                 },
-                Err(err) => { return Err(err.to_string()); }
+                Err(err) => {
+                    error(format!("Failed To Prepare Statement! {}", err.to_string()).as_str());
+                    return Err(err.to_string());
+                }
             }
         },
-        Err(err) => { return Err(err.to_string()); }
+        Err(err) => {
+            error(format!("Failed To Open Database! {}", err.to_string()).as_str());
+            return Err(err.to_string()); }
     }
 }
 pub fn fetch_response_entity_by_identity(path: &str, identity: &str) -> Result<Vec<HashMap<String, String>>, String> {

@@ -12,6 +12,7 @@ pub enum EntityType {
     ERROR = 55, //This is for internal message passing, not a real value
     UNKNOWN = -1,
     ExchangePeers = 0,
+    BroadcastTransaction = 24,
     RequestEntity = 31,
     ResponseEntity = 32
 }

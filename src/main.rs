@@ -31,7 +31,6 @@ async fn main() {
                       //"144.2.106.163:21841"
   ];
   debug("Creating Peer Set");
-  println!("Creating Peer Set");
 
   let mut peer_set = PeerSet::new(PeerStrategy::RANDOM);
   for ip in peer_ips {
@@ -69,7 +68,8 @@ async fn main() {
                   },
                   Err(err) => {
                     response.insert("message_id".to_string(), message_id.to_string());
-                    response.insert("status".to_string(), err);
+                    response.insert("status".to_string(), err.as_str().to_string());
+                    error(format!("Failed To Add Peer.({}) = ({})", peer_ip.as_str(), err.as_str()).as_str());
                     println!("Sending {:?}", &response);
                     tx.send(response).unwrap();
                   }
@@ -97,30 +97,33 @@ async fn main() {
                   Err(err) => {
                     response.insert("message_id".to_string(), message_id.to_string());
                     response.insert("status".to_string(), "Unknown Source Identity!".to_string());
+                    error(format!("Failed To Make Transfer, Unknown Identity {}", source.as_str()).as_str());
                     tx.send(response).unwrap();
                     continue;
                   }
                 };
 
-                println!("Transfer: Fetched Identity: {:?}", &id);
+                //println!("Transfer: Fetched Identity: {:?}", &id);
                 if(id.encrypted) {
                   if let Some(pass) = map.get(&"password".to_string()) {
                     id = match crud::master_password::get_master_password(get_db_path().as_str()) {
                       Ok(master_password) => {
-                        println!("{} : {:?}", pass.as_str(), &master_password);
+                        //println!("{} : {:?}", pass.as_str(), &master_password);
                         match crypto::passwords::verify_password(pass.as_str(), master_password[1].as_str()) {
                           Ok(verified) => {
                             if !verified {
                               response.insert("message_id".to_string(), message_id.to_string());
                               response.insert("status".to_string(), "Invalid Password!".to_string());
+                              error("Failed To Create Transfer; Invalid Password");
                               tx.send(response).unwrap();
                               continue;
                             } else {
                               match id.decrypt_identity(pass.as_str()) {
                                 Ok(identity) => identity,
-                                Err(error) => {
+                                Err(err) => {
                                   response.insert("message_id".to_string(), message_id.to_string());
                                   response.insert("status".to_string(), "Invalid Password For This Identity!".to_string());
+                                  error("Failed To Create Transfer; Invalid Password For This Identity");
                                   tx.send(response).unwrap();
                                   continue;
                                 }
@@ -130,6 +133,7 @@ async fn main() {
                           Err(err) => {
                             response.insert("message_id".to_string(), message_id.to_string());
                             response.insert("status".to_string(), "Failed To Verify Master Password Vs Supplied Password!".to_string());
+                            error("Failed To Verify Master Password Vs Supplied Password");
                             tx.send(response).unwrap();
                             continue;
                           }
@@ -138,6 +142,7 @@ async fn main() {
                       Err(err) => {
                         response.insert("message_id".to_string(), message_id.to_string());
                         response.insert("status".to_string(), "Identity Is Encrypted, Yet No Master Password Set! Weird!".to_string());
+                        error("Identity Is Encrypted, Yet No Master Password Set! Weird");
                         tx.send(response).unwrap();
                         continue;
                       }
@@ -145,23 +150,32 @@ async fn main() {
                   } else {
                     response.insert("message_id".to_string(), message_id.to_string());
                     response.insert("status".to_string(), "Must Enter A Password!".to_string());
+                    error("Failed To Decrypt Password For Transfer; No Password Supplied");
                     tx.send(response).unwrap();
                     continue;
                   }
                 } else {
                   println!("is Not encrypted!");
                 }
-
-                println!("Got Transfer Request For Id: {:?}", &id);
+println!("About To Make Tx!");
                 let amt: u64 = amount.parse().unwrap();
                 let tck: u32 = expiration.parse().unwrap();
-                //src: &[u8], dest: &[u8], amount: u64, tick: u32, sig: &[u8]
-                //let t = api::transfer::TransferTransaction::from_vars(&id.identity, &dest, amt, tck, &dest);
-                //println!("{:?}", t);
 
-
+                info(format!("Creating Transfer: {} .({}) ---> {} (Expires At Tick.<{}>)", &id.identity.as_str(), amt.to_string().as_str(), dest.as_str(), tck.to_string().as_str()).as_str());
+                println!("Creating Transfer: {} .({}) ---> {} (Expires At Tick.<{}>)", &id.identity.as_str(), amt.to_string().as_str(), dest.as_str(), tck.to_string().as_str());
+                let transfer_tx = api::transfer::TransferTransaction::from_vars(&id, &dest, amt, tck);
+                println!("{:?}", &transfer_tx);
+                println!("{:?}", &transfer_tx.as_bytes());
                 response.insert("message_id".to_string(), message_id.to_string());
                 response.insert("status".to_string(), "200".to_string());
+
+                let request = api::QubicApiPacket::broadcast_transaction(&transfer_tx);
+                match peer_set.make_request(request) {
+                  Ok(_) => { info("Transaction Sent!"); println!("Transaction Sent!"); },
+                  //Ok(_) => println!("{:?}", request.response_data),
+                  Err(err) => println!("{}", err)
+                }
+                std::thread::sleep(delay);
 
                 tx.send(response).unwrap();
                 continue;
@@ -237,13 +251,13 @@ async fn main() {
         match crud::fetch_all_identities(get_db_path().as_str()) {
           Ok(identities) => {
             for identity in identities {
-              let request = api::QubicApiPacket::get_identity_balance(identity.as_str());
+             /* let request = api::QubicApiPacket::get_identity_balance(identity.as_str());
               match peer_set.make_request(request) {
                 Ok(_) => {},
                 //Ok(_) => println!("{:?}", request.response_data),
                 Err(err) => println!("{}", err)
               }
-              std::thread::sleep(delay);
+              std::thread::sleep(delay);*/
             }
           },
           Err(err) => {
@@ -272,19 +286,19 @@ async fn main() {
         let min_peers: usize = env::get_min_peers();
         let num_peers: usize = peer_set.get_peers().len();
         if num_peers < min_peers {
-          println!("Number Of Peers.({}) Less Than Min Peers.({}). Adding More...", num_peers, min_peers);
+          debug(format!("Number Of Peers.({}) Less Than Min Peers.({}). Adding More...", num_peers, min_peers).as_str());
           match crud::peer::fetch_disconnected_peers(get_db_path().as_str()) {
             Ok(disconnected_peers) => {
-              println!("Fetched {} Disconnected Peers", disconnected_peers.len());
+              debug(format!("Fetched {} Disconnected Peers", disconnected_peers.len()).as_str());
               for p in disconnected_peers {
                 let peer_id = &p[0];
                 let peer_ip = &p[1];
                 match peer_set.add_peer(peer_ip.as_str()) {
                   Ok(_) => {
-                    println!("Peer.({}) Added {}", peer_ip.as_str(), peer_id.as_str());
+                    debug(format!("Peer.({}) Added {}", peer_ip.as_str(), peer_id.as_str()).as_str());
                   },
                   Err(err) => {
-                    println!("Failed To Add Peer.({}) : ({:?})", peer_ip.as_str(), err);
+                    debug(format!("Failed To Add Peer.({}) : ({:?})", peer_ip.as_str(), err).as_str());
                   }
                 }
               }
@@ -317,7 +331,7 @@ async fn main() {
     Ok(v) => v,
     Err(err) => panic!("Invalid Server Port! {}", err.to_string())
   };
-  println!("Starting Rubic Server at.({}:{})", &host, port);
+  info(format!("Starting Rubic Server at.({}:{})", &host, port).as_str());
 
 
 

@@ -45,7 +45,7 @@ fn get_log_file() -> String {
             v
         },
         Err(_) => {
-            println!("RUBIC_LOG_FILE not found in env vars! Defaulting...");
+            //println!("RUBIC_LOG_FILE not found in env vars! Defaulting...");
             let mut default_path: String = match std::env::consts::OS {
                 "windows" => {
                     let mut home_path: String = std::env::var("USERPROFILE")
@@ -55,7 +55,7 @@ fn get_log_file() -> String {
                 },
                 _ => "~/.rubic/".to_string()
             };
-            println!("Defaulting to: {}", default_path);
+            //println!("Defaulting to: {}", default_path);
             if !std::path::Path::new(default_path.as_str()).exists() {
                 println!("Path <{}> Does NOT Exist. Creating!", default_path.as_str());
                 match std::fs::create_dir(std::path::Path::new(default_path.as_str())) {
@@ -70,7 +70,7 @@ fn get_log_file() -> String {
                 };
             }
             default_path.push_str("rubic.log");
-            println!("Using Log File Path: <{}>", default_path.as_str());
+            //println!("Using Log File Path: <{}>", default_path.as_str());
             return default_path;
         }
     }
@@ -84,15 +84,15 @@ fn get_log_level() -> String {
                 "debug" => v,
                 "error" => v,
                 _ => {
-                    println!("Found Invalid RUBIC_LOG_LEVEL {}! Defaulting...", v.as_str());
+                    //println!("Found Invalid RUBIC_LOG_LEVEL {}! Defaulting...", v.as_str());
                     "info".to_string()
                 }
             }
         },
         Err(_) => {
-            println!("RUBIC_LOG_LEVEL not found in env vars! Defaulting...");
+            //println!("RUBIC_LOG_LEVEL not found in env vars! Defaulting...");
             let default_host: String = "127.0.0.1".to_string();
-            println!("Using RUBIC_LOG_LEVEL: <{}>", default_host.as_str());
+            //println!("Using RUBIC_LOG_LEVEL: <{}>", default_host.as_str());
             return default_host;
         }
     }

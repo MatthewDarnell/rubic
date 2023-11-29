@@ -11,4 +11,5 @@ dotenv = "0.15.0"
 dotenv_codegen = "0.15.0"
 serial_test = "2.0.0"
 sqlite = "0.31.0"
+logger = { path = '../logger' }
 identity = { path = '../identity' }

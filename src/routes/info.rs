@@ -69,7 +69,6 @@ pub fn add_peer(address: &str, mtx: &rocket::State<Mutex<Sender<HashMap<String, 
         Ok(_) => {},
         Err(err) => {
             error(format!("Failed To Send Response From Peers Add Address! : {:?}", err).as_str());
-
         }
     }
     let mut index = 0;
