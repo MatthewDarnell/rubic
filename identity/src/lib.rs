@@ -43,7 +43,7 @@ pub fn get_identity_from_pub_key(pub_key: &[u8]) -> String {
 }
 
 pub fn get_public_key_from_identity(identity: &str) -> Result<Vec<u8>, ()> {
-    let mut pub_key: [u8; 60] = [0; 60];
+    let mut pub_key: [u8; 32] = [0; 32];
     unsafe { getPublicKeyFromIdentity(identity.as_ptr(), pub_key.as_mut_ptr()) };
     Ok(pub_key.to_owned().to_vec())
 }

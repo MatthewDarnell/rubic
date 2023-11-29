@@ -7,6 +7,6 @@ edition = "2021"
 
 [dependencies]
 chrono = "0.4.26"
-crypto = { path = '../crypto', features=["encryption", "random"] }
+crypto = { path = '../crypto' }
 identity = { path = '../identity' }
 store = { path = '../store'}

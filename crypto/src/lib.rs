@@ -1,7 +1,7 @@
 extern crate libc;
 extern crate core;
 
-#[cfg(feature = "hash")]
+//#[cfg(feature = "hash")]
 pub mod hash {
     use sodiumoxide::hex::encode;
     extern {
@@ -14,18 +14,26 @@ pub mod hash {
         return val;
     }
 
+    pub fn k12_bytes(input: &Vec<u8>) -> Vec<u8> {
+        let mut output: [u8; 32] = [0; 32];
+        unsafe { KangarooTwelve(input.as_ptr(), input.len() as u32, output.as_mut_ptr(), 32); }
+        return output.to_vec();
+    }
+
     #[cfg(test)]
     pub mod kangaroo12_tests {
-        use crate::hash::k12;
+        use crate::hash::{k12, k12_bytes};
         #[test]
         fn hash_a_value() {
             let value = k12("inputText");
             assert_eq!(value, "2459b095c4d5b1759a14f5e4924f26a813c020979fab5ef2cad7321af37808d3".to_string())
         }
+
+
     }
 }
 
-#[cfg(feature = "random")]
+//#[cfg(feature = "random")]
 pub mod random {
     use sodiumoxide::randombytes::randombytes;
     pub fn random_bytes(length: u32) -> Vec<u8> {
@@ -52,7 +60,7 @@ pub mod random {
 
 }
 
-#[cfg(feature = "encryption")]
+//#[cfg(feature = "encryption")]
 pub mod encryption {
     use base64::{Engine as _, engine::general_purpose};
     use crate::hash;

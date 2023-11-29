@@ -1,4 +1,15 @@
-use identity::get_public_key_from_identity;
+use std::ffi::c_uchar;
+use identity::{Identity, get_public_key_from_identity};
+use crypto::hash::k12_bytes;
+
+extern {
+    fn sign(subseed: *const u8, publicKey: *const c_uchar, messageDigest: *const c_uchar, signature: *mut c_uchar);
+    fn getSubseed(seed: *const c_uchar, subseed: *mut c_uchar) -> bool;
+    //bool getSubseed(const unsigned char* seed, unsigned char* subseed)
+    //void sign(const unsigned char* subseed, const unsigned char* publicKey, const unsigned char* messageDigest, unsigned char* signature)
+}
+
+
 #[derive(Debug, Clone)]
 pub struct TransferTransaction {
     pub _source_public_key: Vec<u8>,
@@ -10,25 +21,45 @@ pub struct TransferTransaction {
     pub _signature: Vec<u8>
 }
 
+static TICK_OFFSET: u32 = 10;
+
 impl TransferTransaction {
-    pub fn from_vars(src: &String, dest: &String, amount: u64, tick: u32, sig: Vec<u8>) -> Self {
-        let pub_key_src = match get_public_key_from_identity(src.as_str()) {
+    pub fn from_vars(source_identity: &Identity, dest: &str, amount: u64, tick: u32) -> Self {
+        if source_identity.encrypted {
+            panic!("Trying to Transfer From Encrypted Wallet!");
+        }
+        if source_identity.seed.len() != 55 {
+            panic!("Trying To Transfer From Corrupted Identity!");
+        }
+        let pub_key_src = match get_public_key_from_identity(source_identity.identity.as_str()) {
             Ok(pub_key) => pub_key,
             Err(err) => panic!("{:?}", err)
         };
-        let pub_key_dest = match get_public_key_from_identity(src.as_str()) {
+        let pub_key_dest = match get_public_key_from_identity(dest) {
             Ok(pub_key) => pub_key,
             Err(err) => panic!("{:?}", err)
         };
-        TransferTransaction {
-            _source_public_key: pub_key_src,
-            _source_destination_public_key: pub_key_dest,
+
+        let mut t: TransferTransaction = TransferTransaction {
+            _source_public_key: pub_key_src.clone(),
+            _source_destination_public_key: pub_key_dest.clone(),
             _amount: amount,
-            _tick: tick,
+            _tick: tick + TICK_OFFSET,
             _input_type: 0,
             _input_size: 0,
-            _signature: sig
+            _signature: Vec::with_capacity(32)
+        };
+        let digest: Vec<u8> = k12_bytes(&t.as_bytes());
+        let mut sub_seed: [u8; 32] = [0; 32];
+        unsafe {
+            getSubseed(source_identity.seed.as_str().as_ptr(), sub_seed.as_mut_ptr());
         }
+        let mut sig: [u8; 64] = [0; 64];
+        unsafe {
+            sign(sub_seed.as_ptr(), pub_key_src.as_ptr(), digest.as_ptr(), sig.as_mut_ptr());
+        }
+        t._signature = sig.to_vec();
+        t
     }
 
     pub fn as_bytes(&self) -> Vec<u8> {
@@ -64,15 +95,11 @@ impl TransferTransaction {
 }
 
 
-
+  
 #[test]
 fn create_transfer() {
-    //[170, 135, 62, 76, 253, 55, 228, 191, 82, 138, 42, 160, 30, 236, 239, 54, 84, 124, 153, 202, 170, 189, 27, 189, 247, 37, 58, 101, 176, 65, 119, 26, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
-    let pub_key_src = identity::get_public_key_from_identity("EPYWDREDNLHXOFYVGQUKPHJGOMPBSLDDGZDPKVQUMFXAIQYMZGEHPZTAAWON").unwrap();
-    let pub_key_dest = identity::get_public_key_from_identity("EPYWDREDNLHXOFYVGQUKPHJGOMPBSLDDGZDPKVQUMFXAIQYMZGEHPZTAAWON").unwrap();
-    let sig: Vec<u8> = vec![3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
-    let t: TransferTransaction = TransferTransaction::from_vars(&"EPYWDREDNLHXOFYVGQUKPHJGOMPBSLDDGZDPKVQUMFXAIQYMZGEHPZTAAWON".to_string(), &"EPYWDREDNLHXOFYVGQUKPHJGOMPBSLDDGZDPKVQUMFXAIQYMZGEHPZTAAWON".to_string(), 100, 100, sig);
-    println!("{:?}", &t);
-    let expected: Vec<u8> = vec![1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 100, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 100, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
-    //assert_eq!(t.as_bytes().as_slice(), expected.as_slice());
+    let id: Identity = Identity::new("lcehvbvddggkjfnokduyjuiyvkklrvrmsaozwbvjlzvgvfipqpnkkuf");
+    let t: TransferTransaction = TransferTransaction::from_vars(&id, "EPYWDREDNLHXOFYVGQUKPHJGOMPBSLDDGZDPKVQUMFXAIQYMZGEHPZTAAWON", 100, 100);
+    let expected: Vec<u8> = vec![170, 135, 62, 76, 253, 55, 228, 191, 82, 138, 42, 160, 30, 236, 239, 54, 84, 124, 153, 202, 170, 189, 27, 189, 247, 37, 58, 101, 176, 65, 119, 26, 170, 135, 62, 76, 253, 55, 228, 191, 82, 138, 42, 160, 30, 236, 239, 54, 84, 124, 153, 202, 170, 189, 27, 189, 247, 37, 58, 101, 176, 65, 119, 26, 100, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 110, 0, 0, 0, 105, 55, 108, 214, 255, 246, 151, 81, 6, 214, 129, 65, 96, 14, 146, 66, 206, 140, 212, 149, 217, 230, 189, 217, 106, 16, 216, 3, 208, 51, 185, 179, 25, 89, 215, 168, 85, 62, 9, 204, 52, 238, 245, 199, 48, 2, 43, 52, 117, 72, 109, 119, 84, 236, 135, 240, 56, 179, 194, 36, 96, 124, 32, 0];
+    assert_eq!(t.as_bytes().as_slice(), expected.as_slice());
 }
