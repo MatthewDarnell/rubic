@@ -44,6 +44,7 @@ impl QubicApiPacket {
         //let entity: EntityType = EntityType::RequestEntity;
         let mut header = RequestResponseHeader::new();
         header.set_type(EntityType::BroadcastTransaction);
+        header.zero_dejavu();
 
         let data: Vec<u8> = transaction.as_bytes().to_vec();
         let size = std::mem::size_of::<RequestResponseHeader>() + data.len();

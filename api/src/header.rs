@@ -3,8 +3,7 @@ use crypto::random::random_bytes;
 pub struct RequestResponseHeader {
     pub _size: [u8; 3],
     pub _type: u8,
-    pub _dejavu: [u8; 3],
-    pub _deprecated_type: u8
+    pub _dejavu: u32,
 }
 
 #[derive(Debug, Copy, Clone)]
@@ -26,11 +25,8 @@ impl RequestResponseHeader {
 
         header._type = vec[3];
 
-        header._dejavu[0] = vec[4];
-        header._dejavu[1] = vec[5];
-        header._dejavu[2] = vec[6];
-
-        header._deprecated_type = vec[7];
+        let r: [u8; 4] = [vec[4], vec[5], vec[6], vec[7]];
+        header._dejavu = u32::from_le_bytes(r);
         return header;
     }
     pub fn as_bytes(&self) -> Vec<u8> {
@@ -41,25 +37,22 @@ impl RequestResponseHeader {
 
         bytes.push(self._type);
 
-        bytes.push(self._dejavu[0]);
-        bytes.push(self._dejavu[1]);
-        bytes.push(self._dejavu[2]);
+        for v in self._dejavu.to_le_bytes() {
+            bytes.push(v);
+        }
 
-        bytes.push(self._deprecated_type);
         bytes
     }
     pub fn new() -> Self {
+        let r: [u8; 4] = random_bytes(4).as_slice().try_into().unwrap();
         RequestResponseHeader {
             _size: [0; 3],
             _type: 0,
-            _dejavu: random_bytes(3).as_slice().try_into().unwrap(),
-            _deprecated_type: 0
+            _dejavu: u32::from_le_bytes(r)
         }
     }
     pub fn zero_dejavu(&mut self) {
-        self._dejavu[0] = 0;
-        self._dejavu[1] = 0;
-        self._dejavu[2] = 0;
+        self._dejavu = 0;
     }
     pub fn set_size(&mut self, _size: usize) {
         self._size[0] = (_size & 0xFF) as u8;
@@ -82,6 +75,7 @@ impl RequestResponseHeader {
     pub fn get_type(&self) -> EntityType {
         match self._type {
             0 => EntityType::ExchangePeers,
+            24 => EntityType::BroadcastTransaction,
             31 => EntityType::RequestEntity,
             32 => EntityType::ResponseEntity,
             55 => EntityType::ERROR,

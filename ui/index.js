@@ -1,7 +1,7 @@
 
 
 const TIMEOUT_MS = 5000;
-const TICK_OFFSET = 10;
+const TICK_OFFSET = 0;
 const MAX_AMOUNT = 1000000000000000;
 let globalLatestTick = 0;
 
@@ -483,10 +483,10 @@ const statusInfoLoopFunction = () => {
         .then(getConnectedPeers)
         .then(_ => {
             //Finished Update Loop
-            setTimeout(statusInfoLoopFunction, 100);
+            setTimeout(statusInfoLoopFunction, 7000);
         })
         .catch(() => {
-            setTimeout(statusInfoLoopFunction, 100);
+            setTimeout(statusInfoLoopFunction, 3000);
         })
 }
 
@@ -509,7 +509,7 @@ const intervalLoopFunction = () => {
         })
         .then(_ => {
             //Finished Update Loop
-            setTimeout(intervalLoopFunction, 1000);
+            setTimeout(intervalLoopFunction, 5000);
         })
         .catch(() => {
             setTimeout(intervalLoopFunction, 1000);

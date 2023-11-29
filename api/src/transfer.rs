@@ -47,9 +47,9 @@ impl TransferTransaction {
             _tick: tick + TICK_OFFSET,
             _input_type: 0,
             _input_size: 0,
-            _signature: Vec::with_capacity(32)
+            _signature: Vec::with_capacity(64)
         };
-        let digest: Vec<u8> = k12_bytes(&t.as_bytes());
+        let digest: Vec<u8> = k12_bytes(&t.as_bytes_without_signature());
         let mut sub_seed: [u8; 32] = [0; 32];
         unsafe {
             getSubseed(source_identity.seed.as_str().as_ptr(), sub_seed.as_mut_ptr());
@@ -63,7 +63,7 @@ impl TransferTransaction {
     }
 
     pub fn as_bytes(&self) -> Vec<u8> {
-        let mut bytes: Vec<u8> = Vec::with_capacity(144);
+        let mut bytes: Vec<u8> = Vec::new();
         for k in self._source_public_key.as_slice() {
             bytes.push(*k);
         }
@@ -71,6 +71,10 @@ impl TransferTransaction {
             bytes.push(*k);
         }
         for c in self._amount.to_le_bytes() {
+            bytes.push(c);
+        }
+
+        for c in self._tick.to_le_bytes() {
             bytes.push(c);
         }
 
@@ -82,13 +86,36 @@ impl TransferTransaction {
             bytes.push(c);
         }
 
+        for k in self._signature.as_slice() {
+            bytes.push(*k);
+        }
+        bytes
+    }
+
+    pub fn as_bytes_without_signature(&self) -> Vec<u8> {
+        let mut bytes: Vec<u8> = Vec::new();
+        for k in self._source_public_key.as_slice() {
+            bytes.push(*k);
+        }
+        for k in self._source_destination_public_key.as_slice() {
+            bytes.push(*k);
+        }
+        for c in self._amount.to_le_bytes() {
+            bytes.push(c);
+        }
+
         for c in self._tick.to_le_bytes() {
             bytes.push(c);
         }
 
-        for k in self._signature.as_slice() {
-            bytes.push(*k);
+        for c in self._input_type.to_le_bytes() {
+            bytes.push(c);
         }
+
+        for c in self._input_size.to_le_bytes() {
+            bytes.push(c);
+        }
+
         bytes
     }
 

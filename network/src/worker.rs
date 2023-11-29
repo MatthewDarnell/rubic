@@ -13,15 +13,12 @@ pub fn handle_new_peer(id: String, peer: Peer, rx: spmc::Receiver<QubicApiPacket
     let mut stream = peer.get_stream().unwrap();
     let mut result: [u8; 1024];
     loop {
-        println!("{} Receiving", id.as_str());
         match rx.clone().recv() {
             Ok(mut request) => {
-                println!("I ({}) see {:?}", id.as_str(), &request);
                 if let Some(request_id) = &request.peer {
                     if request_id != id.as_str() {
                         //continue;
                     }
-                    println!("Received Work For Peer {} ! (I am {})", request_id.as_str(), id.as_str());
                    // println!("{:?}", &request);
                    // println!("{:?}", &request.as_bytes());
                     match stream.write(request.as_bytes().as_slice()) {
@@ -32,8 +29,6 @@ pub fn handle_new_peer(id: String, peer: Peer, rx: spmc::Receiver<QubicApiPacket
                             match stream.read(&mut result) {
                                 Ok(_) => {
                                     let api_response: Option<QubicApiPacket> = QubicApiPacket::format_response_from_bytes(peer.get_id(), result.to_vec());
-                                    //TODO: auto format result into QubicApiPacket (add func QubicApiPacket::from_bytes(result))
-                                    println!("Read {:?}", result);
                                     if let Some(formatted_api_response) = api_response {
                                         match tx.send(formatted_api_response) {
                                             Ok(_) => {},

@@ -202,7 +202,7 @@ impl PeerSet {
                 }
             }
         };
-        println!("Using Peer: {}", peer.get_ip_addr().as_str());
+        //println!("Using Peer: {}", peer.get_ip_addr().as_str());
         request.peer = Some(peer.get_id().to_owned());
         match self.req_channel.0.send(request) {
             Ok(_) => Ok(()),

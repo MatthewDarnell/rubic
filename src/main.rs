@@ -24,11 +24,12 @@ async fn main() {
   info("Starting Rubic Application");
   let path = store::get_db_path();
   crud::peer::set_all_peers_disconnected(path.as_str()).unwrap();
-  let peer_ips = vec!["85.10.199.154:21841",
+  let peer_ips = vec!["144.76.107.105:21841",
+   // "85.10.199.154:21841",
                       "148.251.184.163:21841",
                       "62.2.98.75:21841",
-                      //"193.135.9.63:21841",
-                      //"144.2.106.163:21841"
+     //                 "193.135.9.63:21841",
+     //                 "144.2.106.163:21841"
   ];
   debug("Creating Peer Set");
 
@@ -251,13 +252,13 @@ println!("About To Make Tx!");
         match crud::fetch_all_identities(get_db_path().as_str()) {
           Ok(identities) => {
             for identity in identities {
-             /* let request = api::QubicApiPacket::get_identity_balance(identity.as_str());
+              let request = api::QubicApiPacket::get_identity_balance(identity.as_str());
               match peer_set.make_request(request) {
                 Ok(_) => {},
                 //Ok(_) => println!("{:?}", request.response_data),
                 Err(err) => println!("{}", err)
               }
-              std::thread::sleep(delay);*/
+              std::thread::sleep(delay);
             }
           },
           Err(err) => {
