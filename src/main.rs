@@ -24,12 +24,17 @@ async fn main() {
   info("Starting Rubic Application");
   let path = store::get_db_path();
   crud::peer::set_all_peers_disconnected(path.as_str()).unwrap();
-  let peer_ips = vec!["144.76.107.105:21841",
-   // "85.10.199.154:21841",
-                      "148.251.184.163:21841",
-                      "62.2.98.75:21841",
-     //                 "193.135.9.63:21841",
-     //                 "144.2.106.163:21841"
+  let peer_ips = vec![
+    "62.2.98.75:21841",
+    "45.67.139.81:21841",
+    "176.9.20.10:21841",
+    "136.243.41.109:21841",
+    "65.21.194.226:21841",
+    "135.181.246.92:21841",
+    "85.10.199.154:21841",
+    "148.251.184.163:21841",
+    "193.135.9.63:21841",
+    "144.2.106.163:21841"
   ];
   debug("Creating Peer Set");
 
@@ -47,10 +52,67 @@ async fn main() {
     let mut tx = tx2;
     let rx = rx;  //Move rx into scope and then thread
     std::thread::spawn(move || {
-      let delay = Duration::from_millis(500);
+      let delay = Duration::from_millis(10000);
+
+
+      let mut latest_tick: u32 = match crud::fetch_latest_tick(get_db_path().as_str()) {
+        Ok(tick) => {
+          tick.parse::<u32>().unwrap()
+        },
+        Err(err) => {
+          0 as u32
+        }
+      };
+
+      let mut tick_updated: bool = false;
 
       //Main Thread Loop
       loop {
+        let request = api::QubicApiPacket::get_latest_tick();
+        match peer_set.make_request(request) {
+          Ok(_) => {},
+          //Ok(_) => println!("{:?}", request.response_data),
+          Err(err) => println!("{}", err)
+        }
+        //std::thread::sleep(delay);
+        tick_updated = false;
+        let mut temp_latest_tick: u32 = match crud::fetch_latest_tick(get_db_path().as_str()) {
+          Ok(tick) => {
+            tick.parse::<u32>().unwrap()
+          },
+          Err(err) => {
+            0 as u32
+          }
+        };
+        if temp_latest_tick > latest_tick {
+          println!("Tick Updated! {} -> {}", latest_tick, temp_latest_tick);
+          latest_tick = temp_latest_tick;
+          tick_updated = true;
+        }
+
+        //Update Balances For All Stored Identities
+        if tick_updated {
+          println!("Updating Balances!");
+          match crud::fetch_all_identities(get_db_path().as_str()) {
+            Ok(identities) => {
+              for identity in identities {
+                let request = api::QubicApiPacket::get_identity_balance(identity.as_str());
+                match peer_set.make_request(request) {
+                  Ok(_) => {},
+                  //Ok(_) => println!("{:?}", request.response_data),
+                  Err(err) => println!("{}", err)
+                }
+                //std::thread::sleep(delay);
+              }
+            },
+            Err(err) => {
+              error(format!("Error: {:?}", err).as_str());
+            }
+          }
+          println!("Finished Updating Balances");
+        } else {
+          println!("Not Updating Balances!");
+        }
 
         //Try To Receive Messages From Server Api
         match rx.recv_timeout(Duration::from_secs(5)) {
@@ -77,13 +139,6 @@ async fn main() {
                 }
               }
               else if method == &"transfer".to_string() {
-                //    let mut map: HashMap<String, String> = HashMap::new();
-                //     map.insert("method".to_string(), "transfer".to_string());
-                //     map.insert("source".to_string(), source_identity);
-                //     map.insert("dest".to_string(), dest_identity);
-                //     map.insert("amount".to_string(), string_amount);
-                //     map.insert("expiration".to_string(), string_expiration);
-                //
                 let message_id = map.get(&"message_id".to_string()).unwrap();
                 let mut response: HashMap<String, String> = HashMap::new();
 
@@ -91,7 +146,6 @@ async fn main() {
                 let dest = map.get(&"dest".to_string()).unwrap();
                 let amount = map.get(&"amount".to_string()).unwrap();
                 let expiration = map.get(&"expiration".to_string()).unwrap();
-                ////
 
                 let mut id: identity::Identity = match store::sqlite::crud::fetch_identity(get_db_path().as_str(), source.as_str()) {
                   Ok(identity) => identity,
@@ -104,7 +158,6 @@ async fn main() {
                   }
                 };
 
-                //println!("Transfer: Fetched Identity: {:?}", &id);
                 if(id.encrypted) {
                   if let Some(pass) = map.get(&"password".to_string()) {
                     id = match crud::master_password::get_master_password(get_db_path().as_str()) {
@@ -158,11 +211,10 @@ async fn main() {
                 } else {
                   println!("is Not encrypted!");
                 }
-println!("About To Make Tx!");
                 let amt: u64 = amount.parse().unwrap();
                 let tck: u32 = expiration.parse().unwrap();
 
-                info(format!("Creating Transfer: {} .({}) ---> {} (Expires At Tick.<{}>)", &id.identity.as_str(), amt.to_string().as_str(), dest.as_str(), tck.to_string().as_str()).as_str());
+                //info(format!("Creating Transfer: {} .({}) ---> {} (Expires At Tick.<{}>)", &id.identity.as_str(), amt.to_string().as_str(), dest.as_str(), tck.to_string().as_str()).as_str());
                 println!("Creating Transfer: {} .({}) ---> {} (Expires At Tick.<{}>)", &id.identity.as_str(), amt.to_string().as_str(), dest.as_str(), tck.to_string().as_str());
                 let transfer_tx = api::transfer::TransferTransaction::from_vars(&id, &dest, amt, tck);
                 println!("{:?}", &transfer_tx);
@@ -180,10 +232,6 @@ println!("About To Make Tx!");
 
                 tx.send(response).unwrap();
                 continue;
-
-
-
-                ////
               }
               else if method == &"add_identity".to_string() {
                 let seed = map.get(&"seed".to_string()).unwrap();
@@ -248,25 +296,8 @@ println!("About To Make Tx!");
           }
         }
 
-        //Update Balances For All Stored Identities
-        match crud::fetch_all_identities(get_db_path().as_str()) {
-          Ok(identities) => {
-            for identity in identities {
-              let request = api::QubicApiPacket::get_identity_balance(identity.as_str());
-              match peer_set.make_request(request) {
-                Ok(_) => {},
-                //Ok(_) => println!("{:?}", request.response_data),
-                Err(err) => println!("{}", err)
-              }
-              std::thread::sleep(delay);
-            }
-          },
-          Err(err) => {
-            error(format!("Error: {:?}", err).as_str());
-          }
-        }
 
-        //Check if Any Peers Have Been Set As 'Disconnected'. This means The TcpStream Connection Terminated. Delete them.
+       //Check if Any Peers Have Been Set As 'Disconnected'. This means The TcpStream Connection Terminated. Delete them.
         for peer in peer_set.get_peer_ids() {
           match crud::peer::fetch_peer_by_id(get_db_path().as_str(), peer.as_str()) {
             Ok(temp_peer) => {

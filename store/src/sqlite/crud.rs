@@ -12,10 +12,48 @@ fn prepare_crud_statement<'a>(connection: &'a sqlite::Connection, prep_query: &'
         }
 }
 
-
-
+//    CREATE TABLE IF NOT EXISTS latest_tick (
+//       tick INTEGER,
+//       peer TEXT NOT NULL,
+//       created DATETIME DEFAULT CURRENT_TIMESTAMP,
+//       FOREIGN KEY(peer) REFERENCES peer(id)
+//     );
+pub fn insert_latest_tick(path: &str, peer_id: &str, tick: u32) -> Result<(), String> {
+    let prep_query = "INSERT INTO latest_tick (tick, peer) VALUES(:tick, :peer)";
+    match open_database(path, true) {
+        Ok(connection) => {
+            match prepare_crud_statement(&connection, prep_query) {
+                Ok(mut statement) => {
+                    match statement.bind::<&[(&str, &str)]>(&[
+                        (":tick", tick.to_string().as_str()),
+                        (":peer", peer_id)
+                    ][..]) {
+                        Ok(_) => {
+                            match statement.next() {
+                                Ok(State::Done) => {
+                                    Ok(())
+                                },
+                                Err(error) => Err(error.to_string()),
+                                _ => Err("Weird!".to_string())
+                            }
+                        },
+                        Err(err) => Err(err.to_string())
+                    }
+                },
+                Err(err) => {
+                    println!("Error in insert_latest_tick! : {}", &err);
+                    Err(err)
+                }
+            }
+        },
+        Err(err) => {
+            println!("Error in insert_latest_tick! : {}", &err);
+            Err(err)
+        }
+    }
+}
 pub fn fetch_latest_tick(path: &str) -> Result<String, String> {
-    let prep_query = "SELECT tick FROM response_entity ORDER BY tick DESC LIMIT 1;";
+    let prep_query = "SELECT tick FROM latest_tick ORDER BY tick DESC LIMIT 1;";
     match open_database(path, true) {
         Ok(connection) => {
             match prepare_crud_statement(&connection, prep_query) {
@@ -497,6 +535,7 @@ pub mod peer {
 
 
 }
+
 pub fn insert_new_identity(path: &str, identity: &Identity) -> Result<(), String> {
     //TODO: get master password
     let prep_query = "INSERT INTO identities (seed, salt, hash, is_encrypted, identity) VALUES (:seed, :salt, :hash, :is_encrypted, :identity)";
@@ -540,7 +579,6 @@ pub fn insert_new_identity(path: &str, identity: &Identity) -> Result<(), String
         }
     }
 }
-
 pub fn update_identity_encrypted(path: &str, identity: &Identity) -> Result<(), String> {
     //TODO: get master password
     let prep_query = "UPDATE identities SET seed = :seed, salt = :salt, hash = :hash, is_encrypted = :is_encrypted WHERE identity = :identity";
@@ -581,9 +619,6 @@ pub fn update_identity_encrypted(path: &str, identity: &Identity) -> Result<(), 
         }
     }
 }
-
-
-
 pub fn fetch_all_identities(path: &str) -> Result<LinkedList<String>, String> {
     let prep_query = "SELECT identity FROM identities;";
     match open_database(path, true) {
@@ -657,8 +692,6 @@ pub fn fetch_all_identities_full(path: &str) -> Result<LinkedList<Identity>, Str
         }
     }
 }
-
-
 pub fn fetch_balance_by_identity(path: &str, identity: &str) -> Result<Vec<String>, String> {
     let prep_query = "SELECT * FROM (SELECT * FROM response_entity WHERE identity = :identity ORDER BY tick DESC) GROUP BY peer LIMIT 3;";
     let mut response: Vec<String> = Vec::new();

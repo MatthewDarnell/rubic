@@ -24,6 +24,20 @@ pub struct QubicApiPacket {
     pub response_data: Option<Vec<u8>>
 }
 impl QubicApiPacket {
+    pub fn get_latest_tick() -> Self {
+        let mut header = RequestResponseHeader::new();
+        header.set_type(EntityType::RequestCurrentTickInfo);
+        let size = std::mem::size_of::<RequestResponseHeader>();
+        header.set_size(size);
+        QubicApiPacket {
+            api_type: EntityType::RequestCurrentTickInfo,
+            peer: None,
+            header: header,
+            data: vec![],
+            response_data: None
+        }
+    }
+
     pub fn get_identity_balance(id: &str) -> Self {
         //let entity: EntityType = EntityType::RequestEntity;
         let mut header = RequestResponseHeader::new();
@@ -73,7 +87,7 @@ impl QubicApiPacket {
     }
     pub fn format_response_from_bytes(peer_id: &String, data: Vec<u8>) -> Option<Self> {
         let header: RequestResponseHeader = RequestResponseHeader::from_vec(&data);
-
+        //println!("RESPONSE: {:?}", &header.get_type());
         Some(QubicApiPacket {
             api_type: header.get_type().to_owned(),
             peer: Some(peer_id.to_owned()),

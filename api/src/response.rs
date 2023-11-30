@@ -3,7 +3,8 @@ use crate::QubicApiPacket;
 use crate::header::EntityType;
 use crate::response::exchange_peers::ExchangePeersEntity;
 use crate::response::response_entity::ResponseEntity;
-use store::sqlite::crud::{create_response_entity, peer::update_peer_last_responded};
+use store::get_db_path;
+use store::sqlite::crud::{create_response_entity, peer::update_peer_last_responded, insert_latest_tick};
 pub mod exchange_peers;
 pub mod response_entity;
 
@@ -13,8 +14,25 @@ pub trait FormatQubicResponseDataToStructure {
 
 pub fn get_formatted_response(response: &mut QubicApiPacket) {
     let path = store::get_db_path();
-    //println!("API MODULE GOT PATH {}", path.as_str());
     match response.api_type {
+        EntityType::RespondCurrentTickInfo => {
+            if let Some(peer_id) = &response.peer {
+                if response.data.len() == 12 {
+                    let mut data: [u8; 4] = [0; 4];
+                    data[0] = response.data[4];
+                    data[1] = response.data[5];
+                    data[2] = response.data[6];
+                    data[3] = response.data[7];
+                    let value = u32::from_le_bytes(data);
+                    match insert_latest_tick(get_db_path().as_str(), peer_id.as_str(), value) {
+                        Ok(_) => {},
+                        Err(err) => {}
+                    }
+                } else {
+                    println!("Malformed Current Tick Response.");
+                }
+            }
+        },
         EntityType::ExchangePeers => {
             let resp: ExchangePeersEntity = ExchangePeersEntity::format_qubic_response_data_to_structure(response);
             //println!("ExchangePeersEntity: {:?}", resp);
@@ -26,7 +44,7 @@ pub fn get_formatted_response(response: &mut QubicApiPacket) {
         EntityType::ResponseEntity => {
             let resp: ResponseEntity = ResponseEntity::format_qubic_response_data_to_structure(response);
             //println!("Got ResponseEntity: {:?}", &resp);
-            create_response_entity(path.as_str(),
+            match create_response_entity(path.as_str(),
                                    resp.peer.as_str(),
                                    resp.identity.as_str(),
                                    resp.incoming,
@@ -38,8 +56,14 @@ pub fn get_formatted_response(response: &mut QubicApiPacket) {
                        resp.latest_outgoing_transfer_tick,
                                    resp.tick,
                                    resp.spectrum_index
-            ).unwrap();
-            update_peer_last_responded(path.as_str(), resp.peer.as_str(), SystemTime::now()).unwrap();
+            ) {
+                Ok(_) => {
+                    update_peer_last_responded(path.as_str(), resp.peer.as_str(), SystemTime::now()).unwrap();
+                },
+                Err(err) => {
+                    println!("Failed To Insert Response Entity: {}", err);
+                }
+            }
         },
         EntityType::ERROR => {
             let error_type = String::from_utf8(response.data.clone()).unwrap();

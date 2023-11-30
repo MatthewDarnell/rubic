@@ -1,6 +1,7 @@
 use std::io::prelude::*;
 use std::collections::HashMap;
 use std::net::{SocketAddr, TcpStream};
+use std::thread;
 use api::QubicApiPacket;
 use logger::debug;
 use std::time::{Duration, SystemTime};
@@ -41,11 +42,6 @@ impl PeerSet {
             req_channel: spmc::channel::<QubicApiPacket>(),
             resp_channel: channel.0,
         };
-        {
-            let rx = channel.1;
-            std::thread::spawn(move || receive_response_worker::listen_for_api_responses(rx));
-
-        }
         peer_set
     }
     pub fn get_peers(&self) -> Vec<&Peer> { self.peers.iter().map(|x| x).collect() }
@@ -69,6 +65,10 @@ impl PeerSet {
         let sock: SocketAddr = ip.parse().unwrap();
         match TcpStream::connect_timeout(&sock, Duration::from_millis(5000)) {
             Ok(stream) => {
+                stream.set_read_timeout(Some(Duration::from_millis(2500))).expect("set_write_timeout call failed");
+                stream.set_write_timeout(Some(Duration::from_millis(4000))).expect("set_write_timeout call failed");
+                stream.set_nodelay(true).expect("set_nodelay call failed");
+                stream.set_ttl(100).expect("set_ttl call failed");
                 let new_peer = Peer::new(ip, None, "");
                 let id = new_peer.get_id().to_owned();
                 {
@@ -116,7 +116,7 @@ impl PeerSet {
     }
 
     pub fn delete_peer_by_id(&mut self, id: &str) -> bool {
-        println!("Deleting Peer {}", id);
+        //println!("Deleting Peer {}", id);
         for (index, connection) in self.peers.iter_mut().enumerate() {
             if connection.get_id().as_str() == id { //this is the peer, disconnect its stream
                 if let Some(stream) = &mut connection.get_stream() {
@@ -130,7 +130,7 @@ impl PeerSet {
                     id
                 ) {
                     Ok(_) => {
-                        println!("Removed Peer {}", id);
+                        //println!("Removed Peer {}", id);
                         self.peers.remove(index);
                         return true;
                     },
@@ -166,9 +166,11 @@ impl PeerSet {
     }
 
     pub fn make_request(&mut self, mut request: QubicApiPacket) -> Result<(), String> {
+
         if self.num_peers() < 1 {
             return Err("Cannot send request, 0 peers! Add some!".to_string())
         }
+        /*
         let peer: &mut Peer = match self.strategy {
             PeerStrategy::PrioritizeLowPing => {
                 let mut temp = &self.peers[0];
@@ -211,6 +213,38 @@ impl PeerSet {
                 Err(err.to_string())
             }
         }
+
+         */
+        let mut ids_to_delete: Vec<String> = vec![];
+        for (index, peer) in self.peers.iter().enumerate() {
+            match store::sqlite::crud::peer::fetch_peer_by_id(store::get_db_path().as_str(), peer.get_id().as_str()) {
+                Ok(p) => {
+                    let connected = p.get("connected").unwrap() == "1";
+                    if !connected {
+                        ids_to_delete.push(peer.get_id().to_string());
+                        continue;
+                    }
+                },
+                Err(err) => {
+                    println!("err {}", err);
+                }
+            }
+            request.peer = Some(peer.get_id().to_owned());
+            thread::sleep(Duration::from_secs(1));
+           // println!("Sending Request To Peer Thread.");
+            //todo: check if this peer is still connected
+            //println!("{:?}", peer);
+            match self.req_channel.0.send(request.clone()) {
+                Ok(_) => { },
+                Err(err) => {
+                    println!("Failed To Send Request Data To Threads! : {}", err.to_string());
+                }
+            }
+        }
+        for id in ids_to_delete {
+            self.delete_peer_by_id(id.as_str());
+        }
+        Ok(())
     }
 }
 

@@ -68,7 +68,7 @@ pub fn add_peer(address: &str, mtx: &rocket::State<Mutex<Sender<HashMap<String, 
     match tx.send(map) {
         Ok(_) => {},
         Err(err) => {
-            error(format!("Failed To Send Response From Peers Add Address! : {:?}", err).as_str());
+            error(format!("Failed To Send Response From Peers Add Address! : {:?}", err).as_str()).unwrap();
         }
     }
     let mut index = 0;
@@ -364,7 +364,7 @@ pub fn download_wallet(password: &str) -> String {
                 //invalid master password, don't decrypt wallet
                 println!("Leaving Encrypted");
             }
-            let mut isValid = false;
+            let mut is_valid = false;
 
             for identity in &mut identities {
                 let id: String = identity.identity.clone();
@@ -373,7 +373,7 @@ pub fn download_wallet(password: &str) -> String {
                 let encrypted: bool = identity.encrypted;
                 //ret_val +=
                 if password.len() < 4 {
-                    isValid = true;
+                    is_valid = true;
                     ret_val += &identity.seed.clone();
                     ret_val += ",";
 
@@ -384,7 +384,7 @@ pub fn download_wallet(password: &str) -> String {
                         println!("Decrypting {}", &id);
                         match identity.decrypt_identity(password) {
                             Ok(decrypted) => {
-                                isValid = true;
+                                is_valid = true;
                                 ret_val += &decrypted.seed.clone();
                                 ret_val += ",";
 
@@ -397,7 +397,7 @@ pub fn download_wallet(password: &str) -> String {
                             Err(_) => {}
                         }
                     } else {
-                        isValid = true;
+                        is_valid = true;
                         ret_val += &identity.seed.clone();
                         ret_val += ",";
 
@@ -409,7 +409,7 @@ pub fn download_wallet(password: &str) -> String {
                     }
                 }
             }
-            if isValid {
+            if is_valid {
                 format!("{}", ret_val)
             } else {
                 format!("Invalid Password!")

@@ -12,6 +12,8 @@ pub enum EntityType {
     UNKNOWN = -1,
     ExchangePeers = 0,
     BroadcastTransaction = 24,
+    RequestCurrentTickInfo = 27,
+    RespondCurrentTickInfo = 28,
     RequestEntity = 31,
     ResponseEntity = 32
 }
@@ -76,6 +78,8 @@ impl RequestResponseHeader {
         match self._type {
             0 => EntityType::ExchangePeers,
             24 => EntityType::BroadcastTransaction,
+            27 => EntityType::RequestCurrentTickInfo,
+            28 => EntityType::RespondCurrentTickInfo,
             31 => EntityType::RequestEntity,
             32 => EntityType::ResponseEntity,
             55 => EntityType::ERROR,
