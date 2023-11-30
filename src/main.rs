@@ -111,7 +111,7 @@ async fn main() {
           }
           println!("Finished Updating Balances");
         } else {
-          println!("Not Updating Balances!");
+          //println!("Not Updating Balances!");
         }
 
         //Try To Receive Messages From Server Api

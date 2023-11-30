@@ -5,6 +5,39 @@ const TICK_OFFSET = 0;
 const MAX_AMOUNT = 1000000000000000;
 let globalLatestTick = 0;
 
+
+const doArrayElementsAgree = (array, thresholdPercentage) => {
+    const length = array.length;
+    if(length < 3) {
+        return -1;
+    }
+    const threshold = thresholdPercentage / 100;
+    const numRequiredForQuorum = Math.ceil(threshold * length);
+    const stateObj = {};
+    for (const el of array) {
+        if(!stateObj.hasOwnProperty(el)) {
+            stateObj[el] = 1;
+        } else {
+            stateObj[el]++;
+        }
+    }
+    let keys = Object.keys(stateObj)
+    let balance = keys[0]
+    let max = stateObj[keys[0]]
+    for(let i = 1; i < keys.length; i++) {
+        if(stateObj[keys[i]] > max) {
+            balance = keys[i]
+            max = stateObj[keys[i]]
+        }
+    }
+    if(max > numRequiredForQuorum) {
+        return parseInt(balance)
+    } else {
+        return -1;
+    }
+}
+
+
 const updateServerRespondingStatus = connected => {
     const status = document.getElementById("connectedStatusSpan");
     status.innerHTML = connected === true ? '\u2705' : '\u274c';
@@ -186,23 +219,38 @@ const getBalance = async identity => {
         const result = await makeHttpRequest(`${serverIp}/balance/${identity}`);
         const res = JSON.parse(result);
         console.log(res)
-        if(res.length < 1) {
+        if(res.length < 3) {
             return balanceTd.innerHTML = `<span>Not Yet Reported</span>`
         }
+
+        let reportedByTitle = "Reported By: <";
+        for (let i = 0; i < res.length; i += 3) {
+            console.log(`i=${i} pushing peer ${res[i+1]}`)
+            reportedByTitle += (` ${res[i+1]}`);
+        }
+        reportedByTitle += (`> At Tick ${res[0]}`)
+
+
+        const balanceArray = [];
+        for (let i = 0; i < res.length; i += 3) {
+            balanceArray.push(res[i+2]);
+        }
+        const isQuorumMet = doArrayElementsAgree(balanceArray, 66); // 2/3 of peers agree at this tick?
+
         const isEncrypted = document.getElementById(`${identity}:encrypted:td`).innerText.toLowerCase() === "true";
-        if (res.every(v => v === res[0])) {
+        if (balanceArray.every(v => v === res[0]) || isQuorumMet >= 0) {
             try {
-                if(parseInt(res[0]) > 0) {
-                    balanceTd.innerHTML = `<a href="#" onclick="send('${identity}', ${isEncrypted})"><b>${res[0]}</b> <span >\u27A4</span></a>`
+                if(parseInt(balanceArray[0]) > 0) {
+                    balanceTd.innerHTML = `<span title="${reportedByTitle}"><a href="#" onclick="send('${identity}', ${isEncrypted})"><b>${balanceArray[0]}</b> <span >\u27A4</span></a></span>`
                 } else {
-                    balanceTd.innerHTML = `<b>${res[0]}</b>`
+                    balanceTd.innerHTML = `<span title="${reportedByTitle}"><b>${balanceArray[0]}</b></span>`
                 }
             } catch(err) {
-                balanceTd.innerHTML = `<b>${res[0]}</b>`
+                balanceTd.innerHTML = `<b>${balanceArray[0]}</b>`
             }
         } else {
-            let html = `<span><b>Peer Responded Balance Mismatch: </b></span> [|`
-            for(const r of res) {
+            let html = `<span title="${reportedByTitle}"><b>Peer Responded Balance Mismatch: </b></span> [|`
+            for(const r of balanceArray) {
                 html += ` <b>${r}</b> |`
             }
             html += "]"

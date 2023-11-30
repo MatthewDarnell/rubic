@@ -104,5 +104,5 @@ pub fn handle_new_peer(id: String, peer: Peer, rx: spmc::Receiver<QubicApiPacket
             }
         }
     }
-    println!("Worker Peer Thread Exiting!");
+   // println!("Worker Peer Thread Exiting!");
 }

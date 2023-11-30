@@ -693,7 +693,24 @@ pub fn fetch_all_identities_full(path: &str) -> Result<LinkedList<Identity>, Str
     }
 }
 pub fn fetch_balance_by_identity(path: &str, identity: &str) -> Result<Vec<String>, String> {
-    let prep_query = "SELECT * FROM (SELECT * FROM response_entity WHERE identity = :identity ORDER BY tick DESC) GROUP BY peer LIMIT 3;";
+    //let prep_query = "SELECT * FROM (SELECT * FROM response_entity WHERE identity = :identity ORDER BY tick DESC) GROUP BY peer LIMIT 3;";
+    let prep_query = "
+    SELECT a.tick, b.identity, b.balance, c.ip as peer
+        FROM (
+            SELECT tick
+                FROM response_entity
+                WHERE identity = :identity
+                GROUP by tick
+                HAVING COUNT (DISTINCT peer) > 2
+                ORDER BY tick DESC
+                LIMIT 1
+        ) a
+        INNER JOIN response_entity b
+            ON a.tick = b.tick
+        INNER JOIN peer c
+                ON b.peer = c.id
+        WHERE b.identity = :identity;
+    ";
     let mut response: Vec<String> = Vec::new();
     match open_database(path, true) {
         Ok(connection) => {
@@ -704,6 +721,12 @@ pub fn fetch_balance_by_identity(path: &str, identity: &str) -> Result<Vec<Strin
                     ][..]) {
                         Ok(_) => {
                             while let Ok(State::Row) = statement.next() {
+                                response.push(
+                                    statement.read::<String, _>("tick").unwrap()
+                                );
+                                response.push(
+                                    statement.read::<String, _>("peer").unwrap()
+                                );
                                 response.push(
                                     statement.read::<String, _>("balance").unwrap()
                                 );

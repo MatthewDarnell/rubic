@@ -38,7 +38,7 @@ pub fn get_formatted_response(response: &mut QubicApiPacket) {
             //println!("ExchangePeersEntity: {:?}", resp);
             match update_peer_last_responded(path.as_str(), resp.peer.as_str(), SystemTime::now()) {
                 Ok(_) => {},
-                Err(err) => println!("Error Updating Peer {} Last Responded: {}", resp.peer.as_str(), err.as_str())
+                Err(err) => { /* println!("Error Updating Peer {} Last Responded: {}", resp.peer.as_str(), err.as_str())*/ }
             }
         },
         EntityType::ResponseEntity => {
@@ -58,7 +58,7 @@ pub fn get_formatted_response(response: &mut QubicApiPacket) {
                                    resp.spectrum_index
             ) {
                 Ok(_) => {
-                    update_peer_last_responded(path.as_str(), resp.peer.as_str(), SystemTime::now()).unwrap();
+                    update_peer_last_responded(path.as_str(), resp.peer.as_str(), SystemTime::now()).ok();
                 },
                 Err(err) => {
                     println!("Failed To Insert Response Entity: {}", err);
