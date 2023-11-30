@@ -1,6 +1,6 @@
 
 
-const TIMEOUT_MS = 5000;
+const TIMEOUT_MS = 10000;
 const TICK_OFFSET = 0;
 const MAX_AMOUNT = 1000000000000000;
 let globalLatestTick = 0;
@@ -218,14 +218,12 @@ const getBalance = async identity => {
     try {
         const result = await makeHttpRequest(`${serverIp}/balance/${identity}`);
         const res = JSON.parse(result);
-        console.log(res)
         if(res.length < 3) {
             return balanceTd.innerHTML = `<span>Not Yet Reported</span>`
         }
 
         let reportedByTitle = "Reported By: <";
         for (let i = 0; i < res.length; i += 3) {
-            console.log(`i=${i} pushing peer ${res[i+1]}`)
             reportedByTitle += (` ${res[i+1]}`);
         }
         reportedByTitle += (`> At Tick ${res[0]}`)
@@ -302,7 +300,6 @@ window.generateRandomIdentity = () => {
     document.getElementById("generateRandomIdentityBtn").disabled = true;
     let password = document.getElementById("passwordInput").value;
     const isPasswordInputDisabled = document.getElementById("passwordInput").disabled;
-    console.log(isPasswordInputDisabled)
     if(isPasswordInputDisabled || password.length < 4) {
         password = "0"
     }
@@ -346,8 +343,6 @@ window.addNewPeer = () => {
         const serverIp = document.getElementById("serverIp").value;
         const ip = document.getElementById("addPeerIpInput").value;
         const portEl = document.getElementById("addPeerPortInput").value;
-        console.log(ip)
-        console.log(portEl)
         const port = portEl.length > 0 ? parseInt(portEl) : 21841;
         const values = ip.split('.')
         if(values.length > 0 && values.length !== 4) {
@@ -359,7 +354,6 @@ window.addNewPeer = () => {
             return;
         }
         const formattedPeerAddress = `${ip}:${port}`
-        console.log(`${serverIp}/peers/add/${formattedPeerAddress}`)
         makeHttpRequest(`${serverIp}/peers/add/${formattedPeerAddress}`).then(result => {
             alert(result);
         }).catch(alert);
