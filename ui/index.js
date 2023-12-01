@@ -491,7 +491,7 @@ window.initiateTransfer = async () => {
         const destinationIdentity = document.getElementById("sendModalDestinationInput").value;
         let password;
         try {
-            document.getElementById("sendModalPassword").value;
+            password = document.getElementById("sendModalPassword").value;
         } catch(err) {}
         if(!password) {
             password = "0"
@@ -517,6 +517,9 @@ window.initiateTransfer = async () => {
         expirationPendingTick = expirationTick + TICK_OFFSET;
         const result = await makeHttpRequest(`${serverIp}/transfer/${sourceIdentity}/${destinationIdentity}/${amountToSend}/${expirationTick}/${password}`);
         document.getElementById("sendQubicsBtn").disabled = false;
+        if(result !== "Transfer Sent!") {
+            expirationPendingTick = expirationTick;
+        }
         alert(result);
     } catch(error) {
         console.log(`Error in initiateTransfer!`);

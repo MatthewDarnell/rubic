@@ -8,7 +8,6 @@ use std::time::{Duration, SystemTime};
 use store;
 use rand::seq::SliceRandom;
 use crate::worker;
-use crate::receive_response_worker;
 use crate::peer::Peer;
 
 
@@ -25,7 +24,6 @@ pub struct PeerSet {
   strategy: PeerStrategy,
   peers: Vec<Peer>,
   req_channel: (spmc::Sender<QubicApiPacket>, spmc::Receiver<QubicApiPacket>),
-  resp_channel: std::sync::mpsc::Sender<QubicApiPacket>,
   threads: HashMap<String, std::thread::JoinHandle<()>>
 }
 
@@ -40,7 +38,6 @@ impl PeerSet {
             peers: vec![],
             threads: HashMap::new(),
             req_channel: spmc::channel::<QubicApiPacket>(),
-            resp_channel: channel.0,
         };
         peer_set
     }
@@ -66,7 +63,7 @@ impl PeerSet {
         match TcpStream::connect_timeout(&sock, Duration::from_millis(5000)) {
             Ok(stream) => {
                 stream.set_read_timeout(Some(Duration::from_millis(2500))).expect("set_write_timeout call failed");
-                stream.set_write_timeout(Some(Duration::from_millis(4000))).expect("set_write_timeout call failed");
+                stream.set_write_timeout(Some(Duration::from_millis(2500))).expect("set_write_timeout call failed");
                 stream.set_nodelay(true).expect("set_nodelay call failed");
                 stream.set_ttl(100).expect("set_ttl call failed");
                 let new_peer = Peer::new(ip, None, "");
@@ -75,10 +72,9 @@ impl PeerSet {
                     let mut peer = new_peer.clone();
                     peer.set_stream(stream);
                     let rx = self.req_channel.1.clone();
-                    let tx = self.resp_channel.clone();
                     let id = id.clone();
                     let copied_id = id.to_owned();
-                    let t = std::thread::spawn(move || worker::handle_new_peer(id.to_owned(), peer, rx, tx));
+                    let t = std::thread::spawn(move || worker::handle_new_peer(id.to_owned(), peer, rx));
                     self.threads.insert(copied_id, t);
                 }
                 self.peers.push(new_peer);
@@ -166,55 +162,9 @@ impl PeerSet {
     }
 
     pub fn make_request(&mut self, mut request: QubicApiPacket) -> Result<(), String> {
-
         if self.num_peers() < 1 {
             return Err("Cannot send request, 0 peers! Add some!".to_string())
         }
-        /*
-        let peer: &mut Peer = match self.strategy {
-            PeerStrategy::PrioritizeLowPing => {
-                let mut temp = &self.peers[0];
-                let mut temp_index = 0;
-                for (index, peer) in self.peers.iter().enumerate() {
-                    if index > 0 && peer.get_ping_time() < temp.get_ping_time() {
-                        temp = &self.peers[index];
-                        temp_index = index;
-                    }
-                }
-                &mut self.peers[temp_index]
-            },
-            PeerStrategy::PrioritizeLongestUnusedConn => {
-                let mut temp = &self.peers[0];
-                let mut temp_index = 0;
-                for (index, peer) in self.peers.iter().enumerate() {
-                    if index > 0 &&
-                        (SystemTime::now().duration_since(peer.get_last_responded()).expect("Failed To Get System Time! Memory Corruption?") >
-                        SystemTime::now().duration_since(temp.get_last_responded()).expect("Failed To Get System Time! Memory Corruption?"))
-                    {
-                        temp_index = index;
-                        temp = &self.peers[index];
-                    }
-                }
-                &mut self.peers[temp_index]
-            },
-            PeerStrategy::RANDOM => {
-                match self.peers.choose_mut(&mut rand::thread_rng()) {
-                    Some(v) => v,
-                    None => return Err("Failed To Find Random Peer From Set! Strange!".to_string())
-                }
-            }
-        };
-        //println!("Using Peer: {}", peer.get_ip_addr().as_str());
-        request.peer = Some(peer.get_id().to_owned());
-        match self.req_channel.0.send(request) {
-            Ok(_) => Ok(()),
-            Err(err) => {
-                println!("Failed To Send Request Data To Threads! : {}", err.to_string());
-                Err(err.to_string())
-            }
-        }
-
-         */
         let mut ids_to_delete: Vec<String> = vec![];
         for (index, peer) in self.peers.iter().enumerate() {
             match store::sqlite::crud::peer::fetch_peer_by_id(store::get_db_path().as_str(), peer.get_id().as_str()) {
@@ -231,9 +181,6 @@ impl PeerSet {
             }
             request.peer = Some(peer.get_id().to_owned());
             thread::sleep(Duration::from_millis(50));
-           // println!("Sending Request To Peer Thread.");
-            //todo: check if this peer is still connected
-            //println!("{:?}", peer);
             match self.req_channel.0.send(request.clone()) {
                 Ok(_) => { },
                 Err(err) => {

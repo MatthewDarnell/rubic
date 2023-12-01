@@ -9,6 +9,7 @@ edition = "2021"
 base64 = "0.21.3"
 dotenv = "0.15.0"
 dotenv_codegen = "0.15.0"
+lazy_static = "1.4.0"
 serial_test = "2.0.0"
 sqlite = "0.32.0"
 logger = { path = '../logger' }

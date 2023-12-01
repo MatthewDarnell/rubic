@@ -215,7 +215,8 @@ async fn main() {
                 let tck: u32 = expiration.parse().unwrap();
 
                 //info(format!("Creating Transfer: {} .({}) ---> {} (Expires At Tick.<{}>)", &id.identity.as_str(), amt.to_string().as_str(), dest.as_str(), tck.to_string().as_str()).as_str());
-                //println!("Creating Transfer: {} .({}) ---> {} (Expires At Tick.<{}>)", &id.identity.as_str(), amt.to_string().as_str(), dest.as_str(), tck.to_string().as_str());
+                info(format!("Creating Transfer: {} .({}) ---> {} (Expires At Tick.<{}>)", &id.identity.as_str(), amt.to_string().as_str(), dest.as_str(), tck.to_string().as_str()).as_str());
+                println!("Creating Transfer: {} .({}) ---> {} (Expires At Tick.<{}>)", &id.identity.as_str(), amt.to_string().as_str(), dest.as_str(), tck.to_string().as_str());
                 let transfer_tx = api::transfer::TransferTransaction::from_vars(&id, &dest, amt, tck);
                 //println!("{:?}", &transfer_tx);
                 //println!("{:?}", &transfer_tx.as_bytes());
@@ -309,7 +310,10 @@ async fn main() {
                 }
               }
             },
-            Err(err) => panic!("{}", err)
+            Err(err) => {
+              println!("Error Fetching Peer {} By Id! {}", peer.as_str(), err);
+              //panic!("{}", err)
+            }
           }
         }
 

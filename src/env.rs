@@ -43,7 +43,7 @@ pub fn get_min_peers() -> usize {
         Err(_) => {
             debug("RUBIC_MIN_PEERS not found in env vars! Defaulting...");
             let default_min_peers: usize = 3;
-            debug("Using RUBIC_MIN_PEERS: <3>");
+            debug("Using RUBIC_MIN_PEERS: <3>").ok();
             return default_min_peers;
         }
     }

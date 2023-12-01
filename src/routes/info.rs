@@ -473,10 +473,10 @@ pub fn transfer(source: &str, dest: &str, amount: &str, expiration: &str, passwo
     let mut index = 0;
     loop {
         index = index + 1;
-        if index > 5 {
+        if index > 75 {
             return format!("Timed Out")
         }
-        std::thread::sleep(Duration::from_secs(1));
+        std::thread::sleep(Duration::from_millis(250));
         match rx.try_recv() {
             Ok(response) => {
                 let id = response.get(&"message_id".to_string()).unwrap();

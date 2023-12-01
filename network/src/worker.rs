@@ -7,7 +7,7 @@ use api::header::{ RequestResponseHeader, EntityType };
 use store::get_db_path;
 use store::sqlite::crud::peer::set_peer_disconnected;
 
-pub fn handle_new_peer(id: String, peer: Peer, rx: spmc::Receiver<QubicApiPacket>, tx: std::sync::mpsc::Sender<QubicApiPacket>) {
+pub fn handle_new_peer(id: String, peer: Peer, rx: spmc::Receiver<QubicApiPacket>) {
     if peer.get_stream().is_none() {
        println!("Peer {} Missing TcpStream! Shutting Down Worker Thread.", peer.get_id());
         return;
@@ -50,7 +50,7 @@ pub fn handle_new_peer(id: String, peer: Peer, rx: spmc::Receiver<QubicApiPacket
                             }
                         }
                     },
-                    Err(err) => {
+                    Err(err) => {   //Probably the peer closed the tcp connection
                         let error = match err.kind() {
                             ErrorKind::ConnectionAborted => {
                                 "Connection Aborted!".as_bytes()
@@ -72,27 +72,10 @@ pub fn handle_new_peer(id: String, peer: Peer, rx: spmc::Receiver<QubicApiPacket
                             .to_vec();
                         //   println!("Failed To Send Data To Peer! {}", id.as_str());
                         // println!("{}", err.to_string());
-                        let mut response: QubicApiPacket = QubicApiPacket::new(&error);
-                        response.api_type = EntityType::ERROR;
-                        response.peer = Some(peer.get_id().to_owned());
                         match set_peer_disconnected(get_db_path().as_str(), peer.get_id().as_str()) {
                             Ok(_) => {},
                             Err(err) => {
                                 println!("Failed To Set Peer {} disconnected: {}", peer.get_id().as_str(), err);
-                            }
-                        }
-                        let mut counter = 0;
-                        loop {
-                            match tx.clone().send(response.clone()) {
-                                Ok(_) => { break; },
-                                Err(err) => {
-                                    counter = counter + 1;
-                                    //println!("Failed to send Message from Worker Thread.({}) To Handler... ({})", peer.get_id().as_str(), err.to_string())
-                                }
-                            }
-                            if counter > 10 {
-                                //println!("Failed to send Message from Worker Thread.({}) To Handler... Bailing Out", peer.get_id().as_str());
-                                break;
                             }
                         }
                         break;

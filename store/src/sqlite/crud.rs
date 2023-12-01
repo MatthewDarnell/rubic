@@ -1,9 +1,17 @@
+#[macro_use]
+use lazy_static::lazy_static;
+
 use std::collections::{HashMap, LinkedList};
 use identity::Identity;
 use base64::{engine::general_purpose, Engine as _};
 use crate::sqlite::create::open_database;
 use sqlite::State;
 use logger::{debug, error};
+use std::sync::Mutex;
+
+lazy_static! {
+    static ref SQLITE_MUTEX: Mutex<i32> = Mutex::new(0i32); //Unlocks when goes out of scope due to fancy RAII
+}
 
 fn prepare_crud_statement<'a>(connection: &'a sqlite::Connection, prep_query: &'a str) -> Result<sqlite::Statement<'a>, String> {
         match connection.prepare(prep_query) {
@@ -20,6 +28,7 @@ fn prepare_crud_statement<'a>(connection: &'a sqlite::Connection, prep_query: &'
 //     );
 pub fn insert_latest_tick(path: &str, peer_id: &str, tick: u32) -> Result<(), String> {
     let prep_query = "INSERT INTO latest_tick (tick, peer) VALUES(:tick, :peer)";
+    let lock = SQLITE_MUTEX.lock().unwrap();
     match open_database(path, true) {
         Ok(connection) => {
             match prepare_crud_statement(&connection, prep_query) {
@@ -33,11 +42,17 @@ pub fn insert_latest_tick(path: &str, peer_id: &str, tick: u32) -> Result<(), St
                                 Ok(State::Done) => {
                                     Ok(())
                                 },
-                                Err(error) => Err(error.to_string()),
-                                _ => Err("Weird!".to_string())
+                                Err(error) => {
+                                    Err(error.to_string())
+                                },
+                                _ => {
+                                    Err("Weird!".to_string())
+                                }
                             }
                         },
-                        Err(err) => Err(err.to_string())
+                        Err(err) => {
+                            Err(err.to_string())
+                        }
                     }
                 },
                 Err(err) => {
@@ -54,6 +69,7 @@ pub fn insert_latest_tick(path: &str, peer_id: &str, tick: u32) -> Result<(), St
 }
 pub fn fetch_latest_tick(path: &str) -> Result<String, String> {
     let prep_query = "SELECT tick FROM latest_tick ORDER BY tick DESC LIMIT 1;";
+    let lock = SQLITE_MUTEX.lock().unwrap();
     match open_database(path, true) {
         Ok(connection) => {
             match prepare_crud_statement(&connection, prep_query) {
@@ -87,10 +103,11 @@ pub fn fetch_latest_tick(path: &str) -> Result<String, String> {
 
 pub mod master_password {
     use sqlite::State;
-    use crate::sqlite::crud::{open_database, prepare_crud_statement};
+    use crate::sqlite::crud::{open_database, prepare_crud_statement, SQLITE_MUTEX};
     pub fn set_master_password(path: &str, ct: &str) -> Result<(), String> {
         let prep_query = "INSERT INTO master_password (ct) \
         VALUES (:ct);";
+        let lock = SQLITE_MUTEX.lock().unwrap();
         match open_database(path, true) {
             Ok(connection) => {
                 match prepare_crud_statement(&connection, prep_query) {
@@ -123,6 +140,7 @@ pub mod master_password {
     }
     pub fn get_master_password(path: &str) -> Result<Vec<String>, String> {
         let prep_query = "SELECT * FROM master_password LIMIT 1;";
+        let lock = SQLITE_MUTEX.lock().unwrap();
         match open_database(path, true) {
             Ok(connection) => {
                 match prepare_crud_statement(&connection, prep_query) {
@@ -180,11 +198,12 @@ pub mod peer {
     use std::collections::HashMap;
     use std::time::{SystemTime, UNIX_EPOCH};
     use sqlite::State;
-    use crate::sqlite::crud::{open_database, prepare_crud_statement};
+    use crate::sqlite::crud::{open_database, prepare_crud_statement, SQLITE_MUTEX};
     pub fn create_peer(path: &str, id: &str, ip: &str, nick: &str, ping_time: u32, whitelisted: bool, last_responded: SystemTime) -> Result<(), String> {
         let prep_query = "INSERT INTO peer (id, ip, nick, whitelisted, ping, last_responded) \
         VALUES (:id, :ip, :nick, :whitelisted, :ping_time, :last_responded)\
          ON CONFLICT(ip) DO NOTHING;";
+        let lock = SQLITE_MUTEX.lock().unwrap();
         match open_database(path, true) {
             Ok(connection) => {
                 match prepare_crud_statement(&connection, prep_query) {
@@ -230,6 +249,7 @@ pub mod peer {
     }
     pub fn update_peer_last_responded(path: &str, id: &str, last_responded: SystemTime) -> Result<(), String> {
         let prep_query = "UPDATE peer SET last_responded=:last_responded WHERE id=:id;";
+        let lock = SQLITE_MUTEX.lock().unwrap();
         match open_database(path, true) {
             Ok(connection) => {
                 match prepare_crud_statement(&connection, prep_query) {
@@ -268,6 +288,7 @@ pub mod peer {
 
     pub fn set_peer_connected(path: &str, id: &str) -> Result<(), String> {
         let prep_query = "UPDATE peer SET connected = true WHERE id=:id;";
+        let lock = SQLITE_MUTEX.lock().unwrap();
         match open_database(path, true) {
             Ok(connection) => {
                 match prepare_crud_statement(&connection, prep_query) {
@@ -299,6 +320,7 @@ pub mod peer {
     }
     pub fn set_peer_disconnected(path: &str, id: &str) -> Result<(), String> {
         let prep_query = "UPDATE peer SET connected = false WHERE id=:id;";
+        let lock = SQLITE_MUTEX.lock().unwrap();
         match open_database(path, true) {
             Ok(connection) => {
                 match prepare_crud_statement(&connection, prep_query) {
@@ -331,6 +353,7 @@ pub mod peer {
 
     pub fn set_all_peers_disconnected(path: &str) -> Result<(), String> {
         let prep_query = "UPDATE peer SET connected = false;";
+        let lock = SQLITE_MUTEX.lock().unwrap();
         match open_database(path, true) {
             Ok(connection) => {
                 match connection.execute(prep_query) {
@@ -348,6 +371,7 @@ pub mod peer {
 
     pub fn fetch_peer_by_ip(path: &str, ip: &str) -> Result<HashMap<String, String>, String> {
         let prep_query = "SELECT * FROM peer WHERE ip = :ip LIMIT 1;";
+        let lock = SQLITE_MUTEX.lock().unwrap();
         match open_database(path, true) {
             Ok(connection) => {
                 match prepare_crud_statement(&connection, prep_query) {
@@ -394,6 +418,7 @@ pub mod peer {
     }
     pub fn fetch_peer_by_id(path: &str, id: &str) -> Result<HashMap<String, String>, String> {
         let prep_query = "SELECT * FROM peer WHERE id = :id LIMIT 1;";
+        let lock = SQLITE_MUTEX.lock().unwrap();
         match open_database(path, true) {
             Ok(connection) => {
                 match prepare_crud_statement(&connection, prep_query) {
@@ -440,6 +465,7 @@ pub mod peer {
     }
     pub fn fetch_all_peers(path: &str) -> Result<Vec<Vec<String>>, String> {
         let prep_query = "SELECT * FROM peer;";
+        let lock = SQLITE_MUTEX.lock().unwrap();
         match open_database(path, true) {
             Ok(connection) => {
                 match prepare_crud_statement(&connection, prep_query) {
@@ -471,6 +497,7 @@ pub mod peer {
     }
     pub fn fetch_connected_peers(path: &str) -> Result<Vec<Vec<String>>, String> {
         let prep_query = "SELECT * FROM peer WHERE connected = true;";
+        let lock = SQLITE_MUTEX.lock().unwrap();
         match open_database(path, true) {
             Ok(connection) => {
                 match prepare_crud_statement(&connection, prep_query) {
@@ -503,6 +530,7 @@ pub mod peer {
 
     pub fn fetch_disconnected_peers(path: &str) -> Result<Vec<Vec<String>>, String> {
         let prep_query = "SELECT * FROM peer WHERE connected = false ORDER BY last_responded DESC;";
+        let lock = SQLITE_MUTEX.lock().unwrap();
         match open_database(path, true) {
             Ok(connection) => {
                 match prepare_crud_statement(&connection, prep_query) {
@@ -539,6 +567,7 @@ pub mod peer {
 pub fn insert_new_identity(path: &str, identity: &Identity) -> Result<(), String> {
     //TODO: get master password
     let prep_query = "INSERT INTO identities (seed, salt, hash, is_encrypted, identity) VALUES (:seed, :salt, :hash, :is_encrypted, :identity)";
+    let lock = SQLITE_MUTEX.lock().unwrap();
     match open_database(path, true) {
         Ok(connection) => {
             match prepare_crud_statement(&connection, prep_query) {
@@ -582,6 +611,7 @@ pub fn insert_new_identity(path: &str, identity: &Identity) -> Result<(), String
 pub fn update_identity_encrypted(path: &str, identity: &Identity) -> Result<(), String> {
     //TODO: get master password
     let prep_query = "UPDATE identities SET seed = :seed, salt = :salt, hash = :hash, is_encrypted = :is_encrypted WHERE identity = :identity";
+    let lock = SQLITE_MUTEX.lock().unwrap();
     match open_database(path, true) {
         Ok(connection) => {
             match prepare_crud_statement(&connection, prep_query) {
@@ -621,6 +651,7 @@ pub fn update_identity_encrypted(path: &str, identity: &Identity) -> Result<(), 
 }
 pub fn fetch_all_identities(path: &str) -> Result<LinkedList<String>, String> {
     let prep_query = "SELECT identity FROM identities;";
+    let lock = SQLITE_MUTEX.lock().unwrap();
     match open_database(path, true) {
         Ok(connection) => {
             match prepare_crud_statement(&connection, prep_query) {
@@ -653,6 +684,7 @@ pub fn fetch_all_identities(path: &str) -> Result<LinkedList<String>, String> {
 }
 pub fn fetch_all_identities_full(path: &str) -> Result<LinkedList<Identity>, String> {
     let prep_query = "SELECT * FROM identities;";
+    let lock = SQLITE_MUTEX.lock().unwrap();
     match open_database(path, true) {
         Ok(connection) => {
             match prepare_crud_statement(&connection, prep_query) {
@@ -711,6 +743,7 @@ pub fn fetch_balance_by_identity(path: &str, identity: &str) -> Result<Vec<Strin
                 ON b.peer = c.id
         WHERE b.identity = :identity;
     ";
+    let lock = SQLITE_MUTEX.lock().unwrap();
     let mut response: Vec<String> = Vec::new();
     match open_database(path, true) {
         Ok(connection) => {
@@ -750,6 +783,7 @@ pub fn fetch_balance_by_identity(path: &str, identity: &str) -> Result<Vec<Strin
 }
 pub fn fetch_identity(path: &str, identity: &str) -> Result<Identity, String> {
     let prep_query = "SELECT * FROM identities WHERE identity = :identity LIMIT 1;";
+    let lock = SQLITE_MUTEX.lock().unwrap();
     match open_database(path, true) {
         Ok(connection) => {
             match prepare_crud_statement(&connection, prep_query) {
@@ -795,6 +829,7 @@ pub fn fetch_identity(path: &str, identity: &str) -> Result<Identity, String> {
 }
 pub fn delete_identity(path: &str, identity: &str) -> Result<(), String> {
     let prep_query = "DELETE FROM identities WHERE identity = :identity;";
+    let lock = SQLITE_MUTEX.lock().unwrap();
     match open_database(path, true) {
         Ok(connection) => {
             match prepare_crud_statement(&connection, prep_query) {
@@ -835,6 +870,7 @@ pub fn delete_identity(path: &str, identity: &str) -> Result<(), String> {
 
 pub fn create_peer_response(path: &str, peer: &str, data: &Vec<u8>) -> Result<(), String> {
     let prep_query = "INSERT INTO response (peer, header, type, data) VALUES (:peer, :header, :response_type, :data);";
+    let lock = SQLITE_MUTEX.lock().unwrap();
     match open_database(path, true) {
         Ok(connection) => {
             match prepare_crud_statement(&connection, prep_query) {
@@ -872,6 +908,7 @@ pub fn create_peer_response(path: &str, peer: &str, data: &Vec<u8>) -> Result<()
 }
 pub fn fetch_peer_response_by_type(path: &str, response_type: u8) -> Result<Vec<Vec<u8>>, String> {
     let prep_query = "SELECT * FROM response WHERE type = :response_type ORDER BY created DESC;";
+    let lock = SQLITE_MUTEX.lock().unwrap();
     match open_database(path, true) {
         Ok(connection) => {
             match prepare_crud_statement(&connection, prep_query) {
@@ -910,47 +947,49 @@ pub fn create_response_entity(path: &str, peer: &str, identity: &str, incoming: 
     let prep_query = "INSERT INTO response_entity (peer, identity, incoming, outgoing, balance, num_in_txs, num_out_txs, latest_in_tick, latest_out_tick, tick, spectrum_index) VALUES (
     :peer, :identity, :incoming, :outgoing, :balance, :num_in_txs, :num_out_txs, :latest_in_tick, :latest_out_tick, :tick, :spectrum_index
     );";
-    match open_database(path, true) {
+    let lock = SQLITE_MUTEX.lock().unwrap();
+    return match open_database(path, true) {
         Ok(connection) => {
             match prepare_crud_statement(&connection, prep_query) {
                 Ok(mut statement) => {
-                            match statement.bind::<&[(&str, &str)]>(&[
-                                (":peer", peer),
-                                (":identity", identity),
-                                (":incoming", incoming.to_string().as_str()),
-                                (":outgoing", outgoing.to_string().as_str()),
-                                (":balance", balance.to_string().as_str()),
-                                (":num_in_txs", num_in_txs.to_string().as_str()),
-                                (":num_out_txs", num_out_txs.to_string().as_str()),
-                                (":latest_in_tick", latest_in_tick.to_string().as_str()),
-                                (":latest_out_tick", latest_out_tick.to_string().as_str()),
-                                (":tick", tick.to_string().as_str()),
-                                (":spectrum_index", spectrum_index.to_string().as_str()),
-                            ][..]) {
-                                Ok(_) => {
-                                    match statement.next() {
-                                        Ok(State::Done) => { return Ok(()); },
-                                        Err(error) => { return Err(error.to_string()); },
-                                        _ => { return Err("Weird!".to_string()); }
-                                    }
-                                },
-                                Err(err) => { return Err(err.to_string()); }
+                    match statement.bind::<&[(&str, &str)]>(&[
+                        (":peer", peer),
+                        (":identity", identity),
+                        (":incoming", incoming.to_string().as_str()),
+                        (":outgoing", outgoing.to_string().as_str()),
+                        (":balance", balance.to_string().as_str()),
+                        (":num_in_txs", num_in_txs.to_string().as_str()),
+                        (":num_out_txs", num_out_txs.to_string().as_str()),
+                        (":latest_in_tick", latest_in_tick.to_string().as_str()),
+                        (":latest_out_tick", latest_out_tick.to_string().as_str()),
+                        (":tick", tick.to_string().as_str()),
+                        (":spectrum_index", spectrum_index.to_string().as_str()),
+                    ][..]) {
+                        Ok(_) => {
+                            match statement.next() {
+                                Ok(State::Done) => { Ok(()) },
+                                Err(error) => { Err(error.to_string()) },
+                                _ => { Err("Weird!".to_string()) }
                             }
-
+                        },
+                        Err(err) => { Err(err.to_string()) }
+                    }
                 },
                 Err(err) => {
                     error(format!("Failed To Prepare Statement! {}", err.to_string()).as_str());
-                    return Err(err.to_string());
+                    Err(err.to_string())
                 }
             }
         },
         Err(err) => {
             error(format!("Failed To Open Database! {}", err.to_string()).as_str());
-            return Err(err.to_string()); }
+            Err(err.to_string())
+        }
     }
 }
 pub fn fetch_response_entity_by_identity(path: &str, identity: &str) -> Result<Vec<HashMap<String, String>>, String> {
     let prep_query = "SELECT * FROM response_entity WHERE identity = :identity ORDER BY created DESC;";
+    let lock = SQLITE_MUTEX.lock().unwrap();
     match open_database(path, true) {
         Ok(connection) => {
             match prepare_crud_statement(&connection, prep_query) {
@@ -993,6 +1032,7 @@ pub fn fetch_response_entity_by_identity(path: &str, identity: &str) -> Result<V
 }
 pub fn fetch_latest_response_entity_by_identity_group_peers(path: &str, identity: &str) -> Result<Vec<HashMap<String, String>>, String> {
     let prep_query = "SELECT * FROM (SELECT * FROM response_entity WHERE identity = :identity ORDER BY tick DESC) GROUP BY peer;";
+    let lock = SQLITE_MUTEX.lock().unwrap();
     match open_database(path, true) {
         Ok(connection) => {
             match prepare_crud_statement(&connection, prep_query) {

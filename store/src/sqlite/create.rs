@@ -1,3 +1,4 @@
+
 pub fn open_database(path: &str, create: bool) -> Result<sqlite::Connection, String> {
     let query = "
     PRAGMA foreign_keys = ON;
