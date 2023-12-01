@@ -215,12 +215,12 @@ async fn main() {
                 let tck: u32 = expiration.parse().unwrap();
 
                 //info(format!("Creating Transfer: {} .({}) ---> {} (Expires At Tick.<{}>)", &id.identity.as_str(), amt.to_string().as_str(), dest.as_str(), tck.to_string().as_str()).as_str());
-                println!("Creating Transfer: {} .({}) ---> {} (Expires At Tick.<{}>)", &id.identity.as_str(), amt.to_string().as_str(), dest.as_str(), tck.to_string().as_str());
+                //println!("Creating Transfer: {} .({}) ---> {} (Expires At Tick.<{}>)", &id.identity.as_str(), amt.to_string().as_str(), dest.as_str(), tck.to_string().as_str());
                 let transfer_tx = api::transfer::TransferTransaction::from_vars(&id, &dest, amt, tck);
-                println!("{:?}", &transfer_tx);
-                println!("{:?}", &transfer_tx.as_bytes());
+                //println!("{:?}", &transfer_tx);
+                //println!("{:?}", &transfer_tx.as_bytes());
                 response.insert("message_id".to_string(), message_id.to_string());
-                response.insert("status".to_string(), "200".to_string());
+                response.insert("status".to_string(), "Transfer Sent!".to_string());
 
                 let request = api::QubicApiPacket::broadcast_transaction(&transfer_tx);
                 match peer_set.make_request(request) {

@@ -1,10 +1,10 @@
 
 
 const TIMEOUT_MS = 10000;
-const TICK_OFFSET = 0;
+const TICK_OFFSET = 10;
 const MAX_AMOUNT = 1000000000000000;
 let globalLatestTick = 0;
-
+let expirationPendingTick = -1;
 
 const doArrayElementsAgree = (array, thresholdPercentage) => {
     const length = array.length;
@@ -367,7 +367,7 @@ const getLatestTick = async identity => {
         const result = await makeHttpRequest(`${serverIp}/tick`);
         latestTickSpan.innerHTML = `<b>${result}</b>`
         globalLatestTick = parseInt(result);
-        document.getElementById("sendModalExpirationTick").value = parseInt(result) + TICK_OFFSET;
+        document.getElementById("sendModalExpirationTick").value = parseInt(result);
         return result;
     } catch(error) {
     }
@@ -481,13 +481,23 @@ window.exportDb = () => {
 
 window.initiateTransfer = async () => {
     try {
+        if(expirationPendingTick > 0 && expirationPendingTick >= globalLatestTick) {
+            alert("Transfer Still Pending!");
+            return;
+        }
         const serverIp = document.getElementById("serverIp").value;
         const expirationTick = parseInt(document.getElementById("sendModalExpirationTick").value);
         const sourceIdentity = document.getElementById("sendModalIdentitySpan").innerText;
         const destinationIdentity = document.getElementById("sendModalDestinationInput").value;
-        const password = document.getElementById("sendModalPassword").value || "0";
+        let password;
+        try {
+            document.getElementById("sendModalPassword").value;
+        } catch(err) {}
+        if(!password) {
+            password = "0"
+        }
         const amountToSend = parseInt(document.getElementById("sendModalAmountInput").value);
-        if(isNaN(expirationTick) || expirationTick <= 0 || expirationTick < (globalLatestTick + TICK_OFFSET)) {
+        if(isNaN(expirationTick) || expirationTick <= 0 || expirationTick < (globalLatestTick)) {
             alert("Invalid Expiration Tick!");
             return;
         }
@@ -504,6 +514,7 @@ window.initiateTransfer = async () => {
             return;
         }
         document.getElementById("sendQubicsBtn").disabled = true;
+        expirationPendingTick = expirationTick + TICK_OFFSET;
         const result = await makeHttpRequest(`${serverIp}/transfer/${sourceIdentity}/${destinationIdentity}/${amountToSend}/${expirationTick}/${password}`);
         document.getElementById("sendQubicsBtn").disabled = false;
         alert(result);
@@ -525,7 +536,7 @@ const statusInfoLoopFunction = () => {
         .then(getConnectedPeers)
         .then(_ => {
             //Finished Update Loop
-            setTimeout(statusInfoLoopFunction, 7000);
+            setTimeout(statusInfoLoopFunction, 3000);
         })
         .catch(() => {
             setTimeout(statusInfoLoopFunction, 3000);
@@ -538,7 +549,7 @@ const intervalLoopFunction = () => {
     loopCounter++;
     getIdentities()
         .then(async identities => {
-            if(loopCounter > 10) {
+            if(loopCounter > 5) {
                 identities = identities.filter(x => x.length > 10);
                 numFuncsToCall = 1 + identities.length;
                 for(const id of identities) {
@@ -551,7 +562,7 @@ const intervalLoopFunction = () => {
         })
         .then(_ => {
             //Finished Update Loop
-            setTimeout(intervalLoopFunction, 5000);
+            setTimeout(intervalLoopFunction, 1000);
         })
         .catch(() => {
             setTimeout(intervalLoopFunction, 1000);
