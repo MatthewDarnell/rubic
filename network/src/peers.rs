@@ -230,7 +230,7 @@ impl PeerSet {
                 }
             }
             request.peer = Some(peer.get_id().to_owned());
-            thread::sleep(Duration::from_secs(1));
+            thread::sleep(Duration::from_millis(50));
            // println!("Sending Request To Peer Thread.");
             //todo: check if this peer is still connected
             //println!("{:?}", peer);

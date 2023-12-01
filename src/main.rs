@@ -109,7 +109,7 @@ async fn main() {
               error(format!("Error: {:?}", err).as_str());
             }
           }
-          println!("Finished Updating Balances");
+          //println!("Finished Updating Balances");
         } else {
           //println!("Not Updating Balances!");
         }
@@ -228,7 +228,7 @@ async fn main() {
                   //Ok(_) => println!("{:?}", request.response_data),
                   Err(err) => println!("{}", err)
                 }
-                std::thread::sleep(delay);
+                //std::thread::sleep(delay);
 
                 tx.send(response).unwrap();
                 continue;
@@ -339,7 +339,7 @@ async fn main() {
           }
         }
 
-        std::thread::sleep(delay);
+        //std::thread::sleep(delay);
       }
     });
   }

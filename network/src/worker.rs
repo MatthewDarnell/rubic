@@ -44,7 +44,7 @@ pub fn handle_new_peer(id: String, peer: Peer, rx: spmc::Receiver<QubicApiPacket
                                 }
                             },
                             Err(err) => {
-                                 println!("Failed To Peek! {}", err);
+                                 //println!("Failed To Peek! {}", err);
                                 //set_peer_disconnected(get_db_path().as_str(), peer.get_id().as_str()).unwrap();
                                 // break;
                             }
