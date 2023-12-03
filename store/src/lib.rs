@@ -44,7 +44,17 @@ pub fn get_db_path() -> String {
                     home_path.push_str("/.rubic/");
                     home_path
                 },
-                _ => "~/.rubic/".to_string()
+                _ => {
+                    match home::home_dir() {
+                        Some(path) => {
+                            let mut value: String =  path.as_path().to_str().unwrap().to_string();
+                            value += "/.rubic/";
+                            value
+                        },
+                        None => panic!("Impossible to get your home dir!"),
+                    }
+                    //"~/.rubic/".to_string()
+                }
             };
             if !std::path::Path::new(default_path.as_str()).exists() {
                 println!("Path <{}> Does NOT Exist. Creating!", default_path.as_str());
