@@ -1,7 +1,22 @@
 // (c) Come-from-Beyond 2023
 
+
+
+
 #ifdef _MSC_VER
 #include <intrin.h>
+#define ROL64(a, offset) _rotl64(a, offset)
+#else
+#define ROL64(a, offset) ((((unsigned long long)a) << offset) ^ (((unsigned long long)a) >> (64 - offset)))
+
+#endif
+
+#ifdef __arm64__
+#define SIMDE_ENABLE_NATIVE_ALIASES 1
+#define AVX512 1
+#include <cstring>
+#include <stdio.h>
+#include "simde/simde/x86/avx512.h"
 #else
 #include <x86intrin.h>
 #define _rotl64 _rotl
@@ -40,6 +55,53 @@ long long unsigned int __shiftright128(
 }
 #endif
 
+
+//From Qiner
+
+
+#if AVX512
+const  __m512i zero = _mm512_maskz_set1_epi64(0, 0);
+const  __m512i moveThetaPrev = _mm512_setr_epi64(4, 0, 1, 2, 3, 5, 6, 7);
+const  __m512i moveThetaNext = _mm512_setr_epi64(1, 2, 3, 4, 0, 5, 6, 7);
+const  __m512i rhoB = _mm512_setr_epi64(0, 1, 62, 28, 27, 0, 0, 0);
+const  __m512i rhoG = _mm512_setr_epi64(36, 44, 6, 55, 20, 0, 0, 0);
+const  __m512i rhoK = _mm512_setr_epi64(3, 10, 43, 25, 39, 0, 0, 0);
+const  __m512i rhoM = _mm512_setr_epi64(41, 45, 15, 21, 8, 0, 0, 0);
+const  __m512i rhoS = _mm512_setr_epi64(18, 2, 61, 56, 14, 0, 0, 0);
+const  __m512i pi1B = _mm512_setr_epi64(0, 3, 1, 4, 2, 5, 6, 7);
+const  __m512i pi1G = _mm512_setr_epi64(1, 4, 2, 0, 3, 5, 6, 7);
+const  __m512i pi1K = _mm512_setr_epi64(2, 0, 3, 1, 4, 5, 6, 7);
+const  __m512i pi1M = _mm512_setr_epi64(3, 1, 4, 2, 0, 5, 6, 7);
+const  __m512i pi1S = _mm512_setr_epi64(4, 2, 0, 3, 1, 5, 6, 7);
+const  __m512i pi2S1 = _mm512_setr_epi64(0, 1, 2, 3, 4, 5, 8, 10);
+const  __m512i pi2S2 = _mm512_setr_epi64(0, 1, 2, 3, 4, 5, 9, 11);
+const  __m512i pi2BG = _mm512_setr_epi64(0, 1, 8, 9, 6, 5, 6, 7);
+const  __m512i pi2KM = _mm512_setr_epi64(2, 3, 10, 11, 7, 5, 6, 7);
+const  __m512i pi2S3 = _mm512_setr_epi64(4, 5, 12, 13, 4, 5, 6, 7);
+const  __m512i padding = _mm512_maskz_set1_epi64(1, 0x8000000000000000);
+
+const  __m512i K12RoundConst0 = _mm512_maskz_set1_epi64(1, 0x000000008000808bULL);
+const  __m512i K12RoundConst1 = _mm512_maskz_set1_epi64(1, 0x800000000000008bULL);
+const  __m512i K12RoundConst2 = _mm512_maskz_set1_epi64(1, 0x8000000000008089ULL);
+const  __m512i K12RoundConst3 = _mm512_maskz_set1_epi64(1, 0x8000000000008003ULL);
+const  __m512i K12RoundConst4 = _mm512_maskz_set1_epi64(1, 0x8000000000008002ULL);
+const  __m512i K12RoundConst5 = _mm512_maskz_set1_epi64(1, 0x8000000000000080ULL);
+const  __m512i K12RoundConst6 = _mm512_maskz_set1_epi64(1, 0x000000000000800aULL);
+const  __m512i K12RoundConst7 = _mm512_maskz_set1_epi64(1, 0x800000008000000aULL);
+const  __m512i K12RoundConst8 = _mm512_maskz_set1_epi64(1, 0x8000000080008081ULL);
+const  __m512i K12RoundConst9 = _mm512_maskz_set1_epi64(1, 0x8000000000008080ULL);
+const  __m512i K12RoundConst10 = _mm512_maskz_set1_epi64(1, 0x0000000080000001ULL);
+const  __m512i K12RoundConst11 = _mm512_maskz_set1_epi64(1, 0x8000000080008008ULL);
+
+#endif
+
+
+
+
+
+
+//End From Qiner
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -65,7 +127,6 @@ extern "C" {
     #define ZeroMemory(x, y) memset(x, 0, y)
     #define CopyMemory(x, y, z) memcpy(x, y, z)
 
-    #define ROL64(a, offset) _rotl64(a, offset)
 
     #define KeccakF1600RoundConstant0   0x000000008000808bULL
     #define KeccakF1600RoundConstant1   0x800000000000008bULL
@@ -649,6 +710,274 @@ extern "C" {
 
     void KangarooTwelve64To32(unsigned char* input, unsigned char* output)
     {
+    #if AVX512
+        __m512i Baeiou = _mm512_maskz_loadu_epi64(0x1F, input);
+        __m512i Gaeiou = _mm512_set_epi64(0, 0, 0, 0, 0x0700, ((unsigned long long*)input)[7], ((unsigned long long*)input)[6], ((unsigned long long*)input)[5]);
+
+        __m512i b0 = _mm512_ternarylogic_epi64(_mm512_ternarylogic_epi64(Baeiou, Gaeiou, zero, 0x96), zero, padding, 0x96);
+        __m512i b1 = _mm512_permutexvar_epi64(moveThetaPrev, b0);
+        b0 = _mm512_rol_epi64(_mm512_permutexvar_epi64(moveThetaNext, b0), 1);
+        __m512i b2 = _mm512_permutexvar_epi64(pi1K, _mm512_rolv_epi64(_mm512_ternarylogic_epi64(zero, b0, b1, 0x96), rhoK));
+        __m512i b3 = _mm512_permutexvar_epi64(pi1M, _mm512_rolv_epi64(_mm512_ternarylogic_epi64(zero, b0, b1, 0x96), rhoM));
+        __m512i b4 = _mm512_permutexvar_epi64(pi1S, _mm512_rolv_epi64(_mm512_ternarylogic_epi64(padding, b0, b1, 0x96), rhoS));
+        __m512i b5 = _mm512_permutexvar_epi64(pi1G, _mm512_rolv_epi64(_mm512_ternarylogic_epi64(Gaeiou, b0, b1, 0x96), rhoG));
+        b0 = _mm512_permutexvar_epi64(pi1B, _mm512_rolv_epi64(_mm512_ternarylogic_epi64(Baeiou, b0, b1, 0x96), rhoB));
+        Baeiou = _mm512_xor_si512(_mm512_ternarylogic_epi64(b0, b5, b2, 0xD2), K12RoundConst0);
+        Gaeiou = _mm512_ternarylogic_epi64(b5, b2, b3, 0xD2);
+        __m512i Kaeiou = _mm512_ternarylogic_epi64(b2, b3, b4, 0xD2);
+        __m512i Maeiou = _mm512_ternarylogic_epi64(b3, b4, b0, 0xD2);
+        __m512i Saeiou = _mm512_ternarylogic_epi64(b4, b0, b5, 0xD2);
+        b0 = _mm512_permutex2var_epi64(_mm512_unpacklo_epi64(Baeiou, Gaeiou), pi2S1, Saeiou);
+        b2 = _mm512_permutex2var_epi64(_mm512_unpackhi_epi64(Baeiou, Gaeiou), pi2S2, Saeiou);
+        b1 = _mm512_unpacklo_epi64(Kaeiou, Maeiou);
+        b3 = _mm512_unpackhi_epi64(Kaeiou, Maeiou);
+        Baeiou = _mm512_permutex2var_epi64(b0, pi2BG, b1);
+        Gaeiou = _mm512_permutex2var_epi64(b2, pi2BG, b3);
+        Kaeiou = _mm512_permutex2var_epi64(b0, pi2KM, b1);
+        Maeiou = _mm512_permutex2var_epi64(b2, pi2KM, b3);
+        Saeiou = _mm512_mask_blend_epi64(0x10, _mm512_permutex2var_epi64(b0, pi2S3, b1), Saeiou);
+
+        b0 = _mm512_ternarylogic_epi64(_mm512_ternarylogic_epi64(Baeiou, Gaeiou, Kaeiou, 0x96), Maeiou, Saeiou, 0x96);
+        b1 = _mm512_permutexvar_epi64(moveThetaPrev, b0);
+        b0 = _mm512_rol_epi64(_mm512_permutexvar_epi64(moveThetaNext, b0), 1);
+        b2 = _mm512_permutexvar_epi64(pi1K, _mm512_rolv_epi64(_mm512_ternarylogic_epi64(Kaeiou, b0, b1, 0x96), rhoK));
+        b3 = _mm512_permutexvar_epi64(pi1M, _mm512_rolv_epi64(_mm512_ternarylogic_epi64(Maeiou, b0, b1, 0x96), rhoM));
+        b4 = _mm512_permutexvar_epi64(pi1S, _mm512_rolv_epi64(_mm512_ternarylogic_epi64(Saeiou, b0, b1, 0x96), rhoS));
+        b5 = _mm512_permutexvar_epi64(pi1G, _mm512_rolv_epi64(_mm512_ternarylogic_epi64(Gaeiou, b0, b1, 0x96), rhoG));
+        b0 = _mm512_permutexvar_epi64(pi1B, _mm512_rolv_epi64(_mm512_ternarylogic_epi64(Baeiou, b0, b1, 0x96), rhoB));
+        Baeiou = _mm512_xor_si512(_mm512_ternarylogic_epi64(b0, b5, b2, 0xD2), K12RoundConst1);
+        Gaeiou = _mm512_ternarylogic_epi64(b5, b2, b3, 0xD2);
+        Kaeiou = _mm512_ternarylogic_epi64(b2, b3, b4, 0xD2);
+        Maeiou = _mm512_ternarylogic_epi64(b3, b4, b0, 0xD2);
+        Saeiou = _mm512_ternarylogic_epi64(b4, b0, b5, 0xD2);
+        b0 = _mm512_permutex2var_epi64(_mm512_unpacklo_epi64(Baeiou, Gaeiou), pi2S1, Saeiou);
+        b2 = _mm512_permutex2var_epi64(_mm512_unpackhi_epi64(Baeiou, Gaeiou), pi2S2, Saeiou);
+        b1 = _mm512_unpacklo_epi64(Kaeiou, Maeiou);
+        b3 = _mm512_unpackhi_epi64(Kaeiou, Maeiou);
+        Baeiou = _mm512_permutex2var_epi64(b0, pi2BG, b1);
+        Gaeiou = _mm512_permutex2var_epi64(b2, pi2BG, b3);
+        Kaeiou = _mm512_permutex2var_epi64(b0, pi2KM, b1);
+        Maeiou = _mm512_permutex2var_epi64(b2, pi2KM, b3);
+        Saeiou = _mm512_mask_blend_epi64(0x10, _mm512_permutex2var_epi64(b0, pi2S3, b1), Saeiou);
+
+        b0 = _mm512_ternarylogic_epi64(_mm512_ternarylogic_epi64(Baeiou, Gaeiou, Kaeiou, 0x96), Maeiou, Saeiou, 0x96);
+        b1 = _mm512_permutexvar_epi64(moveThetaPrev, b0);
+        b0 = _mm512_rol_epi64(_mm512_permutexvar_epi64(moveThetaNext, b0), 1);
+        b2 = _mm512_permutexvar_epi64(pi1K, _mm512_rolv_epi64(_mm512_ternarylogic_epi64(Kaeiou, b0, b1, 0x96), rhoK));
+        b3 = _mm512_permutexvar_epi64(pi1M, _mm512_rolv_epi64(_mm512_ternarylogic_epi64(Maeiou, b0, b1, 0x96), rhoM));
+        b4 = _mm512_permutexvar_epi64(pi1S, _mm512_rolv_epi64(_mm512_ternarylogic_epi64(Saeiou, b0, b1, 0x96), rhoS));
+        b5 = _mm512_permutexvar_epi64(pi1G, _mm512_rolv_epi64(_mm512_ternarylogic_epi64(Gaeiou, b0, b1, 0x96), rhoG));
+        b0 = _mm512_permutexvar_epi64(pi1B, _mm512_rolv_epi64(_mm512_ternarylogic_epi64(Baeiou, b0, b1, 0x96), rhoB));
+        Baeiou = _mm512_xor_si512(_mm512_ternarylogic_epi64(b0, b5, b2, 0xD2), K12RoundConst2);
+        Gaeiou = _mm512_ternarylogic_epi64(b5, b2, b3, 0xD2);
+        Kaeiou = _mm512_ternarylogic_epi64(b2, b3, b4, 0xD2);
+        Maeiou = _mm512_ternarylogic_epi64(b3, b4, b0, 0xD2);
+        Saeiou = _mm512_ternarylogic_epi64(b4, b0, b5, 0xD2);
+        b0 = _mm512_permutex2var_epi64(_mm512_unpacklo_epi64(Baeiou, Gaeiou), pi2S1, Saeiou);
+        b2 = _mm512_permutex2var_epi64(_mm512_unpackhi_epi64(Baeiou, Gaeiou), pi2S2, Saeiou);
+        b1 = _mm512_unpacklo_epi64(Kaeiou, Maeiou);
+        b3 = _mm512_unpackhi_epi64(Kaeiou, Maeiou);
+        Baeiou = _mm512_permutex2var_epi64(b0, pi2BG, b1);
+        Gaeiou = _mm512_permutex2var_epi64(b2, pi2BG, b3);
+        Kaeiou = _mm512_permutex2var_epi64(b0, pi2KM, b1);
+        Maeiou = _mm512_permutex2var_epi64(b2, pi2KM, b3);
+        Saeiou = _mm512_mask_blend_epi64(0x10, _mm512_permutex2var_epi64(b0, pi2S3, b1), Saeiou);
+
+        b0 = _mm512_ternarylogic_epi64(_mm512_ternarylogic_epi64(Baeiou, Gaeiou, Kaeiou, 0x96), Maeiou, Saeiou, 0x96);
+        b1 = _mm512_permutexvar_epi64(moveThetaPrev, b0);
+        b0 = _mm512_rol_epi64(_mm512_permutexvar_epi64(moveThetaNext, b0), 1);
+        b2 = _mm512_permutexvar_epi64(pi1K, _mm512_rolv_epi64(_mm512_ternarylogic_epi64(Kaeiou, b0, b1, 0x96), rhoK));
+        b3 = _mm512_permutexvar_epi64(pi1M, _mm512_rolv_epi64(_mm512_ternarylogic_epi64(Maeiou, b0, b1, 0x96), rhoM));
+        b4 = _mm512_permutexvar_epi64(pi1S, _mm512_rolv_epi64(_mm512_ternarylogic_epi64(Saeiou, b0, b1, 0x96), rhoS));
+        b5 = _mm512_permutexvar_epi64(pi1G, _mm512_rolv_epi64(_mm512_ternarylogic_epi64(Gaeiou, b0, b1, 0x96), rhoG));
+        b0 = _mm512_permutexvar_epi64(pi1B, _mm512_rolv_epi64(_mm512_ternarylogic_epi64(Baeiou, b0, b1, 0x96), rhoB));
+        Baeiou = _mm512_xor_si512(_mm512_ternarylogic_epi64(b0, b5, b2, 0xD2), K12RoundConst3);
+        Gaeiou = _mm512_ternarylogic_epi64(b5, b2, b3, 0xD2);
+        Kaeiou = _mm512_ternarylogic_epi64(b2, b3, b4, 0xD2);
+        Maeiou = _mm512_ternarylogic_epi64(b3, b4, b0, 0xD2);
+        Saeiou = _mm512_ternarylogic_epi64(b4, b0, b5, 0xD2);
+        b0 = _mm512_permutex2var_epi64(_mm512_unpacklo_epi64(Baeiou, Gaeiou), pi2S1, Saeiou);
+        b2 = _mm512_permutex2var_epi64(_mm512_unpackhi_epi64(Baeiou, Gaeiou), pi2S2, Saeiou);
+        b1 = _mm512_unpacklo_epi64(Kaeiou, Maeiou);
+        b3 = _mm512_unpackhi_epi64(Kaeiou, Maeiou);
+        Baeiou = _mm512_permutex2var_epi64(b0, pi2BG, b1);
+        Gaeiou = _mm512_permutex2var_epi64(b2, pi2BG, b3);
+        Kaeiou = _mm512_permutex2var_epi64(b0, pi2KM, b1);
+        Maeiou = _mm512_permutex2var_epi64(b2, pi2KM, b3);
+        Saeiou = _mm512_mask_blend_epi64(0x10, _mm512_permutex2var_epi64(b0, pi2S3, b1), Saeiou);
+
+        b0 = _mm512_ternarylogic_epi64(_mm512_ternarylogic_epi64(Baeiou, Gaeiou, Kaeiou, 0x96), Maeiou, Saeiou, 0x96);
+        b1 = _mm512_permutexvar_epi64(moveThetaPrev, b0);
+        b0 = _mm512_rol_epi64(_mm512_permutexvar_epi64(moveThetaNext, b0), 1);
+        b2 = _mm512_permutexvar_epi64(pi1K, _mm512_rolv_epi64(_mm512_ternarylogic_epi64(Kaeiou, b0, b1, 0x96), rhoK));
+        b3 = _mm512_permutexvar_epi64(pi1M, _mm512_rolv_epi64(_mm512_ternarylogic_epi64(Maeiou, b0, b1, 0x96), rhoM));
+        b4 = _mm512_permutexvar_epi64(pi1S, _mm512_rolv_epi64(_mm512_ternarylogic_epi64(Saeiou, b0, b1, 0x96), rhoS));
+        b5 = _mm512_permutexvar_epi64(pi1G, _mm512_rolv_epi64(_mm512_ternarylogic_epi64(Gaeiou, b0, b1, 0x96), rhoG));
+        b0 = _mm512_permutexvar_epi64(pi1B, _mm512_rolv_epi64(_mm512_ternarylogic_epi64(Baeiou, b0, b1, 0x96), rhoB));
+        Baeiou = _mm512_xor_si512(_mm512_ternarylogic_epi64(b0, b5, b2, 0xD2), K12RoundConst4);
+        Gaeiou = _mm512_ternarylogic_epi64(b5, b2, b3, 0xD2);
+        Kaeiou = _mm512_ternarylogic_epi64(b2, b3, b4, 0xD2);
+        Maeiou = _mm512_ternarylogic_epi64(b3, b4, b0, 0xD2);
+        Saeiou = _mm512_ternarylogic_epi64(b4, b0, b5, 0xD2);
+        b0 = _mm512_permutex2var_epi64(_mm512_unpacklo_epi64(Baeiou, Gaeiou), pi2S1, Saeiou);
+        b2 = _mm512_permutex2var_epi64(_mm512_unpackhi_epi64(Baeiou, Gaeiou), pi2S2, Saeiou);
+        b1 = _mm512_unpacklo_epi64(Kaeiou, Maeiou);
+        b3 = _mm512_unpackhi_epi64(Kaeiou, Maeiou);
+        Baeiou = _mm512_permutex2var_epi64(b0, pi2BG, b1);
+        Gaeiou = _mm512_permutex2var_epi64(b2, pi2BG, b3);
+        Kaeiou = _mm512_permutex2var_epi64(b0, pi2KM, b1);
+        Maeiou = _mm512_permutex2var_epi64(b2, pi2KM, b3);
+        Saeiou = _mm512_mask_blend_epi64(0x10, _mm512_permutex2var_epi64(b0, pi2S3, b1), Saeiou);
+
+        b0 = _mm512_ternarylogic_epi64(_mm512_ternarylogic_epi64(Baeiou, Gaeiou, Kaeiou, 0x96), Maeiou, Saeiou, 0x96);
+        b1 = _mm512_permutexvar_epi64(moveThetaPrev, b0);
+        b0 = _mm512_rol_epi64(_mm512_permutexvar_epi64(moveThetaNext, b0), 1);
+        b2 = _mm512_permutexvar_epi64(pi1K, _mm512_rolv_epi64(_mm512_ternarylogic_epi64(Kaeiou, b0, b1, 0x96), rhoK));
+        b3 = _mm512_permutexvar_epi64(pi1M, _mm512_rolv_epi64(_mm512_ternarylogic_epi64(Maeiou, b0, b1, 0x96), rhoM));
+        b4 = _mm512_permutexvar_epi64(pi1S, _mm512_rolv_epi64(_mm512_ternarylogic_epi64(Saeiou, b0, b1, 0x96), rhoS));
+        b5 = _mm512_permutexvar_epi64(pi1G, _mm512_rolv_epi64(_mm512_ternarylogic_epi64(Gaeiou, b0, b1, 0x96), rhoG));
+        b0 = _mm512_permutexvar_epi64(pi1B, _mm512_rolv_epi64(_mm512_ternarylogic_epi64(Baeiou, b0, b1, 0x96), rhoB));
+        Baeiou = _mm512_xor_si512(_mm512_ternarylogic_epi64(b0, b5, b2, 0xD2), K12RoundConst5);
+        Gaeiou = _mm512_ternarylogic_epi64(b5, b2, b3, 0xD2);
+        Kaeiou = _mm512_ternarylogic_epi64(b2, b3, b4, 0xD2);
+        Maeiou = _mm512_ternarylogic_epi64(b3, b4, b0, 0xD2);
+        Saeiou = _mm512_ternarylogic_epi64(b4, b0, b5, 0xD2);
+        b0 = _mm512_permutex2var_epi64(_mm512_unpacklo_epi64(Baeiou, Gaeiou), pi2S1, Saeiou);
+        b2 = _mm512_permutex2var_epi64(_mm512_unpackhi_epi64(Baeiou, Gaeiou), pi2S2, Saeiou);
+        b1 = _mm512_unpacklo_epi64(Kaeiou, Maeiou);
+        b3 = _mm512_unpackhi_epi64(Kaeiou, Maeiou);
+        Baeiou = _mm512_permutex2var_epi64(b0, pi2BG, b1);
+        Gaeiou = _mm512_permutex2var_epi64(b2, pi2BG, b3);
+        Kaeiou = _mm512_permutex2var_epi64(b0, pi2KM, b1);
+        Maeiou = _mm512_permutex2var_epi64(b2, pi2KM, b3);
+        Saeiou = _mm512_mask_blend_epi64(0x10, _mm512_permutex2var_epi64(b0, pi2S3, b1), Saeiou);
+
+        b0 = _mm512_ternarylogic_epi64(_mm512_ternarylogic_epi64(Baeiou, Gaeiou, Kaeiou, 0x96), Maeiou, Saeiou, 0x96);
+        b1 = _mm512_permutexvar_epi64(moveThetaPrev, b0);
+        b0 = _mm512_rol_epi64(_mm512_permutexvar_epi64(moveThetaNext, b0), 1);
+        b2 = _mm512_permutexvar_epi64(pi1K, _mm512_rolv_epi64(_mm512_ternarylogic_epi64(Kaeiou, b0, b1, 0x96), rhoK));
+        b3 = _mm512_permutexvar_epi64(pi1M, _mm512_rolv_epi64(_mm512_ternarylogic_epi64(Maeiou, b0, b1, 0x96), rhoM));
+        b4 = _mm512_permutexvar_epi64(pi1S, _mm512_rolv_epi64(_mm512_ternarylogic_epi64(Saeiou, b0, b1, 0x96), rhoS));
+        b5 = _mm512_permutexvar_epi64(pi1G, _mm512_rolv_epi64(_mm512_ternarylogic_epi64(Gaeiou, b0, b1, 0x96), rhoG));
+        b0 = _mm512_permutexvar_epi64(pi1B, _mm512_rolv_epi64(_mm512_ternarylogic_epi64(Baeiou, b0, b1, 0x96), rhoB));
+        Baeiou = _mm512_xor_si512(_mm512_ternarylogic_epi64(b0, b5, b2, 0xD2), K12RoundConst6);
+        Gaeiou = _mm512_ternarylogic_epi64(b5, b2, b3, 0xD2);
+        Kaeiou = _mm512_ternarylogic_epi64(b2, b3, b4, 0xD2);
+        Maeiou = _mm512_ternarylogic_epi64(b3, b4, b0, 0xD2);
+        Saeiou = _mm512_ternarylogic_epi64(b4, b0, b5, 0xD2);
+        b0 = _mm512_permutex2var_epi64(_mm512_unpacklo_epi64(Baeiou, Gaeiou), pi2S1, Saeiou);
+        b2 = _mm512_permutex2var_epi64(_mm512_unpackhi_epi64(Baeiou, Gaeiou), pi2S2, Saeiou);
+        b1 = _mm512_unpacklo_epi64(Kaeiou, Maeiou);
+        b3 = _mm512_unpackhi_epi64(Kaeiou, Maeiou);
+        Baeiou = _mm512_permutex2var_epi64(b0, pi2BG, b1);
+        Gaeiou = _mm512_permutex2var_epi64(b2, pi2BG, b3);
+        Kaeiou = _mm512_permutex2var_epi64(b0, pi2KM, b1);
+        Maeiou = _mm512_permutex2var_epi64(b2, pi2KM, b3);
+        Saeiou = _mm512_mask_blend_epi64(0x10, _mm512_permutex2var_epi64(b0, pi2S3, b1), Saeiou);
+
+        b0 = _mm512_ternarylogic_epi64(_mm512_ternarylogic_epi64(Baeiou, Gaeiou, Kaeiou, 0x96), Maeiou, Saeiou, 0x96);
+        b1 = _mm512_permutexvar_epi64(moveThetaPrev, b0);
+        b0 = _mm512_rol_epi64(_mm512_permutexvar_epi64(moveThetaNext, b0), 1);
+        b2 = _mm512_permutexvar_epi64(pi1K, _mm512_rolv_epi64(_mm512_ternarylogic_epi64(Kaeiou, b0, b1, 0x96), rhoK));
+        b3 = _mm512_permutexvar_epi64(pi1M, _mm512_rolv_epi64(_mm512_ternarylogic_epi64(Maeiou, b0, b1, 0x96), rhoM));
+        b4 = _mm512_permutexvar_epi64(pi1S, _mm512_rolv_epi64(_mm512_ternarylogic_epi64(Saeiou, b0, b1, 0x96), rhoS));
+        b5 = _mm512_permutexvar_epi64(pi1G, _mm512_rolv_epi64(_mm512_ternarylogic_epi64(Gaeiou, b0, b1, 0x96), rhoG));
+        b0 = _mm512_permutexvar_epi64(pi1B, _mm512_rolv_epi64(_mm512_ternarylogic_epi64(Baeiou, b0, b1, 0x96), rhoB));
+        Baeiou = _mm512_xor_si512(_mm512_ternarylogic_epi64(b0, b5, b2, 0xD2), K12RoundConst7);
+        Gaeiou = _mm512_ternarylogic_epi64(b5, b2, b3, 0xD2);
+        Kaeiou = _mm512_ternarylogic_epi64(b2, b3, b4, 0xD2);
+        Maeiou = _mm512_ternarylogic_epi64(b3, b4, b0, 0xD2);
+        Saeiou = _mm512_ternarylogic_epi64(b4, b0, b5, 0xD2);
+        b0 = _mm512_permutex2var_epi64(_mm512_unpacklo_epi64(Baeiou, Gaeiou), pi2S1, Saeiou);
+        b2 = _mm512_permutex2var_epi64(_mm512_unpackhi_epi64(Baeiou, Gaeiou), pi2S2, Saeiou);
+        b1 = _mm512_unpacklo_epi64(Kaeiou, Maeiou);
+        b3 = _mm512_unpackhi_epi64(Kaeiou, Maeiou);
+        Baeiou = _mm512_permutex2var_epi64(b0, pi2BG, b1);
+        Gaeiou = _mm512_permutex2var_epi64(b2, pi2BG, b3);
+        Kaeiou = _mm512_permutex2var_epi64(b0, pi2KM, b1);
+        Maeiou = _mm512_permutex2var_epi64(b2, pi2KM, b3);
+        Saeiou = _mm512_mask_blend_epi64(0x10, _mm512_permutex2var_epi64(b0, pi2S3, b1), Saeiou);
+
+        b0 = _mm512_ternarylogic_epi64(_mm512_ternarylogic_epi64(Baeiou, Gaeiou, Kaeiou, 0x96), Maeiou, Saeiou, 0x96);
+        b1 = _mm512_permutexvar_epi64(moveThetaPrev, b0);
+        b0 = _mm512_rol_epi64(_mm512_permutexvar_epi64(moveThetaNext, b0), 1);
+        b2 = _mm512_permutexvar_epi64(pi1K, _mm512_rolv_epi64(_mm512_ternarylogic_epi64(Kaeiou, b0, b1, 0x96), rhoK));
+        b3 = _mm512_permutexvar_epi64(pi1M, _mm512_rolv_epi64(_mm512_ternarylogic_epi64(Maeiou, b0, b1, 0x96), rhoM));
+        b4 = _mm512_permutexvar_epi64(pi1S, _mm512_rolv_epi64(_mm512_ternarylogic_epi64(Saeiou, b0, b1, 0x96), rhoS));
+        b5 = _mm512_permutexvar_epi64(pi1G, _mm512_rolv_epi64(_mm512_ternarylogic_epi64(Gaeiou, b0, b1, 0x96), rhoG));
+        b0 = _mm512_permutexvar_epi64(pi1B, _mm512_rolv_epi64(_mm512_ternarylogic_epi64(Baeiou, b0, b1, 0x96), rhoB));
+        Baeiou = _mm512_xor_si512(_mm512_ternarylogic_epi64(b0, b5, b2, 0xD2), K12RoundConst8);
+        Gaeiou = _mm512_ternarylogic_epi64(b5, b2, b3, 0xD2);
+        Kaeiou = _mm512_ternarylogic_epi64(b2, b3, b4, 0xD2);
+        Maeiou = _mm512_ternarylogic_epi64(b3, b4, b0, 0xD2);
+        Saeiou = _mm512_ternarylogic_epi64(b4, b0, b5, 0xD2);
+        b0 = _mm512_permutex2var_epi64(_mm512_unpacklo_epi64(Baeiou, Gaeiou), pi2S1, Saeiou);
+        b2 = _mm512_permutex2var_epi64(_mm512_unpackhi_epi64(Baeiou, Gaeiou), pi2S2, Saeiou);
+        b1 = _mm512_unpacklo_epi64(Kaeiou, Maeiou);
+        b3 = _mm512_unpackhi_epi64(Kaeiou, Maeiou);
+        Baeiou = _mm512_permutex2var_epi64(b0, pi2BG, b1);
+        Gaeiou = _mm512_permutex2var_epi64(b2, pi2BG, b3);
+        Kaeiou = _mm512_permutex2var_epi64(b0, pi2KM, b1);
+        Maeiou = _mm512_permutex2var_epi64(b2, pi2KM, b3);
+        Saeiou = _mm512_mask_blend_epi64(0x10, _mm512_permutex2var_epi64(b0, pi2S3, b1), Saeiou);
+
+        b0 = _mm512_ternarylogic_epi64(_mm512_ternarylogic_epi64(Baeiou, Gaeiou, Kaeiou, 0x96), Maeiou, Saeiou, 0x96);
+        b1 = _mm512_permutexvar_epi64(moveThetaPrev, b0);
+        b0 = _mm512_rol_epi64(_mm512_permutexvar_epi64(moveThetaNext, b0), 1);
+        b2 = _mm512_permutexvar_epi64(pi1K, _mm512_rolv_epi64(_mm512_ternarylogic_epi64(Kaeiou, b0, b1, 0x96), rhoK));
+        b3 = _mm512_permutexvar_epi64(pi1M, _mm512_rolv_epi64(_mm512_ternarylogic_epi64(Maeiou, b0, b1, 0x96), rhoM));
+        b4 = _mm512_permutexvar_epi64(pi1S, _mm512_rolv_epi64(_mm512_ternarylogic_epi64(Saeiou, b0, b1, 0x96), rhoS));
+        b5 = _mm512_permutexvar_epi64(pi1G, _mm512_rolv_epi64(_mm512_ternarylogic_epi64(Gaeiou, b0, b1, 0x96), rhoG));
+        b0 = _mm512_permutexvar_epi64(pi1B, _mm512_rolv_epi64(_mm512_ternarylogic_epi64(Baeiou, b0, b1, 0x96), rhoB));
+        Baeiou = _mm512_xor_si512(_mm512_ternarylogic_epi64(b0, b5, b2, 0xD2), K12RoundConst9);
+        Gaeiou = _mm512_ternarylogic_epi64(b5, b2, b3, 0xD2);
+        Kaeiou = _mm512_ternarylogic_epi64(b2, b3, b4, 0xD2);
+        Maeiou = _mm512_ternarylogic_epi64(b3, b4, b0, 0xD2);
+        Saeiou = _mm512_ternarylogic_epi64(b4, b0, b5, 0xD2);
+        b0 = _mm512_permutex2var_epi64(_mm512_unpacklo_epi64(Baeiou, Gaeiou), pi2S1, Saeiou);
+        b2 = _mm512_permutex2var_epi64(_mm512_unpackhi_epi64(Baeiou, Gaeiou), pi2S2, Saeiou);
+        b1 = _mm512_unpacklo_epi64(Kaeiou, Maeiou);
+        b3 = _mm512_unpackhi_epi64(Kaeiou, Maeiou);
+        Baeiou = _mm512_permutex2var_epi64(b0, pi2BG, b1);
+        Gaeiou = _mm512_permutex2var_epi64(b2, pi2BG, b3);
+        Kaeiou = _mm512_permutex2var_epi64(b0, pi2KM, b1);
+        Maeiou = _mm512_permutex2var_epi64(b2, pi2KM, b3);
+        Saeiou = _mm512_mask_blend_epi64(0x10, _mm512_permutex2var_epi64(b0, pi2S3, b1), Saeiou);
+
+        b0 = _mm512_ternarylogic_epi64(_mm512_ternarylogic_epi64(Baeiou, Gaeiou, Kaeiou, 0x96), Maeiou, Saeiou, 0x96);
+        b1 = _mm512_permutexvar_epi64(moveThetaPrev, b0);
+        b0 = _mm512_rol_epi64(_mm512_permutexvar_epi64(moveThetaNext, b0), 1);
+        b2 = _mm512_permutexvar_epi64(pi1K, _mm512_rolv_epi64(_mm512_ternarylogic_epi64(Kaeiou, b0, b1, 0x96), rhoK));
+        b3 = _mm512_permutexvar_epi64(pi1M, _mm512_rolv_epi64(_mm512_ternarylogic_epi64(Maeiou, b0, b1, 0x96), rhoM));
+        b4 = _mm512_permutexvar_epi64(pi1S, _mm512_rolv_epi64(_mm512_ternarylogic_epi64(Saeiou, b0, b1, 0x96), rhoS));
+        b5 = _mm512_permutexvar_epi64(pi1G, _mm512_rolv_epi64(_mm512_ternarylogic_epi64(Gaeiou, b0, b1, 0x96), rhoG));
+        b0 = _mm512_permutexvar_epi64(pi1B, _mm512_rolv_epi64(_mm512_ternarylogic_epi64(Baeiou, b0, b1, 0x96), rhoB));
+        Baeiou = _mm512_xor_si512(_mm512_ternarylogic_epi64(b0, b5, b2, 0xD2), K12RoundConst10);
+        Gaeiou = _mm512_ternarylogic_epi64(b5, b2, b3, 0xD2);
+        Kaeiou = _mm512_ternarylogic_epi64(b2, b3, b4, 0xD2);
+        Maeiou = _mm512_ternarylogic_epi64(b3, b4, b0, 0xD2);
+        Saeiou = _mm512_ternarylogic_epi64(b4, b0, b5, 0xD2);
+        b0 = _mm512_permutex2var_epi64(_mm512_unpacklo_epi64(Baeiou, Gaeiou), pi2S1, Saeiou);
+        b2 = _mm512_permutex2var_epi64(_mm512_unpackhi_epi64(Baeiou, Gaeiou), pi2S2, Saeiou);
+        b1 = _mm512_unpacklo_epi64(Kaeiou, Maeiou);
+        b3 = _mm512_unpackhi_epi64(Kaeiou, Maeiou);
+        Baeiou = _mm512_permutex2var_epi64(b0, pi2BG, b1);
+        Gaeiou = _mm512_permutex2var_epi64(b2, pi2BG, b3);
+        Kaeiou = _mm512_permutex2var_epi64(b0, pi2KM, b1);
+        Maeiou = _mm512_permutex2var_epi64(b2, pi2KM, b3);
+        Saeiou = _mm512_mask_blend_epi64(0x10, _mm512_permutex2var_epi64(b0, pi2S3, b1), Saeiou);
+
+        b0 = _mm512_ternarylogic_epi64(_mm512_ternarylogic_epi64(Baeiou, Gaeiou, Kaeiou, 0x96), Maeiou, Saeiou, 0x96);
+        b1 = _mm512_permutexvar_epi64(moveThetaPrev, b0);
+        b0 = _mm512_rol_epi64(_mm512_permutexvar_epi64(moveThetaNext, b0), 1);
+        b2 = _mm512_permutexvar_epi64(pi1K, _mm512_rolv_epi64(_mm512_ternarylogic_epi64(Kaeiou, b0, b1, 0x96), rhoK));
+        b3 = _mm512_permutexvar_epi64(pi1M, _mm512_rolv_epi64(_mm512_ternarylogic_epi64(Maeiou, b0, b1, 0x96), rhoM));
+        b4 = _mm512_permutexvar_epi64(pi1S, _mm512_rolv_epi64(_mm512_ternarylogic_epi64(Saeiou, b0, b1, 0x96), rhoS));
+        b5 = _mm512_permutexvar_epi64(pi1G, _mm512_rolv_epi64(_mm512_ternarylogic_epi64(Gaeiou, b0, b1, 0x96), rhoG));
+        b0 = _mm512_permutexvar_epi64(pi1B, _mm512_rolv_epi64(_mm512_ternarylogic_epi64(Baeiou, b0, b1, 0x96), rhoB));
+
+        _mm512_mask_storeu_epi64(output, 0xF, _mm512_permutex2var_epi64(_mm512_permutex2var_epi64(_mm512_unpacklo_epi64(_mm512_xor_si512(_mm512_ternarylogic_epi64(b0, b5, b2, 0xD2), K12RoundConst11), _mm512_ternarylogic_epi64(b5, b2, b3, 0xD2)), pi2S1, _mm512_ternarylogic_epi64(b4, b0, b5, 0xD2)), pi2BG, _mm512_unpacklo_epi64(_mm512_ternarylogic_epi64(b2, b3, b4, 0xD2), _mm512_ternarylogic_epi64(b3, b4, b0, 0xD2))));
+    #else
         unsigned long long Aba, Abe, Abi, Abo, Abu;
         unsigned long long Aga, Age, Agi, Ago, Agu;
         unsigned long long Aka, Ake, Aki, Ako, Aku;
@@ -682,51 +1011,51 @@ extern "C" {
         Bbi = ROL64(Di, 43);
         Bbo = ROL64(Do, 21);
         Bbu = ROL64(Du, 14);
-        Eba = Aba ^ _andn_u64(Bbe, Bbi) ^ 0x000000008000808bULL;
-        Ebe = Bbe ^ _andn_u64(Bbi, Bbo);
-        Ebi = Bbi ^ _andn_u64(Bbo, Bbu);
-        Ebo = Bbo ^ _andn_u64(Bbu, Aba);
-        Ebu = Bbu ^ _andn_u64(Aba, Bbe);
+        Eba = Aba ^ __andn_u64(Bbe, Bbi) ^ 0x000000008000808bULL;
+        Ebe = Bbe ^ __andn_u64(Bbi, Bbo);
+        Ebi = Bbi ^ __andn_u64(Bbo, Bbu);
+        Ebo = Bbo ^ __andn_u64(Bbu, Aba);
+        Ebu = Bbu ^ __andn_u64(Aba, Bbe);
         Bga = ROL64(((unsigned long long*)input)[3] ^ Do, 28);
         Bge = ROL64(Du, 20);
         Bgi = ROL64(Da, 3);
         Bgo = ROL64(De, 45);
         Bgu = ROL64(Di, 61);
-        Ega = Bga ^ _andn_u64(Bge, Bgi);
-        Ege = Bge ^ _andn_u64(Bgi, Bgo);
-        Egi = Bgi ^ _andn_u64(Bgo, Bgu);
-        Ego = Bgo ^ _andn_u64(Bgu, Bga);
-        Egu = Bgu ^ _andn_u64(Bga, Bge);
+        Ega = Bga ^ __andn_u64(Bge, Bgi);
+        Ege = Bge ^ __andn_u64(Bgi, Bgo);
+        Egi = Bgi ^ __andn_u64(Bgo, Bgu);
+        Ego = Bgo ^ __andn_u64(Bgu, Bga);
+        Egu = Bgu ^ __andn_u64(Bga, Bge);
         Bka = ROL64(((unsigned long long*)input)[1] ^ De, 1);
         Bke = ROL64(((unsigned long long*)input)[7] ^ Di, 6);
         Bki = ROL64(Do, 25);
         Bko = ROL64(Du, 8);
         Bku = ROL64(Da ^ 0x8000000000000000, 18);
-        Eka = Bka ^ _andn_u64(Bke, Bki);
-        Eke = Bke ^ _andn_u64(Bki, Bko);
-        Eki = Bki ^ _andn_u64(Bko, Bku);
-        Eko = Bko ^ _andn_u64(Bku, Bka);
-        Eku = Bku ^ _andn_u64(Bka, Bke);
+        Eka = Bka ^ __andn_u64(Bke, Bki);
+        Eke = Bke ^ __andn_u64(Bki, Bko);
+        Eki = Bki ^ __andn_u64(Bko, Bku);
+        Eko = Bko ^ __andn_u64(Bku, Bka);
+        Eku = Bku ^ __andn_u64(Bka, Bke);
         Bma = ROL64(((unsigned long long*)input)[4] ^ Du, 27);
         Bme = ROL64(((unsigned long long*)input)[5] ^ Da, 36);
         Bmi = ROL64(De, 10);
         Bmo = ROL64(Di, 15);
         Bmu = ROL64(Do, 56);
-        Ema = Bma ^ _andn_u64(Bme, Bmi);
-        Eme = Bme ^ _andn_u64(Bmi, Bmo);
-        Emi = Bmi ^ _andn_u64(Bmo, Bmu);
-        Emo = Bmo ^ _andn_u64(Bmu, Bma);
-        Emu = Bmu ^ _andn_u64(Bma, Bme);
+        Ema = Bma ^ __andn_u64(Bme, Bmi);
+        Eme = Bme ^ __andn_u64(Bmi, Bmo);
+        Emi = Bmi ^ __andn_u64(Bmo, Bmu);
+        Emo = Bmo ^ __andn_u64(Bmu, Bma);
+        Emu = Bmu ^ __andn_u64(Bma, Bme);
         Bsa = ROL64(((unsigned long long*)input)[2] ^ Di, 62);
         Bse = ROL64(Do ^ 0x0700, 55);
         Bsi = ROL64(Du, 39);
         Bso = ROL64(Da, 41);
         Bsu = ROL64(De, 2);
-        Esa = Bsa ^ _andn_u64(Bse, Bsi);
-        Ese = Bse ^ _andn_u64(Bsi, Bso);
-        Esi = Bsi ^ _andn_u64(Bso, Bsu);
-        Eso = Bso ^ _andn_u64(Bsu, Bsa);
-        Esu = Bsu ^ _andn_u64(Bsa, Bse);
+        Esa = Bsa ^ __andn_u64(Bse, Bsi);
+        Ese = Bse ^ __andn_u64(Bsi, Bso);
+        Esi = Bsi ^ __andn_u64(Bso, Bsu);
+        Eso = Bso ^ __andn_u64(Bsu, Bsa);
+        Esu = Bsu ^ __andn_u64(Bsa, Bse);
         Ca = Eba ^ Ega ^ Eka ^ Ema ^ Esa;
         Ce = Ebe ^ Ege ^ Eke ^ Eme ^ Ese;
         Ci = Ebi ^ Egi ^ Eki ^ Emi ^ Esi;
@@ -743,51 +1072,51 @@ extern "C" {
         Bbi = ROL64(Eki ^ Di, 43);
         Bbo = ROL64(Emo ^ Do, 21);
         Bbu = ROL64(Esu ^ Du, 14);
-        Aba = Eba ^ _andn_u64(Bbe, Bbi) ^ 0x800000000000008bULL;
-        Abe = Bbe ^ _andn_u64(Bbi, Bbo);
-        Abi = Bbi ^ _andn_u64(Bbo, Bbu);
-        Abo = Bbo ^ _andn_u64(Bbu, Eba);
-        Abu = Bbu ^ _andn_u64(Eba, Bbe);
+        Aba = Eba ^ __andn_u64(Bbe, Bbi) ^ 0x800000000000008bULL;
+        Abe = Bbe ^ __andn_u64(Bbi, Bbo);
+        Abi = Bbi ^ __andn_u64(Bbo, Bbu);
+        Abo = Bbo ^ __andn_u64(Bbu, Eba);
+        Abu = Bbu ^ __andn_u64(Eba, Bbe);
         Bga = ROL64(Ebo ^ Do, 28);
         Bge = ROL64(Egu ^ Du, 20);
         Bgi = ROL64(Eka ^ Da, 3);
         Bgo = ROL64(Eme ^ De, 45);
         Bgu = ROL64(Esi ^ Di, 61);
-        Aga = Bga ^ _andn_u64(Bge, Bgi);
-        Age = Bge ^ _andn_u64(Bgi, Bgo);
-        Agi = Bgi ^ _andn_u64(Bgo, Bgu);
-        Ago = Bgo ^ _andn_u64(Bgu, Bga);
-        Agu = Bgu ^ _andn_u64(Bga, Bge);
+        Aga = Bga ^ __andn_u64(Bge, Bgi);
+        Age = Bge ^ __andn_u64(Bgi, Bgo);
+        Agi = Bgi ^ __andn_u64(Bgo, Bgu);
+        Ago = Bgo ^ __andn_u64(Bgu, Bga);
+        Agu = Bgu ^ __andn_u64(Bga, Bge);
         Bka = ROL64(Ebe ^ De, 1);
         Bke = ROL64(Egi ^ Di, 6);
         Bki = ROL64(Eko ^ Do, 25);
         Bko = ROL64(Emu ^ Du, 8);
         Bku = ROL64(Esa ^ Da, 18);
-        Aka = Bka ^ _andn_u64(Bke, Bki);
-        Ake = Bke ^ _andn_u64(Bki, Bko);
-        Aki = Bki ^ _andn_u64(Bko, Bku);
-        Ako = Bko ^ _andn_u64(Bku, Bka);
-        Aku = Bku ^ _andn_u64(Bka, Bke);
+        Aka = Bka ^ __andn_u64(Bke, Bki);
+        Ake = Bke ^ __andn_u64(Bki, Bko);
+        Aki = Bki ^ __andn_u64(Bko, Bku);
+        Ako = Bko ^ __andn_u64(Bku, Bka);
+        Aku = Bku ^ __andn_u64(Bka, Bke);
         Bma = ROL64(Ebu ^ Du, 27);
         Bme = ROL64(Ega ^ Da, 36);
         Bmi = ROL64(Eke ^ De, 10);
         Bmo = ROL64(Emi ^ Di, 15);
         Bmu = ROL64(Eso ^ Do, 56);
-        Ama = Bma ^ _andn_u64(Bme, Bmi);
-        Ame = Bme ^ _andn_u64(Bmi, Bmo);
-        Ami = Bmi ^ _andn_u64(Bmo, Bmu);
-        Amo = Bmo ^ _andn_u64(Bmu, Bma);
-        Amu = Bmu ^ _andn_u64(Bma, Bme);
+        Ama = Bma ^ __andn_u64(Bme, Bmi);
+        Ame = Bme ^ __andn_u64(Bmi, Bmo);
+        Ami = Bmi ^ __andn_u64(Bmo, Bmu);
+        Amo = Bmo ^ __andn_u64(Bmu, Bma);
+        Amu = Bmu ^ __andn_u64(Bma, Bme);
         Bsa = ROL64(Ebi ^ Di, 62);
         Bse = ROL64(Ego ^ Do, 55);
         Bsi = ROL64(Eku ^ Du, 39);
         Bso = ROL64(Ema ^ Da, 41);
         Bsu = ROL64(Ese ^ De, 2);
-        Asa = Bsa ^ _andn_u64(Bse, Bsi);
-        Ase = Bse ^ _andn_u64(Bsi, Bso);
-        Asi = Bsi ^ _andn_u64(Bso, Bsu);
-        Aso = Bso ^ _andn_u64(Bsu, Bsa);
-        Asu = Bsu ^ _andn_u64(Bsa, Bse);
+        Asa = Bsa ^ __andn_u64(Bse, Bsi);
+        Ase = Bse ^ __andn_u64(Bsi, Bso);
+        Asi = Bsi ^ __andn_u64(Bso, Bsu);
+        Aso = Bso ^ __andn_u64(Bsu, Bsa);
+        Asu = Bsu ^ __andn_u64(Bsa, Bse);
         Ca = Aba ^ Aga ^ Aka ^ Ama ^ Asa;
         Ce = Abe ^ Age ^ Ake ^ Ame ^ Ase;
         Ci = Abi ^ Agi ^ Aki ^ Ami ^ Asi;
@@ -804,51 +1133,51 @@ extern "C" {
         Bbi = ROL64(Aki ^ Di, 43);
         Bbo = ROL64(Amo ^ Do, 21);
         Bbu = ROL64(Asu ^ Du, 14);
-        Eba = Aba ^ _andn_u64(Bbe, Bbi) ^ 0x8000000000008089ULL;
-        Ebe = Bbe ^ _andn_u64(Bbi, Bbo);
-        Ebi = Bbi ^ _andn_u64(Bbo, Bbu);
-        Ebo = Bbo ^ _andn_u64(Bbu, Aba);
-        Ebu = Bbu ^ _andn_u64(Aba, Bbe);
+        Eba = Aba ^ __andn_u64(Bbe, Bbi) ^ 0x8000000000008089ULL;
+        Ebe = Bbe ^ __andn_u64(Bbi, Bbo);
+        Ebi = Bbi ^ __andn_u64(Bbo, Bbu);
+        Ebo = Bbo ^ __andn_u64(Bbu, Aba);
+        Ebu = Bbu ^ __andn_u64(Aba, Bbe);
         Bga = ROL64(Abo ^ Do, 28);
         Bge = ROL64(Agu ^ Du, 20);
         Bgi = ROL64(Aka ^ Da, 3);
         Bgo = ROL64(Ame ^ De, 45);
         Bgu = ROL64(Asi ^ Di, 61);
-        Ega = Bga ^ _andn_u64(Bge, Bgi);
-        Ege = Bge ^ _andn_u64(Bgi, Bgo);
-        Egi = Bgi ^ _andn_u64(Bgo, Bgu);
-        Ego = Bgo ^ _andn_u64(Bgu, Bga);
-        Egu = Bgu ^ _andn_u64(Bga, Bge);
+        Ega = Bga ^ __andn_u64(Bge, Bgi);
+        Ege = Bge ^ __andn_u64(Bgi, Bgo);
+        Egi = Bgi ^ __andn_u64(Bgo, Bgu);
+        Ego = Bgo ^ __andn_u64(Bgu, Bga);
+        Egu = Bgu ^ __andn_u64(Bga, Bge);
         Bka = ROL64(Abe ^ De, 1);
         Bke = ROL64(Agi ^ Di, 6);
         Bki = ROL64(Ako ^ Do, 25);
         Bko = ROL64(Amu ^ Du, 8);
         Bku = ROL64(Asa ^ Da, 18);
-        Eka = Bka ^ _andn_u64(Bke, Bki);
-        Eke = Bke ^ _andn_u64(Bki, Bko);
-        Eki = Bki ^ _andn_u64(Bko, Bku);
-        Eko = Bko ^ _andn_u64(Bku, Bka);
-        Eku = Bku ^ _andn_u64(Bka, Bke);
+        Eka = Bka ^ __andn_u64(Bke, Bki);
+        Eke = Bke ^ __andn_u64(Bki, Bko);
+        Eki = Bki ^ __andn_u64(Bko, Bku);
+        Eko = Bko ^ __andn_u64(Bku, Bka);
+        Eku = Bku ^ __andn_u64(Bka, Bke);
         Bma = ROL64(Abu ^ Du, 27);
         Bme = ROL64(Aga ^ Da, 36);
         Bmi = ROL64(Ake ^ De, 10);
         Bmo = ROL64(Ami ^ Di, 15);
         Bmu = ROL64(Aso ^ Do, 56);
-        Ema = Bma ^ _andn_u64(Bme, Bmi);
-        Eme = Bme ^ _andn_u64(Bmi, Bmo);
-        Emi = Bmi ^ _andn_u64(Bmo, Bmu);
-        Emo = Bmo ^ _andn_u64(Bmu, Bma);
-        Emu = Bmu ^ _andn_u64(Bma, Bme);
+        Ema = Bma ^ __andn_u64(Bme, Bmi);
+        Eme = Bme ^ __andn_u64(Bmi, Bmo);
+        Emi = Bmi ^ __andn_u64(Bmo, Bmu);
+        Emo = Bmo ^ __andn_u64(Bmu, Bma);
+        Emu = Bmu ^ __andn_u64(Bma, Bme);
         Bsa = ROL64(Abi ^ Di, 62);
         Bse = ROL64(Ago ^ Do, 55);
         Bsi = ROL64(Aku ^ Du, 39);
         Bso = ROL64(Ama ^ Da, 41);
         Bsu = ROL64(Ase ^ De, 2);
-        Esa = Bsa ^ _andn_u64(Bse, Bsi);
-        Ese = Bse ^ _andn_u64(Bsi, Bso);
-        Esi = Bsi ^ _andn_u64(Bso, Bsu);
-        Eso = Bso ^ _andn_u64(Bsu, Bsa);
-        Esu = Bsu ^ _andn_u64(Bsa, Bse);
+        Esa = Bsa ^ __andn_u64(Bse, Bsi);
+        Ese = Bse ^ __andn_u64(Bsi, Bso);
+        Esi = Bsi ^ __andn_u64(Bso, Bsu);
+        Eso = Bso ^ __andn_u64(Bsu, Bsa);
+        Esu = Bsu ^ __andn_u64(Bsa, Bse);
         Ca = Eba ^ Ega ^ Eka ^ Ema ^ Esa;
         Ce = Ebe ^ Ege ^ Eke ^ Eme ^ Ese;
         Ci = Ebi ^ Egi ^ Eki ^ Emi ^ Esi;
@@ -865,51 +1194,51 @@ extern "C" {
         Bbi = ROL64(Eki ^ Di, 43);
         Bbo = ROL64(Emo ^ Do, 21);
         Bbu = ROL64(Esu ^ Du, 14);
-        Aba = Eba ^ _andn_u64(Bbe, Bbi) ^ 0x8000000000008003ULL;
-        Abe = Bbe ^ _andn_u64(Bbi, Bbo);
-        Abi = Bbi ^ _andn_u64(Bbo, Bbu);
-        Abo = Bbo ^ _andn_u64(Bbu, Eba);
-        Abu = Bbu ^ _andn_u64(Eba, Bbe);
+        Aba = Eba ^ __andn_u64(Bbe, Bbi) ^ 0x8000000000008003ULL;
+        Abe = Bbe ^ __andn_u64(Bbi, Bbo);
+        Abi = Bbi ^ __andn_u64(Bbo, Bbu);
+        Abo = Bbo ^ __andn_u64(Bbu, Eba);
+        Abu = Bbu ^ __andn_u64(Eba, Bbe);
         Bga = ROL64(Ebo ^ Do, 28);
         Bge = ROL64(Egu ^ Du, 20);
         Bgi = ROL64(Eka ^ Da, 3);
         Bgo = ROL64(Eme ^ De, 45);
         Bgu = ROL64(Esi ^ Di, 61);
-        Aga = Bga ^ _andn_u64(Bge, Bgi);
-        Age = Bge ^ _andn_u64(Bgi, Bgo);
-        Agi = Bgi ^ _andn_u64(Bgo, Bgu);
-        Ago = Bgo ^ _andn_u64(Bgu, Bga);
-        Agu = Bgu ^ _andn_u64(Bga, Bge);
+        Aga = Bga ^ __andn_u64(Bge, Bgi);
+        Age = Bge ^ __andn_u64(Bgi, Bgo);
+        Agi = Bgi ^ __andn_u64(Bgo, Bgu);
+        Ago = Bgo ^ __andn_u64(Bgu, Bga);
+        Agu = Bgu ^ __andn_u64(Bga, Bge);
         Bka = ROL64(Ebe ^ De, 1);
         Bke = ROL64(Egi ^ Di, 6);
         Bki = ROL64(Eko ^ Do, 25);
         Bko = ROL64(Emu ^ Du, 8);
         Bku = ROL64(Esa ^ Da, 18);
-        Aka = Bka ^ _andn_u64(Bke, Bki);
-        Ake = Bke ^ _andn_u64(Bki, Bko);
-        Aki = Bki ^ _andn_u64(Bko, Bku);
-        Ako = Bko ^ _andn_u64(Bku, Bka);
-        Aku = Bku ^ _andn_u64(Bka, Bke);
+        Aka = Bka ^ __andn_u64(Bke, Bki);
+        Ake = Bke ^ __andn_u64(Bki, Bko);
+        Aki = Bki ^ __andn_u64(Bko, Bku);
+        Ako = Bko ^ __andn_u64(Bku, Bka);
+        Aku = Bku ^ __andn_u64(Bka, Bke);
         Bma = ROL64(Ebu ^ Du, 27);
         Bme = ROL64(Ega ^ Da, 36);
         Bmi = ROL64(Eke ^ De, 10);
         Bmo = ROL64(Emi ^ Di, 15);
         Bmu = ROL64(Eso ^ Do, 56);
-        Ama = Bma ^ _andn_u64(Bme, Bmi);
-        Ame = Bme ^ _andn_u64(Bmi, Bmo);
-        Ami = Bmi ^ _andn_u64(Bmo, Bmu);
-        Amo = Bmo ^ _andn_u64(Bmu, Bma);
-        Amu = Bmu ^ _andn_u64(Bma, Bme);
+        Ama = Bma ^ __andn_u64(Bme, Bmi);
+        Ame = Bme ^ __andn_u64(Bmi, Bmo);
+        Ami = Bmi ^ __andn_u64(Bmo, Bmu);
+        Amo = Bmo ^ __andn_u64(Bmu, Bma);
+        Amu = Bmu ^ __andn_u64(Bma, Bme);
         Bsa = ROL64(Ebi ^ Di, 62);
         Bse = ROL64(Ego ^ Do, 55);
         Bsi = ROL64(Eku ^ Du, 39);
         Bso = ROL64(Ema ^ Da, 41);
         Bsu = ROL64(Ese ^ De, 2);
-        Asa = Bsa ^ _andn_u64(Bse, Bsi);
-        Ase = Bse ^ _andn_u64(Bsi, Bso);
-        Asi = Bsi ^ _andn_u64(Bso, Bsu);
-        Aso = Bso ^ _andn_u64(Bsu, Bsa);
-        Asu = Bsu ^ _andn_u64(Bsa, Bse);
+        Asa = Bsa ^ __andn_u64(Bse, Bsi);
+        Ase = Bse ^ __andn_u64(Bsi, Bso);
+        Asi = Bsi ^ __andn_u64(Bso, Bsu);
+        Aso = Bso ^ __andn_u64(Bsu, Bsa);
+        Asu = Bsu ^ __andn_u64(Bsa, Bse);
         Ca = Aba ^ Aga ^ Aka ^ Ama ^ Asa;
         Ce = Abe ^ Age ^ Ake ^ Ame ^ Ase;
         Ci = Abi ^ Agi ^ Aki ^ Ami ^ Asi;
@@ -926,51 +1255,51 @@ extern "C" {
         Bbi = ROL64(Aki ^ Di, 43);
         Bbo = ROL64(Amo ^ Do, 21);
         Bbu = ROL64(Asu ^ Du, 14);
-        Eba = Aba ^ _andn_u64(Bbe, Bbi) ^ 0x8000000000008002ULL;
-        Ebe = Bbe ^ _andn_u64(Bbi, Bbo);
-        Ebi = Bbi ^ _andn_u64(Bbo, Bbu);
-        Ebo = Bbo ^ _andn_u64(Bbu, Aba);
-        Ebu = Bbu ^ _andn_u64(Aba, Bbe);
+        Eba = Aba ^ __andn_u64(Bbe, Bbi) ^ 0x8000000000008002ULL;
+        Ebe = Bbe ^ __andn_u64(Bbi, Bbo);
+        Ebi = Bbi ^ __andn_u64(Bbo, Bbu);
+        Ebo = Bbo ^ __andn_u64(Bbu, Aba);
+        Ebu = Bbu ^ __andn_u64(Aba, Bbe);
         Bga = ROL64(Abo ^ Do, 28);
         Bge = ROL64(Agu ^ Du, 20);
         Bgi = ROL64(Aka ^ Da, 3);
         Bgo = ROL64(Ame ^ De, 45);
         Bgu = ROL64(Asi ^ Di, 61);
-        Ega = Bga ^ _andn_u64(Bge, Bgi);
-        Ege = Bge ^ _andn_u64(Bgi, Bgo);
-        Egi = Bgi ^ _andn_u64(Bgo, Bgu);
-        Ego = Bgo ^ _andn_u64(Bgu, Bga);
-        Egu = Bgu ^ _andn_u64(Bga, Bge);
+        Ega = Bga ^ __andn_u64(Bge, Bgi);
+        Ege = Bge ^ __andn_u64(Bgi, Bgo);
+        Egi = Bgi ^ __andn_u64(Bgo, Bgu);
+        Ego = Bgo ^ __andn_u64(Bgu, Bga);
+        Egu = Bgu ^ __andn_u64(Bga, Bge);
         Bka = ROL64(Abe ^ De, 1);
         Bke = ROL64(Agi ^ Di, 6);
         Bki = ROL64(Ako ^ Do, 25);
         Bko = ROL64(Amu ^ Du, 8);
         Bku = ROL64(Asa ^ Da, 18);
-        Eka = Bka ^ _andn_u64(Bke, Bki);
-        Eke = Bke ^ _andn_u64(Bki, Bko);
-        Eki = Bki ^ _andn_u64(Bko, Bku);
-        Eko = Bko ^ _andn_u64(Bku, Bka);
-        Eku = Bku ^ _andn_u64(Bka, Bke);
+        Eka = Bka ^ __andn_u64(Bke, Bki);
+        Eke = Bke ^ __andn_u64(Bki, Bko);
+        Eki = Bki ^ __andn_u64(Bko, Bku);
+        Eko = Bko ^ __andn_u64(Bku, Bka);
+        Eku = Bku ^ __andn_u64(Bka, Bke);
         Bma = ROL64(Abu ^ Du, 27);
         Bme = ROL64(Aga ^ Da, 36);
         Bmi = ROL64(Ake ^ De, 10);
         Bmo = ROL64(Ami ^ Di, 15);
         Bmu = ROL64(Aso ^ Do, 56);
-        Ema = Bma ^ _andn_u64(Bme, Bmi);
-        Eme = Bme ^ _andn_u64(Bmi, Bmo);
-        Emi = Bmi ^ _andn_u64(Bmo, Bmu);
-        Emo = Bmo ^ _andn_u64(Bmu, Bma);
-        Emu = Bmu ^ _andn_u64(Bma, Bme);
+        Ema = Bma ^ __andn_u64(Bme, Bmi);
+        Eme = Bme ^ __andn_u64(Bmi, Bmo);
+        Emi = Bmi ^ __andn_u64(Bmo, Bmu);
+        Emo = Bmo ^ __andn_u64(Bmu, Bma);
+        Emu = Bmu ^ __andn_u64(Bma, Bme);
         Bsa = ROL64(Abi ^ Di, 62);
         Bse = ROL64(Ago ^ Do, 55);
         Bsi = ROL64(Aku ^ Du, 39);
         Bso = ROL64(Ama ^ Da, 41);
         Bsu = ROL64(Ase ^ De, 2);
-        Esa = Bsa ^ _andn_u64(Bse, Bsi);
-        Ese = Bse ^ _andn_u64(Bsi, Bso);
-        Esi = Bsi ^ _andn_u64(Bso, Bsu);
-        Eso = Bso ^ _andn_u64(Bsu, Bsa);
-        Esu = Bsu ^ _andn_u64(Bsa, Bse);
+        Esa = Bsa ^ __andn_u64(Bse, Bsi);
+        Ese = Bse ^ __andn_u64(Bsi, Bso);
+        Esi = Bsi ^ __andn_u64(Bso, Bsu);
+        Eso = Bso ^ __andn_u64(Bsu, Bsa);
+        Esu = Bsu ^ __andn_u64(Bsa, Bse);
         Ca = Eba ^ Ega ^ Eka ^ Ema ^ Esa;
         Ce = Ebe ^ Ege ^ Eke ^ Eme ^ Ese;
         Ci = Ebi ^ Egi ^ Eki ^ Emi ^ Esi;
@@ -987,51 +1316,51 @@ extern "C" {
         Bbi = ROL64(Eki ^ Di, 43);
         Bbo = ROL64(Emo ^ Do, 21);
         Bbu = ROL64(Esu ^ Du, 14);
-        Aba = Eba ^ _andn_u64(Bbe, Bbi) ^ 0x8000000000000080ULL;
-        Abe = Bbe ^ _andn_u64(Bbi, Bbo);
-        Abi = Bbi ^ _andn_u64(Bbo, Bbu);
-        Abo = Bbo ^ _andn_u64(Bbu, Eba);
-        Abu = Bbu ^ _andn_u64(Eba, Bbe);
+        Aba = Eba ^ __andn_u64(Bbe, Bbi) ^ 0x8000000000000080ULL;
+        Abe = Bbe ^ __andn_u64(Bbi, Bbo);
+        Abi = Bbi ^ __andn_u64(Bbo, Bbu);
+        Abo = Bbo ^ __andn_u64(Bbu, Eba);
+        Abu = Bbu ^ __andn_u64(Eba, Bbe);
         Bga = ROL64(Ebo ^ Do, 28);
         Bge = ROL64(Egu ^ Du, 20);
         Bgi = ROL64(Eka ^ Da, 3);
         Bgo = ROL64(Eme ^ De, 45);
         Bgu = ROL64(Esi ^ Di, 61);
-        Aga = Bga ^ _andn_u64(Bge, Bgi);
-        Age = Bge ^ _andn_u64(Bgi, Bgo);
-        Agi = Bgi ^ _andn_u64(Bgo, Bgu);
-        Ago = Bgo ^ _andn_u64(Bgu, Bga);
-        Agu = Bgu ^ _andn_u64(Bga, Bge);
+        Aga = Bga ^ __andn_u64(Bge, Bgi);
+        Age = Bge ^ __andn_u64(Bgi, Bgo);
+        Agi = Bgi ^ __andn_u64(Bgo, Bgu);
+        Ago = Bgo ^ __andn_u64(Bgu, Bga);
+        Agu = Bgu ^ __andn_u64(Bga, Bge);
         Bka = ROL64(Ebe ^ De, 1);
         Bke = ROL64(Egi ^ Di, 6);
         Bki = ROL64(Eko ^ Do, 25);
         Bko = ROL64(Emu ^ Du, 8);
         Bku = ROL64(Esa ^ Da, 18);
-        Aka = Bka ^ _andn_u64(Bke, Bki);
-        Ake = Bke ^ _andn_u64(Bki, Bko);
-        Aki = Bki ^ _andn_u64(Bko, Bku);
-        Ako = Bko ^ _andn_u64(Bku, Bka);
-        Aku = Bku ^ _andn_u64(Bka, Bke);
+        Aka = Bka ^ __andn_u64(Bke, Bki);
+        Ake = Bke ^ __andn_u64(Bki, Bko);
+        Aki = Bki ^ __andn_u64(Bko, Bku);
+        Ako = Bko ^ __andn_u64(Bku, Bka);
+        Aku = Bku ^ __andn_u64(Bka, Bke);
         Bma = ROL64(Ebu ^ Du, 27);
         Bme = ROL64(Ega ^ Da, 36);
         Bmi = ROL64(Eke ^ De, 10);
         Bmo = ROL64(Emi ^ Di, 15);
         Bmu = ROL64(Eso ^ Do, 56);
-        Ama = Bma ^ _andn_u64(Bme, Bmi);
-        Ame = Bme ^ _andn_u64(Bmi, Bmo);
-        Ami = Bmi ^ _andn_u64(Bmo, Bmu);
-        Amo = Bmo ^ _andn_u64(Bmu, Bma);
-        Amu = Bmu ^ _andn_u64(Bma, Bme);
+        Ama = Bma ^ __andn_u64(Bme, Bmi);
+        Ame = Bme ^ __andn_u64(Bmi, Bmo);
+        Ami = Bmi ^ __andn_u64(Bmo, Bmu);
+        Amo = Bmo ^ __andn_u64(Bmu, Bma);
+        Amu = Bmu ^ __andn_u64(Bma, Bme);
         Bsa = ROL64(Ebi ^ Di, 62);
         Bse = ROL64(Ego ^ Do, 55);
         Bsi = ROL64(Eku ^ Du, 39);
         Bso = ROL64(Ema ^ Da, 41);
         Bsu = ROL64(Ese ^ De, 2);
-        Asa = Bsa ^ _andn_u64(Bse, Bsi);
-        Ase = Bse ^ _andn_u64(Bsi, Bso);
-        Asi = Bsi ^ _andn_u64(Bso, Bsu);
-        Aso = Bso ^ _andn_u64(Bsu, Bsa);
-        Asu = Bsu ^ _andn_u64(Bsa, Bse);
+        Asa = Bsa ^ __andn_u64(Bse, Bsi);
+        Ase = Bse ^ __andn_u64(Bsi, Bso);
+        Asi = Bsi ^ __andn_u64(Bso, Bsu);
+        Aso = Bso ^ __andn_u64(Bsu, Bsa);
+        Asu = Bsu ^ __andn_u64(Bsa, Bse);
         Ca = Aba ^ Aga ^ Aka ^ Ama ^ Asa;
         Ce = Abe ^ Age ^ Ake ^ Ame ^ Ase;
         Ci = Abi ^ Agi ^ Aki ^ Ami ^ Asi;
@@ -1048,51 +1377,51 @@ extern "C" {
         Bbi = ROL64(Aki ^ Di, 43);
         Bbo = ROL64(Amo ^ Do, 21);
         Bbu = ROL64(Asu ^ Du, 14);
-        Eba = Aba ^ _andn_u64(Bbe, Bbi) ^ 0x000000000000800aULL;
-        Ebe = Bbe ^ _andn_u64(Bbi, Bbo);
-        Ebi = Bbi ^ _andn_u64(Bbo, Bbu);
-        Ebo = Bbo ^ _andn_u64(Bbu, Aba);
-        Ebu = Bbu ^ _andn_u64(Aba, Bbe);
+        Eba = Aba ^ __andn_u64(Bbe, Bbi) ^ 0x000000000000800aULL;
+        Ebe = Bbe ^ __andn_u64(Bbi, Bbo);
+        Ebi = Bbi ^ __andn_u64(Bbo, Bbu);
+        Ebo = Bbo ^ __andn_u64(Bbu, Aba);
+        Ebu = Bbu ^ __andn_u64(Aba, Bbe);
         Bga = ROL64(Abo ^ Do, 28);
         Bge = ROL64(Agu ^ Du, 20);
         Bgi = ROL64(Aka ^ Da, 3);
         Bgo = ROL64(Ame ^ De, 45);
         Bgu = ROL64(Asi ^ Di, 61);
-        Ega = Bga ^ _andn_u64(Bge, Bgi);
-        Ege = Bge ^ _andn_u64(Bgi, Bgo);
-        Egi = Bgi ^ _andn_u64(Bgo, Bgu);
-        Ego = Bgo ^ _andn_u64(Bgu, Bga);
-        Egu = Bgu ^ _andn_u64(Bga, Bge);
+        Ega = Bga ^ __andn_u64(Bge, Bgi);
+        Ege = Bge ^ __andn_u64(Bgi, Bgo);
+        Egi = Bgi ^ __andn_u64(Bgo, Bgu);
+        Ego = Bgo ^ __andn_u64(Bgu, Bga);
+        Egu = Bgu ^ __andn_u64(Bga, Bge);
         Bka = ROL64(Abe ^ De, 1);
         Bke = ROL64(Agi ^ Di, 6);
         Bki = ROL64(Ako ^ Do, 25);
         Bko = ROL64(Amu ^ Du, 8);
         Bku = ROL64(Asa ^ Da, 18);
-        Eka = Bka ^ _andn_u64(Bke, Bki);
-        Eke = Bke ^ _andn_u64(Bki, Bko);
-        Eki = Bki ^ _andn_u64(Bko, Bku);
-        Eko = Bko ^ _andn_u64(Bku, Bka);
-        Eku = Bku ^ _andn_u64(Bka, Bke);
+        Eka = Bka ^ __andn_u64(Bke, Bki);
+        Eke = Bke ^ __andn_u64(Bki, Bko);
+        Eki = Bki ^ __andn_u64(Bko, Bku);
+        Eko = Bko ^ __andn_u64(Bku, Bka);
+        Eku = Bku ^ __andn_u64(Bka, Bke);
         Bma = ROL64(Abu ^ Du, 27);
         Bme = ROL64(Aga ^ Da, 36);
         Bmi = ROL64(Ake ^ De, 10);
         Bmo = ROL64(Ami ^ Di, 15);
         Bmu = ROL64(Aso ^ Do, 56);
-        Ema = Bma ^ _andn_u64(Bme, Bmi);
-        Eme = Bme ^ _andn_u64(Bmi, Bmo);
-        Emi = Bmi ^ _andn_u64(Bmo, Bmu);
-        Emo = Bmo ^ _andn_u64(Bmu, Bma);
-        Emu = Bmu ^ _andn_u64(Bma, Bme);
+        Ema = Bma ^ __andn_u64(Bme, Bmi);
+        Eme = Bme ^ __andn_u64(Bmi, Bmo);
+        Emi = Bmi ^ __andn_u64(Bmo, Bmu);
+        Emo = Bmo ^ __andn_u64(Bmu, Bma);
+        Emu = Bmu ^ __andn_u64(Bma, Bme);
         Bsa = ROL64(Abi ^ Di, 62);
         Bse = ROL64(Ago ^ Do, 55);
         Bsi = ROL64(Aku ^ Du, 39);
         Bso = ROL64(Ama ^ Da, 41);
         Bsu = ROL64(Ase ^ De, 2);
-        Esa = Bsa ^ _andn_u64(Bse, Bsi);
-        Ese = Bse ^ _andn_u64(Bsi, Bso);
-        Esi = Bsi ^ _andn_u64(Bso, Bsu);
-        Eso = Bso ^ _andn_u64(Bsu, Bsa);
-        Esu = Bsu ^ _andn_u64(Bsa, Bse);
+        Esa = Bsa ^ __andn_u64(Bse, Bsi);
+        Ese = Bse ^ __andn_u64(Bsi, Bso);
+        Esi = Bsi ^ __andn_u64(Bso, Bsu);
+        Eso = Bso ^ __andn_u64(Bsu, Bsa);
+        Esu = Bsu ^ __andn_u64(Bsa, Bse);
         Ca = Eba ^ Ega ^ Eka ^ Ema ^ Esa;
         Ce = Ebe ^ Ege ^ Eke ^ Eme ^ Ese;
         Ci = Ebi ^ Egi ^ Eki ^ Emi ^ Esi;
@@ -1109,51 +1438,51 @@ extern "C" {
         Bbi = ROL64(Eki ^ Di, 43);
         Bbo = ROL64(Emo ^ Do, 21);
         Bbu = ROL64(Esu ^ Du, 14);
-        Aba = Eba ^ _andn_u64(Bbe, Bbi) ^ 0x800000008000000aULL;
-        Abe = Bbe ^ _andn_u64(Bbi, Bbo);
-        Abi = Bbi ^ _andn_u64(Bbo, Bbu);
-        Abo = Bbo ^ _andn_u64(Bbu, Eba);
-        Abu = Bbu ^ _andn_u64(Eba, Bbe);
+        Aba = Eba ^ __andn_u64(Bbe, Bbi) ^ 0x800000008000000aULL;
+        Abe = Bbe ^ __andn_u64(Bbi, Bbo);
+        Abi = Bbi ^ __andn_u64(Bbo, Bbu);
+        Abo = Bbo ^ __andn_u64(Bbu, Eba);
+        Abu = Bbu ^ __andn_u64(Eba, Bbe);
         Bga = ROL64(Ebo ^ Do, 28);
         Bge = ROL64(Egu ^ Du, 20);
         Bgi = ROL64(Eka ^ Da, 3);
         Bgo = ROL64(Eme ^ De, 45);
         Bgu = ROL64(Esi ^ Di, 61);
-        Aga = Bga ^ _andn_u64(Bge, Bgi);
-        Age = Bge ^ _andn_u64(Bgi, Bgo);
-        Agi = Bgi ^ _andn_u64(Bgo, Bgu);
-        Ago = Bgo ^ _andn_u64(Bgu, Bga);
-        Agu = Bgu ^ _andn_u64(Bga, Bge);
+        Aga = Bga ^ __andn_u64(Bge, Bgi);
+        Age = Bge ^ __andn_u64(Bgi, Bgo);
+        Agi = Bgi ^ __andn_u64(Bgo, Bgu);
+        Ago = Bgo ^ __andn_u64(Bgu, Bga);
+        Agu = Bgu ^ __andn_u64(Bga, Bge);
         Bka = ROL64(Ebe ^ De, 1);
         Bke = ROL64(Egi ^ Di, 6);
         Bki = ROL64(Eko ^ Do, 25);
         Bko = ROL64(Emu ^ Du, 8);
         Bku = ROL64(Esa ^ Da, 18);
-        Aka = Bka ^ _andn_u64(Bke, Bki);
-        Ake = Bke ^ _andn_u64(Bki, Bko);
-        Aki = Bki ^ _andn_u64(Bko, Bku);
-        Ako = Bko ^ _andn_u64(Bku, Bka);
-        Aku = Bku ^ _andn_u64(Bka, Bke);
+        Aka = Bka ^ __andn_u64(Bke, Bki);
+        Ake = Bke ^ __andn_u64(Bki, Bko);
+        Aki = Bki ^ __andn_u64(Bko, Bku);
+        Ako = Bko ^ __andn_u64(Bku, Bka);
+        Aku = Bku ^ __andn_u64(Bka, Bke);
         Bma = ROL64(Ebu ^ Du, 27);
         Bme = ROL64(Ega ^ Da, 36);
         Bmi = ROL64(Eke ^ De, 10);
         Bmo = ROL64(Emi ^ Di, 15);
         Bmu = ROL64(Eso ^ Do, 56);
-        Ama = Bma ^ _andn_u64(Bme, Bmi);
-        Ame = Bme ^ _andn_u64(Bmi, Bmo);
-        Ami = Bmi ^ _andn_u64(Bmo, Bmu);
-        Amo = Bmo ^ _andn_u64(Bmu, Bma);
-        Amu = Bmu ^ _andn_u64(Bma, Bme);
+        Ama = Bma ^ __andn_u64(Bme, Bmi);
+        Ame = Bme ^ __andn_u64(Bmi, Bmo);
+        Ami = Bmi ^ __andn_u64(Bmo, Bmu);
+        Amo = Bmo ^ __andn_u64(Bmu, Bma);
+        Amu = Bmu ^ __andn_u64(Bma, Bme);
         Bsa = ROL64(Ebi ^ Di, 62);
         Bse = ROL64(Ego ^ Do, 55);
         Bsi = ROL64(Eku ^ Du, 39);
         Bso = ROL64(Ema ^ Da, 41);
         Bsu = ROL64(Ese ^ De, 2);
-        Asa = Bsa ^ _andn_u64(Bse, Bsi);
-        Ase = Bse ^ _andn_u64(Bsi, Bso);
-        Asi = Bsi ^ _andn_u64(Bso, Bsu);
-        Aso = Bso ^ _andn_u64(Bsu, Bsa);
-        Asu = Bsu ^ _andn_u64(Bsa, Bse);
+        Asa = Bsa ^ __andn_u64(Bse, Bsi);
+        Ase = Bse ^ __andn_u64(Bsi, Bso);
+        Asi = Bsi ^ __andn_u64(Bso, Bsu);
+        Aso = Bso ^ __andn_u64(Bsu, Bsa);
+        Asu = Bsu ^ __andn_u64(Bsa, Bse);
         Ca = Aba ^ Aga ^ Aka ^ Ama ^ Asa;
         Ce = Abe ^ Age ^ Ake ^ Ame ^ Ase;
         Ci = Abi ^ Agi ^ Aki ^ Ami ^ Asi;
@@ -1170,51 +1499,51 @@ extern "C" {
         Bbi = ROL64(Aki ^ Di, 43);
         Bbo = ROL64(Amo ^ Do, 21);
         Bbu = ROL64(Asu ^ Du, 14);
-        Eba = Aba ^ _andn_u64(Bbe, Bbi) ^ 0x8000000080008081ULL;
-        Ebe = Bbe ^ _andn_u64(Bbi, Bbo);
-        Ebi = Bbi ^ _andn_u64(Bbo, Bbu);
-        Ebo = Bbo ^ _andn_u64(Bbu, Aba);
-        Ebu = Bbu ^ _andn_u64(Aba, Bbe);
+        Eba = Aba ^ __andn_u64(Bbe, Bbi) ^ 0x8000000080008081ULL;
+        Ebe = Bbe ^ __andn_u64(Bbi, Bbo);
+        Ebi = Bbi ^ __andn_u64(Bbo, Bbu);
+        Ebo = Bbo ^ __andn_u64(Bbu, Aba);
+        Ebu = Bbu ^ __andn_u64(Aba, Bbe);
         Bga = ROL64(Abo ^ Do, 28);
         Bge = ROL64(Agu ^ Du, 20);
         Bgi = ROL64(Aka ^ Da, 3);
         Bgo = ROL64(Ame ^ De, 45);
         Bgu = ROL64(Asi ^ Di, 61);
-        Ega = Bga ^ _andn_u64(Bge, Bgi);
-        Ege = Bge ^ _andn_u64(Bgi, Bgo);
-        Egi = Bgi ^ _andn_u64(Bgo, Bgu);
-        Ego = Bgo ^ _andn_u64(Bgu, Bga);
-        Egu = Bgu ^ _andn_u64(Bga, Bge);
+        Ega = Bga ^ __andn_u64(Bge, Bgi);
+        Ege = Bge ^ __andn_u64(Bgi, Bgo);
+        Egi = Bgi ^ __andn_u64(Bgo, Bgu);
+        Ego = Bgo ^ __andn_u64(Bgu, Bga);
+        Egu = Bgu ^ __andn_u64(Bga, Bge);
         Bka = ROL64(Abe ^ De, 1);
         Bke = ROL64(Agi ^ Di, 6);
         Bki = ROL64(Ako ^ Do, 25);
         Bko = ROL64(Amu ^ Du, 8);
         Bku = ROL64(Asa ^ Da, 18);
-        Eka = Bka ^ _andn_u64(Bke, Bki);
-        Eke = Bke ^ _andn_u64(Bki, Bko);
-        Eki = Bki ^ _andn_u64(Bko, Bku);
-        Eko = Bko ^ _andn_u64(Bku, Bka);
-        Eku = Bku ^ _andn_u64(Bka, Bke);
+        Eka = Bka ^ __andn_u64(Bke, Bki);
+        Eke = Bke ^ __andn_u64(Bki, Bko);
+        Eki = Bki ^ __andn_u64(Bko, Bku);
+        Eko = Bko ^ __andn_u64(Bku, Bka);
+        Eku = Bku ^ __andn_u64(Bka, Bke);
         Bma = ROL64(Abu ^ Du, 27);
         Bme = ROL64(Aga ^ Da, 36);
         Bmi = ROL64(Ake ^ De, 10);
         Bmo = ROL64(Ami ^ Di, 15);
         Bmu = ROL64(Aso ^ Do, 56);
-        Ema = Bma ^ _andn_u64(Bme, Bmi);
-        Eme = Bme ^ _andn_u64(Bmi, Bmo);
-        Emi = Bmi ^ _andn_u64(Bmo, Bmu);
-        Emo = Bmo ^ _andn_u64(Bmu, Bma);
-        Emu = Bmu ^ _andn_u64(Bma, Bme);
+        Ema = Bma ^ __andn_u64(Bme, Bmi);
+        Eme = Bme ^ __andn_u64(Bmi, Bmo);
+        Emi = Bmi ^ __andn_u64(Bmo, Bmu);
+        Emo = Bmo ^ __andn_u64(Bmu, Bma);
+        Emu = Bmu ^ __andn_u64(Bma, Bme);
         Bsa = ROL64(Abi ^ Di, 62);
         Bse = ROL64(Ago ^ Do, 55);
         Bsi = ROL64(Aku ^ Du, 39);
         Bso = ROL64(Ama ^ Da, 41);
         Bsu = ROL64(Ase ^ De, 2);
-        Esa = Bsa ^ _andn_u64(Bse, Bsi);
-        Ese = Bse ^ _andn_u64(Bsi, Bso);
-        Esi = Bsi ^ _andn_u64(Bso, Bsu);
-        Eso = Bso ^ _andn_u64(Bsu, Bsa);
-        Esu = Bsu ^ _andn_u64(Bsa, Bse);
+        Esa = Bsa ^ __andn_u64(Bse, Bsi);
+        Ese = Bse ^ __andn_u64(Bsi, Bso);
+        Esi = Bsi ^ __andn_u64(Bso, Bsu);
+        Eso = Bso ^ __andn_u64(Bsu, Bsa);
+        Esu = Bsu ^ __andn_u64(Bsa, Bse);
         Ca = Eba ^ Ega ^ Eka ^ Ema ^ Esa;
         Ce = Ebe ^ Ege ^ Eke ^ Eme ^ Ese;
         Ci = Ebi ^ Egi ^ Eki ^ Emi ^ Esi;
@@ -1231,51 +1560,51 @@ extern "C" {
         Bbi = ROL64(Eki ^ Di, 43);
         Bbo = ROL64(Emo ^ Do, 21);
         Bbu = ROL64(Esu ^ Du, 14);
-        Aba = Eba ^ _andn_u64(Bbe, Bbi) ^ 0x8000000000008080ULL;
-        Abe = Bbe ^ _andn_u64(Bbi, Bbo);
-        Abi = Bbi ^ _andn_u64(Bbo, Bbu);
-        Abo = Bbo ^ _andn_u64(Bbu, Eba);
-        Abu = Bbu ^ _andn_u64(Eba, Bbe);
+        Aba = Eba ^ __andn_u64(Bbe, Bbi) ^ 0x8000000000008080ULL;
+        Abe = Bbe ^ __andn_u64(Bbi, Bbo);
+        Abi = Bbi ^ __andn_u64(Bbo, Bbu);
+        Abo = Bbo ^ __andn_u64(Bbu, Eba);
+        Abu = Bbu ^ __andn_u64(Eba, Bbe);
         Bga = ROL64(Ebo ^ Do, 28);
         Bge = ROL64(Egu ^ Du, 20);
         Bgi = ROL64(Eka ^ Da, 3);
         Bgo = ROL64(Eme ^ De, 45);
         Bgu = ROL64(Esi ^ Di, 61);
-        Aga = Bga ^ _andn_u64(Bge, Bgi);
-        Age = Bge ^ _andn_u64(Bgi, Bgo);
-        Agi = Bgi ^ _andn_u64(Bgo, Bgu);
-        Ago = Bgo ^ _andn_u64(Bgu, Bga);
-        Agu = Bgu ^ _andn_u64(Bga, Bge);
+        Aga = Bga ^ __andn_u64(Bge, Bgi);
+        Age = Bge ^ __andn_u64(Bgi, Bgo);
+        Agi = Bgi ^ __andn_u64(Bgo, Bgu);
+        Ago = Bgo ^ __andn_u64(Bgu, Bga);
+        Agu = Bgu ^ __andn_u64(Bga, Bge);
         Bka = ROL64(Ebe ^ De, 1);
         Bke = ROL64(Egi ^ Di, 6);
         Bki = ROL64(Eko ^ Do, 25);
         Bko = ROL64(Emu ^ Du, 8);
         Bku = ROL64(Esa ^ Da, 18);
-        Aka = Bka ^ _andn_u64(Bke, Bki);
-        Ake = Bke ^ _andn_u64(Bki, Bko);
-        Aki = Bki ^ _andn_u64(Bko, Bku);
-        Ako = Bko ^ _andn_u64(Bku, Bka);
-        Aku = Bku ^ _andn_u64(Bka, Bke);
+        Aka = Bka ^ __andn_u64(Bke, Bki);
+        Ake = Bke ^ __andn_u64(Bki, Bko);
+        Aki = Bki ^ __andn_u64(Bko, Bku);
+        Ako = Bko ^ __andn_u64(Bku, Bka);
+        Aku = Bku ^ __andn_u64(Bka, Bke);
         Bma = ROL64(Ebu ^ Du, 27);
         Bme = ROL64(Ega ^ Da, 36);
         Bmi = ROL64(Eke ^ De, 10);
         Bmo = ROL64(Emi ^ Di, 15);
         Bmu = ROL64(Eso ^ Do, 56);
-        Ama = Bma ^ _andn_u64(Bme, Bmi);
-        Ame = Bme ^ _andn_u64(Bmi, Bmo);
-        Ami = Bmi ^ _andn_u64(Bmo, Bmu);
-        Amo = Bmo ^ _andn_u64(Bmu, Bma);
-        Amu = Bmu ^ _andn_u64(Bma, Bme);
+        Ama = Bma ^ __andn_u64(Bme, Bmi);
+        Ame = Bme ^ __andn_u64(Bmi, Bmo);
+        Ami = Bmi ^ __andn_u64(Bmo, Bmu);
+        Amo = Bmo ^ __andn_u64(Bmu, Bma);
+        Amu = Bmu ^ __andn_u64(Bma, Bme);
         Bsa = ROL64(Ebi ^ Di, 62);
         Bse = ROL64(Ego ^ Do, 55);
         Bsi = ROL64(Eku ^ Du, 39);
         Bso = ROL64(Ema ^ Da, 41);
         Bsu = ROL64(Ese ^ De, 2);
-        Asa = Bsa ^ _andn_u64(Bse, Bsi);
-        Ase = Bse ^ _andn_u64(Bsi, Bso);
-        Asi = Bsi ^ _andn_u64(Bso, Bsu);
-        Aso = Bso ^ _andn_u64(Bsu, Bsa);
-        Asu = Bsu ^ _andn_u64(Bsa, Bse);
+        Asa = Bsa ^ __andn_u64(Bse, Bsi);
+        Ase = Bse ^ __andn_u64(Bsi, Bso);
+        Asi = Bsi ^ __andn_u64(Bso, Bsu);
+        Aso = Bso ^ __andn_u64(Bsu, Bsa);
+        Asu = Bsu ^ __andn_u64(Bsa, Bse);
         Ca = Aba ^ Aga ^ Aka ^ Ama ^ Asa;
         Ce = Abe ^ Age ^ Ake ^ Ame ^ Ase;
         Ci = Abi ^ Agi ^ Aki ^ Ami ^ Asi;
@@ -1312,28 +1641,144 @@ extern "C" {
         Bsi = ROL64(Aku ^ Du, 39);
         Bso = ROL64(Ama ^ Da, 41);
         Bsu = ROL64(Ase ^ De, 2);
-        Eba = Bba ^ _andn_u64(Bbe, Bbi) ^ 0x0000000080000001ULL;
-        Ege = Bge ^ _andn_u64(Bgi, Bgo);
-        Eki = Bki ^ _andn_u64(Bko, Bku);
-        Emo = Bmo ^ _andn_u64(Bmu, Bma);
-        Esu = Bsu ^ _andn_u64(Bsa, Bse);
-        Ca = Eba ^ Bga ^ Bka ^ Bma ^ Bsa ^ _andn_u64(Bge, Bgi) ^ _andn_u64(Bke, Bki) ^ _andn_u64(Bme, Bmi) ^ _andn_u64(Bse, Bsi);
-        Ce = Bbe ^ Ege ^ Bke ^ Bme ^ Bse ^ _andn_u64(Bbi, Bbo) ^ _andn_u64(Bki, Bko) ^ _andn_u64(Bmi, Bmo) ^ _andn_u64(Bsi, Bso);
-        Ci = Bbi ^ Bgi ^ Eki ^ Bmi ^ Bsi ^ _andn_u64(Bbo, Bbu) ^ _andn_u64(Bgo, Bgu) ^ _andn_u64(Bmo, Bmu) ^ _andn_u64(Bso, Bsu);
-        Co = Bbo ^ Bgo ^ Bko ^ Emo ^ Bso ^ _andn_u64(Bbu, Bba) ^ _andn_u64(Bgu, Bga) ^ _andn_u64(Bku, Bka) ^ _andn_u64(Bsu, Bsa);
-        Cu = Bbu ^ Bgu ^ Bku ^ Bmu ^ Esu ^ _andn_u64(Bba, Bbe) ^ _andn_u64(Bga, Bge) ^ _andn_u64(Bka, Bke) ^ _andn_u64(Bma, Bme);
+        Eba = Bba ^ __andn_u64(Bbe, Bbi) ^ 0x0000000080000001ULL;
+        Ege = Bge ^ __andn_u64(Bgi, Bgo);
+        Eki = Bki ^ __andn_u64(Bko, Bku);
+        Emo = Bmo ^ __andn_u64(Bmu, Bma);
+        Esu = Bsu ^ __andn_u64(Bsa, Bse);
+        Ca = Eba ^ Bga ^ Bka ^ Bma ^ Bsa ^ __andn_u64(Bge, Bgi) ^ __andn_u64(Bke, Bki) ^ __andn_u64(Bme, Bmi) ^ __andn_u64(Bse, Bsi);
+        Ce = Bbe ^ Ege ^ Bke ^ Bme ^ Bse ^ __andn_u64(Bbi, Bbo) ^ __andn_u64(Bki, Bko) ^ __andn_u64(Bmi, Bmo) ^ __andn_u64(Bsi, Bso);
+        Ci = Bbi ^ Bgi ^ Eki ^ Bmi ^ Bsi ^ __andn_u64(Bbo, Bbu) ^ __andn_u64(Bgo, Bgu) ^ __andn_u64(Bmo, Bmu) ^ __andn_u64(Bso, Bsu);
+        Co = Bbo ^ Bgo ^ Bko ^ Emo ^ Bso ^ __andn_u64(Bbu, Bba) ^ __andn_u64(Bgu, Bga) ^ __andn_u64(Bku, Bka) ^ __andn_u64(Bsu, Bsa);
+        Cu = Bbu ^ Bgu ^ Bku ^ Bmu ^ Esu ^ __andn_u64(Bba, Bbe) ^ __andn_u64(Bga, Bge) ^ __andn_u64(Bka, Bke) ^ __andn_u64(Bma, Bme);
 
         Bba = Eba ^ Cu ^ ROL64(Ce, 1);
         Bbe = ROL64(Ege ^ Ca ^ ROL64(Ci, 1), 44);
         Bbi = ROL64(Eki ^ Ce ^ ROL64(Co, 1), 43);
         Bbo = ROL64(Emo ^ Ci ^ ROL64(Cu, 1), 21);
         Bbu = ROL64(Esu ^ Co ^ ROL64(Ca, 1), 14);
-        ((unsigned long long*)output)[0] = Bba ^ _andn_u64(Bbe, Bbi) ^ 0x8000000080008008ULL;
-        ((unsigned long long*)output)[1] = Bbe ^ _andn_u64(Bbi, Bbo);
-        ((unsigned long long*)output)[2] = Bbi ^ _andn_u64(Bbo, Bbu);
-        ((unsigned long long*)output)[3] = Bbo ^ _andn_u64(Bbu, Bba);
+        ((unsigned long long*)output)[0] = Bba ^ __andn_u64(Bbe, Bbi) ^ 0x8000000080008008ULL;
+        ((unsigned long long*)output)[1] = Bbe ^ __andn_u64(Bbi, Bbo);
+        ((unsigned long long*)output)[2] = Bbi ^ __andn_u64(Bbo, Bbu);
+        ((unsigned long long*)output)[3] = Bbo ^ __andn_u64(Bbu, Bba);
+    #endif
     }
 
+
+
+    /* Qubic Specific */
+    typedef unsigned long long felm_t[2]; // Datatype for representing 128-bit field elements
+    typedef felm_t f2elm_t[2]; // Datatype for representing quadratic extension field elements
+
+    typedef struct
+    { // Point representation in affine coordinates
+        f2elm_t x;
+        f2elm_t y;
+    } point_affine;
+    typedef point_affine point_t[1];
+
+
+    void getIdentity(unsigned char* publicKey, char* identity, bool isLowerCase)
+    {
+        for (int i = 0; i < 4; i++)
+        {
+            unsigned long long publicKeyFragment = *((unsigned long long*) & publicKey[i << 3]);
+            for (int j = 0; j < 14; j++)
+            {
+                identity[i * 14 + j] = publicKeyFragment % 26 + (isLowerCase ? 'a' : 'A');
+                publicKeyFragment /= 26;
+            }
+        }
+        unsigned int identityBytesChecksum;
+        KangarooTwelve(publicKey, 32, (unsigned char*)&identityBytesChecksum, 3);
+        identityBytesChecksum &= 0x3FFFF;
+        for (int i = 0; i < 4; i++)
+        {
+            identity[56 + i] = identityBytesChecksum % 26 + (isLowerCase ? 'a' : 'A');
+            identityBytesChecksum /= 26;
+        }
+        identity[60] = 0;
+    }
+
+        void getPrivateKey(unsigned char* subseed, unsigned char* privateKey)
+        {
+            KangarooTwelve(subseed, 32, privateKey, 32);
+        }
+
+
+        extern void ecc_mul_fixed(unsigned long long* k, point_t Q);
+        extern void encode(point_t P, unsigned char* Pencoded);
+
+
+        extern bool decode(const unsigned char* Pencoded, point_t P);
+
+
+        void getPublicKey(const unsigned char* privateKey, unsigned char* publicKey)
+        { // SchnorrQ public key generation
+          // It produces a public key publicKey, which is the encoding of P = s*G, where G is the generator and
+          // s is the output of hashing publicKey and taking the least significant 32 bytes of the result
+          // Input:  32-byte privateKey
+          // Output: 32-byte publicKey
+            point_t P;
+
+            ecc_mul_fixed((unsigned long long*)privateKey, P); // Compute public key
+            encode(P, publicKey);                              // Encode public key
+        }
+
+            bool getPublicKeyFromIdentity(const unsigned char* identity, unsigned char* publicKey)
+            {
+                unsigned char publicKeyBuffer[32];
+                for (int i = 0; i < 4; i++)
+                {
+                    *((unsigned long long*) & publicKeyBuffer[i << 3]) = 0;
+                    for (int j = 14; j-- > 0; )
+                    {
+                        if (identity[i * 14 + j] < 'A' || identity[i * 14 + j] > 'Z')
+                        {
+                            return false;
+                        }
+
+                        *((unsigned long long*) & publicKeyBuffer[i << 3]) = *((unsigned long long*) & publicKeyBuffer[i << 3]) * 26 + (identity[i * 14 + j] - 'A');
+                    }
+                }
+                unsigned int identityBytesChecksum;
+                KangarooTwelve(publicKeyBuffer, 32, (unsigned char*)&identityBytesChecksum, 3);
+                identityBytesChecksum &= 0x3FFFF;
+                for (int i = 0; i < 4; i++)
+                {
+                    if (identityBytesChecksum % 26 + 'A' != identity[56 + i])
+                    {
+                        return false;
+                    }
+                    identityBytesChecksum /= 26;
+                }
+                *((__m256i*)publicKey) = *((__m256i*)publicKeyBuffer);
+
+                return true;
+            }
+
+            bool getSubseed(const unsigned char* seed, unsigned char* subseed)
+            {
+                unsigned char seedBytes[55];
+                for (int i = 0; i < 55; i++)
+                {
+                    if (seed[i] < 'a' || seed[i] > 'z')
+                    {
+                        return false;
+                    }
+                    seedBytes[i] = seed[i] - 'a';
+                }
+                KangarooTwelve(seedBytes, sizeof(seedBytes), subseed, 32);
+
+                return true;
+            }
+
+            extern ECCRYPTO_STATUS SchnorrQ_Sign(const unsigned char* SecretKey, const unsigned char* PublicKey, const unsigned char* Message, const unsigned int SizeMessage, unsigned char* Signature);
+            #define _sign SchnorrQ_Sign
+
+
+}
+/*
     void _random(unsigned char* publicKey, unsigned char* nonce, unsigned char* output, unsigned int outputSize)
     {
         unsigned char state[200];
@@ -2977,6 +3422,11 @@ extern "C" {
         return true;
     }
 
+
+
+       // Begin Qubic Functions
+
+
     bool getSubseed(const unsigned char* seed, unsigned char* subseed)
     {
         unsigned char seedBytes[55];
@@ -3167,3 +3617,4 @@ extern "C" {
         return EQUAL(*((__m256i*)A), *((__m256i*)signature));
     }
 }
+*/
