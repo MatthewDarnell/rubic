@@ -5,7 +5,7 @@ use rocket::routes;
 
 extern crate dotenv_codegen;
 use network::peers::PeerSet;
-use logger::{setup_logger, info, debug, error};
+use logger::{setup_logger, info, trace, debug, error};
 use store::sqlite::crud;
 use store::get_db_path;
 use identity;
@@ -91,7 +91,7 @@ async fn main() {
 
         //Update Balances For All Stored Identities
         if tick_updated == true {
-          debug!("Updating Balances!");
+          trace!("Updating Balances!");
           match crud::fetch_all_identities(get_db_path().as_str()) {
             Ok(identities) => {
               for identity in identities {
@@ -117,6 +117,7 @@ async fn main() {
         match rx.recv_timeout(Duration::from_secs(5)) {
           Ok(map) => {
             if let Some(method) = map.get(&"method".to_string()) {
+              debug!("Api got request method=[{}]", method.as_str());
               if method == &"add_peer".to_string() {
                 let peer_ip = map.get(&"peer_ip".to_string()).unwrap();
                 //todo: validate peer_ip
@@ -207,7 +208,7 @@ async fn main() {
                     continue;
                   }
                 } else {
-                  println!("is Not encrypted!");
+                  debug!("Creating Transfer, Wallet Is Not Encrypted!");
                 }
                 let amt: u64 = amount.parse().unwrap();
                 let tck: u32 = expiration.parse().unwrap();
@@ -271,6 +272,7 @@ async fn main() {
                 } else {
                   match crud::insert_new_identity(get_db_path().as_str(), &id) {
                     Ok(_) => {
+                      info!("Inserted New Identity {}", id.identity.as_str());
                       response.insert("message_id".to_string(), message_id.to_string());
                       response.insert("status".to_string(), "200".to_string());
                     },

@@ -583,7 +583,6 @@ pub fn insert_new_identity(path: &str, identity: &Identity) -> Result<(), String
                                 Ok(_) => {
                                     match statement.next() {
                                         Ok(State::Done) => {
-                                            println!("Imported New Identity {}", identity.as_str());
                                             Ok(())
                                         },
                                         Err(error) => Err(error.to_string()),

@@ -132,7 +132,6 @@ pub fn setup_logger() -> Result<(), fern::InitError> {
         .level(level)
         .filter(drop_rocket)
         .chain(std::fs::File::create(get_log_file().as_str())?)
-        .chain(std::io::stdout())
         .apply()?;
     Ok(())
 }
