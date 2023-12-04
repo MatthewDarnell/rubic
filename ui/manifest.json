@@ -1,0 +1,24 @@
+{
+  "manifest_version": 3,
+  "name": "Rubic Wallet",
+  "description": "Simple Wallet for Qubic - An AI Cryptocurrency",
+  "version": "0.0.1",
+  "author": "Matthew Darnell",
+  "permissions": [
+    "activeTab",
+    "http://localhost",
+    "http://127.0.0.1"
+  ],
+  "browser_action": {
+    "default_popup": "index.html",
+    "default_title": "Rubic Wallet"
+  },
+  "icons": {
+    "16": "Qubic.png",
+    "128": "Qubic.png"
+  },
+  "content_security_policy": {
+    "extension_pages": "script-src 'unsafe-inline'; object-src 'unsafe-inline;",
+    "sandbox": "sandbox allow-scripts allow-forms allow-popups allow-modals; script-src 'self' 'unsafe-inline' 'unsafe-eval'; child-src 'self';"
+  }
+}
