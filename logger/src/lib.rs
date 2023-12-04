@@ -53,9 +53,17 @@ fn get_log_file() -> String {
                     home_path.push_str("/.rubic/");
                     home_path
                 },
-                _ => "~/.rubic/".to_string()
+                _ => {
+                    match home::home_dir() {
+                        Some(path) => {
+                            let mut value: String =  path.as_path().to_str().unwrap().to_string();
+                            value += "/.rubic/";
+                            value
+                        },
+                        None => panic!("Impossible to get your home dir!"),
+                    }
+                }
             };
-            //println!("Defaulting to: {}", default_path);
             if !std::path::Path::new(default_path.as_str()).exists() {
                 println!("Path <{}> Does NOT Exist. Creating!", default_path.as_str());
                 match std::fs::create_dir(std::path::Path::new(default_path.as_str())) {
