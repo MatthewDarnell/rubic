@@ -4,8 +4,8 @@ use crypto::hash::k12_bytes;
 
 extern {
     //extern ECCRYPTO_STATUS SchnorrQ_Sign(const unsigned char* SecretKey, const unsigned char* PublicKey, const unsigned char* Message, const unsigned int SizeMessage, unsigned char* Signature);
-    //fn sign(subseed: *const u8, publicKey: *const c_uchar, messageDigest: *const c_uchar, signature: *mut c_uchar);
-    fn SchnorrQ_Sign(subseed: *const u8, publicKey: *const c_uchar, messageDigest: *const c_uchar, SizeMessage: u32, signature: *mut c_uchar);
+    fn sign(subseed: *const u8, publicKey: *const c_uchar, messageDigest: *const c_uchar, signature: *mut c_uchar);
+    //fn SchnorrQ_Sign(subseed: *const u8, publicKey: *const c_uchar, messageDigest: *const c_uchar, SizeMessage: u32, signature: *mut c_uchar);
     fn getSubseed(seed: *const c_uchar, subseed: *mut c_uchar) -> bool;
     //bool getSubseed(const unsigned char* seed, unsigned char* subseed)
     //void sign(const unsigned char* subseed, const unsigned char* publicKey, const unsigned char* messageDigest, unsigned char* signature)
@@ -58,8 +58,8 @@ impl TransferTransaction {
         }
         let mut sig: [u8; 64] = [0; 64];
         unsafe {
-            //sign(sub_seed.as_ptr(), pub_key_src.as_ptr(), digest.as_ptr(), sig.as_mut_ptr());
-            SchnorrQ_Sign(sub_seed.as_ptr(), pub_key_src.as_ptr(), digest.as_ptr(), 32, sig.as_mut_ptr());
+            sign(sub_seed.as_ptr(), pub_key_src.as_ptr(), digest.as_ptr(), sig.as_mut_ptr());
+            //SchnorrQ_Sign(sub_seed.as_ptr(), pub_key_src.as_ptr(), digest.as_ptr(), 32, sig.as_mut_ptr());
         }
         t._signature = sig.to_vec();
         t

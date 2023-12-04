@@ -1669,51 +1669,51 @@ extern "C" {
 
 
 
-    /* Qubic Specific */
-    typedef unsigned long long felm_t[2]; // Datatype for representing 128-bit field elements
-    typedef felm_t f2elm_t[2]; // Datatype for representing quadratic extension field elements
+        /* Qubic Specific */
+        typedef unsigned long long felm_t[2]; // Datatype for representing 128-bit field elements
+        typedef felm_t f2elm_t[2]; // Datatype for representing quadratic extension field elements
 
-    typedef struct
-    { // Point representation in affine coordinates
-        f2elm_t x;
-        f2elm_t y;
-    } point_affine;
-    typedef point_affine point_t[1];
+        typedef struct
+        { // Point representation in affine coordinates
+            f2elm_t x;
+            f2elm_t y;
+        } point_affine;
+        typedef point_affine point_t[1];
 
+        extern void ecc_mul_fixed(unsigned long long* k, point_t Q);
+        extern void encode(point_t P, unsigned char* Pencoded);
+        extern bool decode(const unsigned char* Pencoded, point_t P);
 
-    void getIdentity(unsigned char* publicKey, char* identity, bool isLowerCase)
-    {
-        for (int i = 0; i < 4; i++)
+        extern void SchnorrQ_Sign(const unsigned char* SecretKey, const unsigned char* PublicKey, const unsigned char* Message, const unsigned int SizeMessage, unsigned char* Signature);
+
+        /* Qubic exposed Api */
+
+        void getIdentity(unsigned char* publicKey, char* identity, bool isLowerCase)
         {
-            unsigned long long publicKeyFragment = *((unsigned long long*) & publicKey[i << 3]);
-            for (int j = 0; j < 14; j++)
+            for (int i = 0; i < 4; i++)
             {
-                identity[i * 14 + j] = publicKeyFragment % 26 + (isLowerCase ? 'a' : 'A');
-                publicKeyFragment /= 26;
+                unsigned long long publicKeyFragment = *((unsigned long long*) & publicKey[i << 3]);
+                for (int j = 0; j < 14; j++)
+                {
+                    identity[i * 14 + j] = publicKeyFragment % 26 + (isLowerCase ? 'a' : 'A');
+                    publicKeyFragment /= 26;
+                }
             }
+            unsigned int identityBytesChecksum;
+            KangarooTwelve(publicKey, 32, (unsigned char*)&identityBytesChecksum, 3);
+            identityBytesChecksum &= 0x3FFFF;
+            for (int i = 0; i < 4; i++)
+            {
+                identity[56 + i] = identityBytesChecksum % 26 + (isLowerCase ? 'a' : 'A');
+                identityBytesChecksum /= 26;
+            }
+            identity[60] = 0;
         }
-        unsigned int identityBytesChecksum;
-        KangarooTwelve(publicKey, 32, (unsigned char*)&identityBytesChecksum, 3);
-        identityBytesChecksum &= 0x3FFFF;
-        for (int i = 0; i < 4; i++)
-        {
-            identity[56 + i] = identityBytesChecksum % 26 + (isLowerCase ? 'a' : 'A');
-            identityBytesChecksum /= 26;
-        }
-        identity[60] = 0;
-    }
 
         void getPrivateKey(unsigned char* subseed, unsigned char* privateKey)
         {
             KangarooTwelve(subseed, 32, privateKey, 32);
         }
-
-
-        extern void ecc_mul_fixed(unsigned long long* k, point_t Q);
-        extern void encode(point_t P, unsigned char* Pencoded);
-
-
-        extern bool decode(const unsigned char* Pencoded, point_t P);
 
 
         void getPublicKey(const unsigned char* privateKey, unsigned char* publicKey)
@@ -1776,8 +1776,9 @@ extern "C" {
                 return true;
             }
 
-            extern void SchnorrQ_Sign(const unsigned char* SecretKey, const unsigned char* PublicKey, const unsigned char* Message, const unsigned int SizeMessage, unsigned char* Signature);
-            #define _sign SchnorrQ_Sign
-
+            void sign(const unsigned char* subseed, const unsigned char* publicKey, const unsigned char* messageDigest, unsigned char* signature)
+            {
+                SchnorrQ_Sign(subseed, publicKey, messageDigest, 32, signature);
+            }
 
 }
