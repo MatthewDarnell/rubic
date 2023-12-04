@@ -31,7 +31,7 @@ fn main() {
         println!("cargo:rustc-link-lib=dylib=libFourQ");
 
         cc::Build::new()
-            .file("../ffi-deps/chopper-liknux.cpp")
+            .file("../ffi-deps/chopper-linux.cpp")
             .define("_AMD64_", "1")
             .define("_AVX_", "1")
             .include("../ffi-deps/FourQlib/FourQ_32bit/FourQ.h")
