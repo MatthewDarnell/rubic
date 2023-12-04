@@ -22,7 +22,7 @@
 #ifndef _MSC_VER
 #include <x86intrin.h>
 #define _rotl64 _rotl
-#ifndef __andn_u64
+#ifndef _andn_u64
 #define _andn_u64 __andn_u64
 #endif
 #include <stdint.h>
