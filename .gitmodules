@@ -1,3 +1,6 @@
 [submodule "ffi-deps/simde"]
 	path = ffi-deps/simde
-	url = httpgits://github.com/simd-everywhere/simde
+	url = https://github.com/simd-everywhere/simde
+[submodule "ffi-deps/FourQlib"]
+	path = ffi-deps/FourQlib
+	url = https://github.com/microsoft/FourQlib
