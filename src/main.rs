@@ -23,6 +23,9 @@ use rocket::fairing::{Fairing, Info, Kind};
 async fn main() {
   setup_logger().expect("Failed To Set Up Logging!");
   info!("Starting Rubic Application");
+  println!("Starting Rubic Application");
+  println!("Warning! This software comes with no warranty, real or implied. Secure storage of seeds and passwords is paramount; total loss of funds may ensue otherwise.");
+  info!("Warning! This software comes with no warranty, real or implied. Secure storage of seeds and passwords is paramount; total loss of funds may ensue otherwise.");
   let path = store::get_db_path();
   crud::peer::set_all_peers_disconnected(path.as_str()).unwrap();
   let peer_ips = vec![
