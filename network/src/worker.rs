@@ -3,11 +3,11 @@ use std::io::ErrorKind;
 use std::time::Duration;
 use crate::peer::Peer;
 use api::{QubicApiPacket, response};
-use api::header::{ RequestResponseHeader, EntityType };
+use api::header::{ RequestResponseHeader };
 use store::get_db_path;
 use store::sqlite::crud::peer::set_peer_disconnected;
 
-pub fn handle_new_peer(id: String, peer: Peer, rx: spmc::Receiver<QubicApiPacket>) {
+pub fn handle_new_peer(_id: String, peer: Peer, rx: spmc::Receiver<QubicApiPacket>) {
     if peer.get_stream().is_none() {
        println!("Peer {} Missing TcpStream! Shutting Down Worker Thread.", peer.get_id());
         return;
@@ -43,7 +43,7 @@ pub fn handle_new_peer(id: String, peer: Peer, rx: spmc::Receiver<QubicApiPacket
                                     }
                                 }
                             },
-                            Err(err) => {
+                            Err(_err) => {
                                  //println!("Failed To Peek! {}", err);
                                 //set_peer_disconnected(get_db_path().as_str(), peer.get_id().as_str()).unwrap();
                                 // break;
@@ -51,7 +51,7 @@ pub fn handle_new_peer(id: String, peer: Peer, rx: spmc::Receiver<QubicApiPacket
                         }
                     },
                     Err(err) => {   //Probably the peer closed the tcp connection
-                        let error = match err.kind() {
+                        let _error = match err.kind() {
                             ErrorKind::ConnectionAborted => {
                                 "Connection Aborted!".as_bytes()
                             },

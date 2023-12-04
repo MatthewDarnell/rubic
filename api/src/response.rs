@@ -26,7 +26,7 @@ pub fn get_formatted_response(response: &mut QubicApiPacket) {
                     let value = u32::from_le_bytes(data);
                     match insert_latest_tick(get_db_path().as_str(), peer_id.as_str(), value) {
                         Ok(_) => {},
-                        Err(err) => {}
+                        Err(_err) => {}
                     }
                 } else {
                     println!("Malformed Current Tick Response.");
@@ -38,7 +38,7 @@ pub fn get_formatted_response(response: &mut QubicApiPacket) {
             //println!("ExchangePeersEntity: {:?}", resp);
             match update_peer_last_responded(path.as_str(), resp.peer.as_str(), SystemTime::now()) {
                 Ok(_) => {},
-                Err(err) => { /* println!("Error Updating Peer {} Last Responded: {}", resp.peer.as_str(), err.as_str())*/ }
+                Err(_err) => { /* println!("Error Updating Peer {} Last Responded: {}", resp.peer.as_str(), err.as_str())*/ }
             }
         },
         EntityType::ResponseEntity => {
@@ -66,9 +66,9 @@ pub fn get_formatted_response(response: &mut QubicApiPacket) {
             }
         },
         EntityType::ERROR => {
-            let error_type = String::from_utf8(response.data.clone()).unwrap();
+            let _error_type = String::from_utf8(response.data.clone()).unwrap();
             if let Some(id) = &response.peer {
-                store::sqlite::crud::peer::set_peer_disconnected(store::get_db_path().as_str(), id.as_str());
+                store::sqlite::crud::peer::set_peer_disconnected(store::get_db_path().as_str(), id.as_str()).ok();
             }
             //panic!("exiting");
         },

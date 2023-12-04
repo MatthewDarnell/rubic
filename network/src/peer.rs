@@ -1,7 +1,7 @@
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use std::net::TcpStream;
 use std::io::prelude::*;
-use std::thread;
+
 use uuid::Uuid;
 use store::get_db_path;
 use store::sqlite::crud::peer::{create_peer, fetch_peer_by_ip};

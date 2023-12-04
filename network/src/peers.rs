@@ -4,9 +4,9 @@ use std::net::{SocketAddr, TcpStream};
 use std::thread;
 use api::QubicApiPacket;
 use logger::debug;
-use std::time::{Duration, SystemTime};
+use std::time::{Duration};
 use store;
-use rand::seq::SliceRandom;
+
 use crate::worker;
 use crate::peer::Peer;
 
@@ -22,7 +22,7 @@ pub struct PeerSet {
 
 impl PeerSet {
     pub fn new() -> Self {
-        let channel = std::sync::mpsc::channel::<QubicApiPacket>();
+        let _channel = std::sync::mpsc::channel::<QubicApiPacket>();
         let peer_set = PeerSet {
             peers: vec![],
             threads: HashMap::new(),
@@ -155,7 +155,7 @@ impl PeerSet {
             return Err("Cannot send request, 0 peers! Add some!".to_string())
         }
         let mut ids_to_delete: Vec<String> = vec![];
-        for (index, peer) in self.peers.iter().enumerate() {
+        for (_index, peer) in self.peers.iter().enumerate() {
             match store::sqlite::crud::peer::fetch_peer_by_id(store::get_db_path().as_str(), peer.get_id().as_str()) {
                 Ok(p) => {
                     let connected = p.get("connected").unwrap() == "1";

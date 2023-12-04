@@ -2,7 +2,7 @@ extern crate dotenv_codegen;
 
 use dotenv::dotenv;
 pub mod sqlite;
-use logger::debug;
+
 
 pub fn get_db_path() -> String {
     dotenv().ok();

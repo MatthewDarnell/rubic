@@ -2,7 +2,7 @@ use dotenv::dotenv;
 use fern;
 use chrono;
 
-use log::{warn, LevelFilter, Metadata, SetLoggerError};
+use log::{LevelFilter, Metadata};
 pub use log::{debug, error, info, trace };
 
 
