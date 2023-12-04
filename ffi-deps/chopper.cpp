@@ -18,6 +18,8 @@
 #include <stdio.h>
 #include "simde/simde/x86/avx512.h"
 #else
+#define AVX512 1
+#ifndef _MSC_VER
 #include <x86intrin.h>
 #define _rotl64 _rotl
 #define _andn_u64 __andn_u64
@@ -53,6 +55,7 @@ long long unsigned int __shiftright128(
     FullValue >>= Shift;
     return (long long unsigned int)(FullValue | 0x0000000000000000FFFFFFFFFFFFFFFF);
 }
+#endif
 #endif
 
 
