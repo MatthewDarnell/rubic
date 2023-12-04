@@ -9,7 +9,7 @@ use uuid::Uuid;
 use store;
 use identity;
 use crypto;
-use logger::error;
+use logger::{debug, error};
 
 #[get("/tick")]
 pub fn latest_tick() -> String {
@@ -327,7 +327,7 @@ pub fn encrypt_wallet(password: &str) -> String {
                                             Ok(encrypted) => {
                                                 match store::sqlite::crud::update_identity_encrypted(store::get_db_path().as_str(), &encrypted) {
                                                     Ok(_) => println!("Updating Database, Identity.({}) Encrypted.", &encrypted.identity),
-                                                    Err(err) => println!("Failed To Encrypt Identity.({}) : <{}>", &encrypted.identity, err)
+                                                    Err(err) => error!("Failed To Encrypt Identity.({}) : <{}>", &encrypted.identity, err)
                                                 }
                                             },
                                             Err(err) => {
@@ -360,7 +360,7 @@ pub fn download_wallet(password: &str) -> String {
         Ok(mut identities) => {
             if password.len() < 4 {
                 //invalid master password, don't decrypt wallet
-                println!("Leaving Encrypted");
+                debug!("Dumping Wallet, Leaving Encrypted");
             }
             let mut is_valid = false;
 
@@ -379,7 +379,7 @@ pub fn download_wallet(password: &str) -> String {
                     ret_val += "\n";
                 } else {
                     if encrypted {
-                        println!("Decrypting {}", &id);
+                        debug!("Decrypting {}", &id);
                         match identity.decrypt_identity(password) {
                             Ok(decrypted) => {
                                 is_valid = true;
@@ -392,7 +392,9 @@ pub fn download_wallet(password: &str) -> String {
                                 ret_val += &decrypted.hash.clone();
                                 ret_val += "\n";
                             },
-                            Err(_) => {}
+                            Err(_) => {
+                                ret_val += ",,\n";
+                            }
                         }
                     } else {
                         is_valid = true;

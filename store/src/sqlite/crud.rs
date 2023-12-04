@@ -55,13 +55,13 @@ pub fn insert_latest_tick(path: &str, peer_id: &str, tick: u32) -> Result<(), St
                     }
                 },
                 Err(err) => {
-                    println!("Error in insert_latest_tick! : {}", &err);
+                    error!("Error in insert_latest_tick! : {}", &err);
                     Err(err)
                 }
             }
         },
         Err(err) => {
-            println!("Error in insert_latest_tick! : {}", &err);
+            error!("Error in insert_latest_tick! : {}", &err);
             Err(err)
         }
     }
@@ -88,13 +88,13 @@ pub fn fetch_latest_tick(path: &str) -> Result<String, String> {
                     }
                 },
                 Err(err) => {
-                    println!("Error in fetch_latest_tick! : {}", &err);
+                    error!("Error in fetch_latest_tick! : {}", &err);
                     Err(err)
                 }
             }
         },
         Err(err) => {
-            println!("Error in fetch_latest_tick! : {}", &err);
+            error!("Error in fetch_latest_tick! : {}", &err);
             Err(err)
         }
     }
@@ -102,6 +102,7 @@ pub fn fetch_latest_tick(path: &str) -> Result<String, String> {
 
 pub mod master_password {
     use sqlite::State;
+    use logger::{error};
     use crate::sqlite::crud::{open_database, prepare_crud_statement, SQLITE_MUTEX};
     pub fn set_master_password(path: &str, ct: &str) -> Result<(), String> {
         let prep_query = "INSERT INTO master_password (ct) \
@@ -126,13 +127,13 @@ pub mod master_password {
                         }
                     },
                     Err(err) => {
-                        println!("Error in set_master_password! : {}", &err);
+                        error!("Error in set_master_password! : {}", &err);
                         Err(err)
                     }
                 }
             },
             Err(err) => {
-                println!("Error in set_master_password! : {}", &err);
+                error!("Error in set_master_password! : {}", &err);
                 Err(err)
             }
         }
@@ -160,19 +161,19 @@ pub mod master_password {
                                 }
                             },
                             Err(err) => {
-                                println!("Error in get_master_password! : {}", &err);
+                                error!("Error in get_master_password! : {}", &err);
                                 Err(err.to_string())
                             }
                         }
                     },
                     Err(err) => {
-                        println!("Error in get_master_password! : {}", &err);
+                        error!("Error in get_master_password! : {}", &err);
                         Err(err)
                     }
                 }
             },
             Err(err) => {
-                println!("Error in get_master_password! : {}", &err);
+                error!("Error in get_master_password! : {}", &err);
                 Err(err)
             }
         }
@@ -197,6 +198,7 @@ pub mod peer {
     use std::collections::HashMap;
     use std::time::{SystemTime, UNIX_EPOCH};
     use sqlite::State;
+    use logger::{error};
     use crate::sqlite::crud::{open_database, prepare_crud_statement, SQLITE_MUTEX};
     pub fn create_peer(path: &str, id: &str, ip: &str, nick: &str, ping_time: u32, whitelisted: bool, last_responded: SystemTime) -> Result<(), String> {
         let prep_query = "INSERT INTO peer (id, ip, nick, whitelisted, ping, last_responded) \
@@ -235,13 +237,13 @@ pub mod peer {
                         }
                     },
                     Err(err) => {
-                        println!("Error in create_peer! : {}", &err);
+                        error!("Error in create_peer! : {}", &err);
                         Err(err)
                     }
                 }
             },
             Err(err) => {
-                println!("Error in create_peer! : {}", &err);
+                error!("Error in create_peer! : {}", &err);
                 Err(err)
             }
         }
@@ -273,13 +275,13 @@ pub mod peer {
                         }
                     },
                     Err(err) => {
-                        println!("Error in update_peer_last_responded! : {}", &err);
+                        error!("Error in update_peer_last_responded! : {}", &err);
                         Err(err)
                     }
                 }
             },
             Err(err) => {
-                println!("Error in update_peer_last_responded! : {}", &err);
+                error!("Error in update_peer_last_responded! : {}", &err);
                 Err(err)
             }
         }
@@ -306,13 +308,13 @@ pub mod peer {
                         }
                     },
                     Err(err) => {
-                        println!("Error in set_peer_connected! : {}", &err);
+                        error!("Error in set_peer_connected! : {}", &err);
                         Err(err)
                     }
                 }
             },
             Err(err) => {
-                println!("Error in set_peer_connected! : {}", &err);
+                error!("Error in set_peer_connected! : {}", &err);
                 Err(err)
             }
         }
@@ -338,13 +340,13 @@ pub mod peer {
                         }
                     },
                     Err(err) => {
-                        println!("Error in set_peer_disconnected! : {}", &err);
+                        error!("Error in set_peer_disconnected! : {}", &err);
                         Err(err)
                     }
                 }
             },
             Err(err) => {
-                println!("Error in set_peer_disconnected! : {}", &err);
+                error!("Error in set_peer_disconnected! : {}", &err);
                 Err(err)
             }
         }
@@ -361,7 +363,7 @@ pub mod peer {
                 }
             },
             Err(err) => {
-                println!("Error in set_all_peers_disconnected! : {}", &err);
+                error!("Error in set_all_peers_disconnected! : {}", &err);
                 Err(err)
             }
         }
@@ -404,13 +406,13 @@ pub mod peer {
                         }
                     },
                     Err(err) => {
-                        println!("Error in fetch_peer_by_ip! : {}", &err);
+                        error!("Error in fetch_peer_by_ip! : {}", &err);
                         Err(err)
                     }
                 }
             },
             Err(err) => {
-                println!("Error in fetch_peer_by_ip! : {}", &err);
+                error!("Error in fetch_peer_by_ip! : {}", &err);
                 Err(err)
             }
         }
@@ -451,13 +453,13 @@ pub mod peer {
                         }
                     },
                     Err(err) => {
-                        println!("Error in fetch_peer_by_id! : {}", &err);
+                        error!("Error in fetch_peer_by_id! : {}", &err);
                         Err(err)
                     }
                 }
             },
             Err(err) => {
-                println!("Error in fetch_peer_by_id! : {}", &err);
+                error!("Error in fetch_peer_by_id! : {}", &err);
                 Err(err)
             }
         }
@@ -483,13 +485,13 @@ pub mod peer {
                         Ok(ret_val)
                     },
                     Err(err) => {
-                        println!("Error in fetch_all_peers! : {}", &err);
+                        error!("Error in fetch_all_peers! : {}", &err);
                         Err(err)
                     }
                 }
             },
             Err(err) => {
-                println!("Error in fetch_all_peers! : {}", &err);
+                error!("Error in fetch_all_peers! : {}", &err);
                 Err(err)
             }
         }
@@ -515,13 +517,13 @@ pub mod peer {
                         Ok(ret_val)
                     },
                     Err(err) => {
-                        println!("Error in fetch_all_peers! : {}", &err);
+                        error!("Error in fetch_all_peers! : {}", &err);
                         Err(err)
                     }
                 }
             },
             Err(err) => {
-                println!("Error in fetch_all_peers! : {}", &err);
+                error!("Error in fetch_all_peers! : {}", &err);
                 Err(err)
             }
         }
@@ -548,13 +550,13 @@ pub mod peer {
                         Ok(ret_val)
                     },
                     Err(err) => {
-                        println!("Error in fetch_disconnected_peers! : {}", &err);
+                        error!("Error in fetch_disconnected_peers! : {}", &err);
                         Err(err)
                     }
                 }
             },
             Err(err) => {
-                println!("Error in fetch_disconnected_peers! : {}", &err);
+                error!("Error in fetch_disconnected_peers! : {}", &err);
                 Err(err)
             }
         }
@@ -595,13 +597,13 @@ pub fn insert_new_identity(path: &str, identity: &Identity) -> Result<(), String
                     }
                 },
                 Err(err) => {
-                    println!("Error in insert_new_identity! : {}", &err);
+                    error!("Error in insert_new_identity! : {}", &err);
                     Err(err)
                 }
             }
         },
         Err(err) => {
-            println!("Error in insert_new_identity! : {}", &err);
+            error!("Error in insert_new_identity! : {}", &err);
             Err(err)
         }
     }
@@ -636,13 +638,13 @@ pub fn update_identity_encrypted(path: &str, identity: &Identity) -> Result<(), 
                     }
                 },
                 Err(err) => {
-                    println!("Error in update_identity_encrypted! : {}", &err);
+                    error!("Error in update_identity_encrypted! : {}", &err);
                     Err(err)
                 }
             }
         },
         Err(err) => {
-            println!("Error in update_identity_encrypted! : {}", &err);
+            error!("Error in update_identity_encrypted! : {}", &err);
             Err(err)
         }
     }
@@ -669,13 +671,13 @@ pub fn fetch_all_identities(path: &str) -> Result<LinkedList<String>, String> {
                     }
                 },
                 Err(err) => {
-                    println!("Error in fetch_all_identities! : {}", &err);
+                    error!("Error in fetch_all_identities! : {}", &err);
                     Err(err)
                 }
             }
         },
         Err(err) => {
-            println!("Error in fetch_all_identities! : {}", &err);
+            error!("Error in fetch_all_identities! : {}", &err);
             Err(err)
         }
     }
@@ -711,13 +713,13 @@ pub fn fetch_all_identities_full(path: &str) -> Result<LinkedList<Identity>, Str
                     }
                 },
                 Err(err) => {
-                    println!("Error in fetch_all_identities_full! : {}", &err);
+                    error!("Error in fetch_all_identities_full! : {}", &err);
                     Err(err)
                 }
             }
         },
         Err(err) => {
-            println!("Error in fetch_all_identities_full! : {}", &err);
+            error!("Error in fetch_all_identities_full! : {}", &err);
             Err(err)
         }
     }
@@ -768,13 +770,13 @@ pub fn fetch_balance_by_identity(path: &str, identity: &str) -> Result<Vec<Strin
                     }
                 },
                 Err(err) => {
-                    println!("Error in fetch_balance_by_identity! : {}", &err);
+                    error!("Error in fetch_balance_by_identity! : {}", &err);
                     Err(err)
                 }
             }
         },
         Err(err) => {
-            println!("Error in fetch_balance_by_identity! : {}", &err);
+            error!("Error in fetch_balance_by_identity! : {}", &err);
             Err(err)
         }
     }
@@ -814,13 +816,13 @@ pub fn fetch_identity(path: &str, identity: &str) -> Result<Identity, String> {
                     }
                 },
                 Err(err) => {
-                    println!("Error in fetch_identity! : {}", &err);
+                    error!("Error in fetch_identity! : {}", &err);
                     Err(err)
                 }
             }
         },
         Err(err) => {
-            println!("Error in fetch_identity! : {}", &err);
+            error!("Error in fetch_identity! : {}", &err);
             Err(err)
         }
     }
@@ -853,13 +855,13 @@ pub fn delete_identity(path: &str, identity: &str) -> Result<(), String> {
                     }
                 },
                 Err(err) => {
-                    println!("Error in delete_identity! : {}", &err);
+                    error!("Error in delete_identity! : {}", &err);
                     Err(err)
                 }
             }
         },
         Err(err) => {
-            println!("Error in delete_identity! : {}", &err);
+            error!("Error in delete_identity! : {}", &err);
             Err(err)
         }
     }
@@ -893,13 +895,13 @@ pub fn create_peer_response(path: &str, peer: &str, data: &Vec<u8>) -> Result<()
                     }
                 },
                 Err(err) => {
-                    println!("Error in create_peer_response! : {}", &err);
+                    error!("Error in create_peer_response! : {}", &err);
                     Err(err)
                 }
             }
         },
         Err(err) => {
-            println!("Error in create_peer_response! : {}", &err);
+            error!("Error in create_peer_response! : {}", &err);
             Err(err)
         }
     }
@@ -929,13 +931,13 @@ pub fn fetch_peer_response_by_type(path: &str, response_type: u8) -> Result<Vec<
                     }
                 },
                 Err(err) => {
-                    println!("Error in fetch_peer_response_by_type! : {}", &err);
+                    error!("Error in fetch_peer_response_by_type! : {}", &err);
                     Err(err)
                 }
             }
         },
         Err(err) => {
-            println!("Error in fetch_peer_response_by_type! : {}", &err);
+            error!("Error in fetch_peer_response_by_type! : {}", &err);
             Err(err)
         }
     }
@@ -1017,13 +1019,13 @@ pub fn fetch_response_entity_by_identity(path: &str, identity: &str) -> Result<V
                     }
                 },
                 Err(err) => {
-                    println!("Error in fetch_peer_response_by_type! : {}", &err);
+                    error!("Error in fetch_peer_response_by_type! : {}", &err);
                     Err(err)
                 }
             }
         },
         Err(err) => {
-            println!("Error in fetch_peer_response_by_type! : {}", &err);
+            error!("Error in fetch_peer_response_by_type! : {}", &err);
             Err(err)
         }
     }
@@ -1060,13 +1062,13 @@ pub fn fetch_latest_response_entity_by_identity_group_peers(path: &str, identity
                     }
                 },
                 Err(err) => {
-                    println!("Error in fetch_peer_response_by_type! : {}", &err);
+                    error!("Error in fetch_peer_response_by_type! : {}", &err);
                     Err(err)
                 }
             }
         },
         Err(err) => {
-            println!("Error in fetch_peer_response_by_type! : {}", &err);
+            error!("Error in fetch_peer_response_by_type! : {}", &err);
             Err(err)
         }
     }

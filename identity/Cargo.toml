@@ -7,6 +7,7 @@ edition = "2021"
 [dependencies]
 libc = "0.2.147"
 crypto = { path = '../crypto', features = ["encryption"] }
+logger = { path = '../logger' }
 
 [build-dependencies]
 bindgen = "0.69.1"

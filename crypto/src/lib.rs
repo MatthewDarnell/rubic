@@ -66,6 +66,7 @@ pub mod encryption {
     use crate::hash;
     use sodiumoxide::crypto::secretbox::{ Key, Nonce };
     use sodiumoxide::crypto::secretbox;
+    use logger::error;
 
     pub fn encrypt(plaintext: &str, password: &str) -> Option<(String, String)> {
         let hashed_password: String = hash::k12(password);
@@ -91,7 +92,7 @@ pub mod encryption {
         let p_n: Vec<u8> = match general_purpose::STANDARD_NO_PAD.decode::<&str>(nonce) {
             Ok(value) => value,
             Err(err) => {
-                println!("Error Decoding Nonce From Base64! : {}", err.to_string());
+                error!("Error Decoding Nonce From Base64! : {}", err);
                 return Err(());
             }
         };
@@ -100,7 +101,7 @@ pub mod encryption {
         let c_t: Vec<u8> = match general_purpose::STANDARD_NO_PAD.decode::<&str>(ciphertext) {
             Ok(value) => value,
             Err(err) => {
-                println!("Error Decoding CipherText From Base64! : {}", err.to_string());
+                error!("Error Decoding CipherText From Base64! : {}", err.to_string());
                 return Err(());
             }
         };
@@ -110,7 +111,7 @@ pub mod encryption {
                 return Ok(plaintext);
             },
             Err(_) => {
-                println!("Error Decrypting!");
+                error!("Error Decrypting!");
                 Err(())
             }
         }

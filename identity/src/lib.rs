@@ -1,6 +1,7 @@
 extern crate libc;
 use crypto;
 use std::str::Utf8Error;
+use logger::error;
 
 extern {
     fn getSubseed(seed: *const u8, subseed: *mut u8) -> bool;
@@ -98,7 +99,7 @@ impl Identity {
                 }
             },
             Err(err) => {
-                println!("Error Generating Identity! : {}", err.to_string());
+                error!("Error Generating Identity! : {}", err.to_string());
                 Identity {
                     seed: String::from(""),
                     hash: String::from(""),

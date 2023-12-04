@@ -37,13 +37,13 @@ async fn main() {
     "193.135.9.63:21841",
     "144.2.106.163:21841"
   ];
-  debug("Creating Peer Set");
+  debug!("Creating Peer Set");
 
   let mut peer_set = PeerSet::new();
   for ip in peer_ips {
-    debug(format!("Adding Peer {}", ip).as_str());
+    debug!("Adding Peer {}", ip);
     peer_set.add_peer(ip).unwrap();
-    debug("Peer Added");
+    debug!("Peer Added");
   }
 
   let (tx, rx) = mpsc::channel::<std::collections::HashMap<String, String>>();
