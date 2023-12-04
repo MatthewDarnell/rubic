@@ -4,8 +4,8 @@ use std::collections::HashMap;
 use rocket::routes;
 
 extern crate dotenv_codegen;
-use network::peers::{PeerStrategy, PeerSet};
-use logger::{info, debug, error};
+use network::peers::PeerSet;
+use logger::{setup_logger, info, debug, error};
 use store::sqlite::crud;
 use store::get_db_path;
 use identity;
@@ -21,7 +21,8 @@ use rocket::fairing::{Fairing, Info, Kind};
 
 #[rocket::main]
 async fn main() {
-  info("Starting Rubic Application");
+  setup_logger().expect("Failed To Set Up Logging!");
+  info!("Starting Rubic Application");
   let path = store::get_db_path();
   crud::peer::set_all_peers_disconnected(path.as_str()).unwrap();
   let peer_ips = vec![
@@ -38,7 +39,7 @@ async fn main() {
   ];
   debug("Creating Peer Set");
 
-  let mut peer_set = PeerSet::new(PeerStrategy::RANDOM);
+  let mut peer_set = PeerSet::new();
   for ip in peer_ips {
     debug(format!("Adding Peer {}", ip).as_str());
     peer_set.add_peer(ip).unwrap();
@@ -52,19 +53,17 @@ async fn main() {
     let mut tx = tx2;
     let rx = rx;  //Move rx into scope and then thread
     std::thread::spawn(move || {
-      let delay = Duration::from_millis(10000);
-
 
       let mut latest_tick: u32 = match crud::fetch_latest_tick(get_db_path().as_str()) {
         Ok(tick) => {
           tick.parse::<u32>().unwrap()
         },
-        Err(err) => {
+        Err(_) => {
           0 as u32
         }
       };
 
-      let mut tick_updated: bool = false;
+      let mut tick_updated: bool;
 
       //Main Thread Loop
       loop {
@@ -72,27 +71,27 @@ async fn main() {
         match peer_set.make_request(request) {
           Ok(_) => {},
           //Ok(_) => println!("{:?}", request.response_data),
-          Err(err) => println!("{}", err)
+          Err(err) => error!("{}", err)
         }
         //std::thread::sleep(delay);
         tick_updated = false;
-        let mut temp_latest_tick: u32 = match crud::fetch_latest_tick(get_db_path().as_str()) {
+        let temp_latest_tick: u32 = match crud::fetch_latest_tick(get_db_path().as_str()) {
           Ok(tick) => {
             tick.parse::<u32>().unwrap()
           },
-          Err(err) => {
+          Err(_) => {
             0 as u32
           }
         };
         if temp_latest_tick > latest_tick {
-          println!("Tick Updated! {} -> {}", latest_tick, temp_latest_tick);
+          debug!("Tick Updated! {} -> {}", latest_tick, temp_latest_tick);
           latest_tick = temp_latest_tick;
           tick_updated = true;
         }
 
         //Update Balances For All Stored Identities
-        if tick_updated {
-          println!("Updating Balances!");
+        if tick_updated == true {
+          debug!("Updating Balances!");
           match crud::fetch_all_identities(get_db_path().as_str()) {
             Ok(identities) => {
               for identity in identities {
@@ -100,13 +99,13 @@ async fn main() {
                 match peer_set.make_request(request) {
                   Ok(_) => {},
                   //Ok(_) => println!("{:?}", request.response_data),
-                  Err(err) => println!("{}", err)
+                  Err(err) => error!("{}", err)
                 }
                 //std::thread::sleep(delay);
               }
             },
             Err(err) => {
-              error(format!("Error: {:?}", err).as_str());
+              error!("Error: {:?}", err);
             }
           }
           //println!("Finished Updating Balances");
@@ -133,7 +132,6 @@ async fn main() {
                     response.insert("message_id".to_string(), message_id.to_string());
                     response.insert("status".to_string(), err.as_str().to_string());
                     error(format!("Failed To Add Peer.({}) = ({})", peer_ip.as_str(), err.as_str()).as_str());
-                    println!("Sending {:?}", &response);
                     tx.send(response).unwrap();
                   }
                 }
@@ -149,16 +147,16 @@ async fn main() {
 
                 let mut id: identity::Identity = match store::sqlite::crud::fetch_identity(get_db_path().as_str(), source.as_str()) {
                   Ok(identity) => identity,
-                  Err(err) => {
+                  Err(_) => {
                     response.insert("message_id".to_string(), message_id.to_string());
                     response.insert("status".to_string(), "Unknown Source Identity!".to_string());
-                    error(format!("Failed To Make Transfer, Unknown Identity {}", source.as_str()).as_str());
+                    error!("Failed To Make Transfer, Unknown Identity {}", source.as_str());
                     tx.send(response).unwrap();
                     continue;
                   }
                 };
 
-                if(id.encrypted) {
+                if id.encrypted {
                   if let Some(pass) = map.get(&"password".to_string()) {
                     id = match crud::master_password::get_master_password(get_db_path().as_str()) {
                       Ok(master_password) => {
@@ -168,35 +166,35 @@ async fn main() {
                             if !verified {
                               response.insert("message_id".to_string(), message_id.to_string());
                               response.insert("status".to_string(), "Invalid Password!".to_string());
-                              error("Failed To Create Transfer; Invalid Password");
+                              error!("Failed To Create Transfer; Invalid Password");
                               tx.send(response).unwrap();
                               continue;
                             } else {
                               match id.decrypt_identity(pass.as_str()) {
                                 Ok(identity) => identity,
-                                Err(err) => {
+                                Err(_) => {
                                   response.insert("message_id".to_string(), message_id.to_string());
                                   response.insert("status".to_string(), "Invalid Password For This Identity!".to_string());
-                                  error("Failed To Create Transfer; Invalid Password For This Identity");
+                                  error!("Failed To Create Transfer; Invalid Password For This Identity");
                                   tx.send(response).unwrap();
                                   continue;
                                 }
                               }
                             }
                           },
-                          Err(err) => {
+                          Err(_) => {
                             response.insert("message_id".to_string(), message_id.to_string());
                             response.insert("status".to_string(), "Failed To Verify Master Password Vs Supplied Password!".to_string());
-                            error("Failed To Verify Master Password Vs Supplied Password");
+                            error!("Failed To Verify Master Password Vs Supplied Password");
                             tx.send(response).unwrap();
                             continue;
                           }
                         }
                       },
-                      Err(err) => {
+                      Err(_) => {
                         response.insert("message_id".to_string(), message_id.to_string());
                         response.insert("status".to_string(), "Identity Is Encrypted, Yet No Master Password Set! Weird!".to_string());
-                        error("Identity Is Encrypted, Yet No Master Password Set! Weird");
+                        error!("Identity Is Encrypted, Yet No Master Password Set! Weird");
                         tx.send(response).unwrap();
                         continue;
                       }
@@ -204,7 +202,7 @@ async fn main() {
                   } else {
                     response.insert("message_id".to_string(), message_id.to_string());
                     response.insert("status".to_string(), "Must Enter A Password!".to_string());
-                    error("Failed To Decrypt Password For Transfer; No Password Supplied");
+                    error!("Failed To Decrypt Password For Transfer; No Password Supplied");
                     tx.send(response).unwrap();
                     continue;
                   }
@@ -215,22 +213,17 @@ async fn main() {
                 let tck: u32 = expiration.parse().unwrap();
 
                 //info(format!("Creating Transfer: {} .({}) ---> {} (Expires At Tick.<{}>)", &id.identity.as_str(), amt.to_string().as_str(), dest.as_str(), tck.to_string().as_str()).as_str());
-                info(format!("Creating Transfer: {} .({}) ---> {} (Expires At Tick.<{}>)", &id.identity.as_str(), amt.to_string().as_str(), dest.as_str(), tck.to_string().as_str()).as_str());
-                println!("Creating Transfer: {} .({}) ---> {} (Expires At Tick.<{}>)", &id.identity.as_str(), amt.to_string().as_str(), dest.as_str(), tck.to_string().as_str());
+                info!("Creating Transfer: {} .({}) ---> {} (Expires At Tick.<{}>)", &id.identity.as_str(), amt.to_string().as_str(), dest.as_str(), tck.to_string().as_str());
                 let transfer_tx = api::transfer::TransferTransaction::from_vars(&id, &dest, amt, tck);
-                //println!("{:?}", &transfer_tx);
-                //println!("{:?}", &transfer_tx.as_bytes());
                 response.insert("message_id".to_string(), message_id.to_string());
                 response.insert("status".to_string(), "Transfer Sent!".to_string());
 
                 let request = api::QubicApiPacket::broadcast_transaction(&transfer_tx);
                 match peer_set.make_request(request) {
-                  Ok(_) => { info("Transaction Sent!"); println!("Transaction Sent!"); },
+                  Ok(_) => { info!("Transaction Sent!"); },
                   //Ok(_) => println!("{:?}", request.response_data),
-                  Err(err) => println!("{}", err)
+                  Err(err) => error!("{}", err)
                 }
-                //std::thread::sleep(delay);
-
                 tx.send(response).unwrap();
                 continue;
               }
@@ -250,14 +243,15 @@ async fn main() {
                           } else {
                             id = id.encrypt_identity(pass.as_str()).unwrap();
                             match crud::insert_new_identity(get_db_path().as_str(), &id) {
-                              Ok(v) => {
+                              Ok(_) => {
+                                error!("Failed To Insert Identity");
                                 response.insert("message_id".to_string(), message_id.to_string());
                                 response.insert("status".to_string(), "200".to_string());
                               },
                               Err(err) => {
                                 response.insert("message_id".to_string(), message_id.to_string());
                                 response.insert("status".to_string(), err.to_string());
-                                error(format!("Failed To Insert! {:?}", err).as_str());
+                                error!("Failed To Insert! {:?}", err);
                               }
                             }
                           }
@@ -265,25 +259,25 @@ async fn main() {
                         Err(err) => {
                           response.insert("message_id".to_string(), message_id.to_string());
                           response.insert("status".to_string(), err.to_string());
-                          error("Failed To Verify Master Password!");
+                          error!("Failed To Verify Master Password!");
                         }
                       }
                     },
-                    Err(err) => {
+                    Err(_) => {
                       response.insert("message_id".to_string(), message_id.to_string());
                       response.insert("status".to_string(), "No Master Password Set!".to_string());
                     }
                   }
                 } else {
                   match crud::insert_new_identity(get_db_path().as_str(), &id) {
-                    Ok(v) => {
+                    Ok(_) => {
                       response.insert("message_id".to_string(), message_id.to_string());
                       response.insert("status".to_string(), "200".to_string());
                     },
                     Err(err) => {
                       response.insert("message_id".to_string(), message_id.to_string());
                       response.insert("status".to_string(), err.to_string());
-                      error(format!("Failed To Insert! {:?}", err).as_str());
+                      error!("Failed To Insert! {:?}", err);
                     }
                   }
                 }
@@ -305,13 +299,13 @@ async fn main() {
               if let Some(connected) = temp_peer.get(&"connected".to_string()) {
                 if connected.as_str() != "1" {
                   //println!("{:?}", &temp_peer);
-                  error(format!("Is Peer {} connected? {}", peer.as_str(), &connected).as_str());
+                  error!("Is Peer {} connected? {}", peer.as_str(), &connected);
                   peer_set.delete_peer_by_id(peer.as_str());
                 }
               }
             },
             Err(err) => {
-              println!("Error Fetching Peer {} By Id! {}", peer.as_str(), err);
+              error!("Error Fetching Peer {} By Id! {}", peer.as_str(), err);
               //panic!("{}", err)
             }
           }
@@ -322,54 +316,36 @@ async fn main() {
         let min_peers: usize = env::get_min_peers();
         let num_peers: usize = peer_set.get_peers().len();
         if num_peers < min_peers {
-          debug(format!("Number Of Peers.({}) Less Than Min Peers.({}). Adding More...", num_peers, min_peers).as_str());
+          debug!("Number Of Peers.({}) Less Than Min Peers.({}). Adding More...", num_peers, min_peers);
           match crud::peer::fetch_disconnected_peers(get_db_path().as_str()) {
             Ok(disconnected_peers) => {
-              debug(format!("Fetched {} Disconnected Peers", disconnected_peers.len()).as_str());
+              debug!("Fetched {} Disconnected Peers", disconnected_peers.len());
               for p in disconnected_peers {
                 let peer_id = &p[0];
                 let peer_ip = &p[1];
                 match peer_set.add_peer(peer_ip.as_str()) {
                   Ok(_) => {
-                    debug(format!("Peer.({}) Added {}", peer_ip.as_str(), peer_id.as_str()).as_str());
+                    debug!("Peer.({}) Added {}", peer_ip.as_str(), peer_id.as_str());
                   },
                   Err(err) => {
-                    debug(format!("Failed To Add Peer.({}) : ({:?})", peer_ip.as_str(), err).as_str());
+                    debug!("Failed To Add Peer.({}) : ({:?})", peer_ip.as_str(), err);
                   }
                 }
               }
             },
-            Err(_) => println!("Db Error Fetching Disconnected Peers")
+            Err(_) => error!("Db Error Fetching Disconnected Peers")
           }
         }
-
-        //std::thread::sleep(delay);
       }
     });
   }
 
-/*
-  let t = std::thread::spawn(move || {
-    let delay = Duration::from_secs(3);
-    loop {
-      let mut request = api::QubicApiPacket::get_identity_balance("BAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAARMID");
-      match peer_set.make_request(request) {
-        Ok(_) => {},
-        //Ok(_) => println!("{:?}", request.response_data),
-        Err(err) => println!("{}", err)
-      }
-      std::thread::sleep(delay);
-    }
-  });
-*/
   let host = env::get_host();
   let port: u32 = match env::get_port().parse() {
     Ok(v) => v,
     Err(err) => panic!("Invalid Server Port! {}", err.to_string())
   };
-  info(format!("Starting Rubic Server at.({}:{})", &host, port).as_str());
-
-
+  info!("Starting Rubic Server at.({}:{})", &host, port);
 
   pub struct CORS;
 
@@ -416,8 +392,7 @@ async fn main() {
       .manage(std::sync::Mutex::new(tx))
       .manage(std::sync::Mutex::new(rx_server_route_responses_from_thread))
       .attach(CORS)
-      .launch().await;
-  //t.join();
+      .launch().await.expect("Failed To Create Server");
 }
 
 

@@ -1,14 +1,10 @@
 use dotenv::dotenv;
-use log::{debug, error, info, trace, warn, LevelFilter, SetLoggerError};
-use log4rs::{
-    append::{
-        console::{ConsoleAppender, Target},
-        file::FileAppender,
-    },
-    config::{Appender, Config, Root},
-    encode::pattern::PatternEncoder,
-    filter::threshold::ThresholdFilter,
-};
+use fern;
+use chrono;
+
+use log::{warn, LevelFilter, Metadata, SetLoggerError};
+pub use log::{debug, error, info, trace };
+
 
 
 
@@ -106,92 +102,50 @@ fn get_log_level() -> String {
     }
 }
 
-pub fn debug(value: &str) -> Result<(), SetLoggerError> {
+
+fn drop_rocket(meta: &Metadata) -> bool {
+    let name = meta.target();
+    if name.starts_with("rocket") || name.eq("_") {
+        return false;
+    }
+    true
+}
+
+pub fn setup_logger() -> Result<(), fern::InitError> {
     let level = match get_log_level().as_str() {
-        "info" => log::LevelFilter::Info,
-        "debug" => log::LevelFilter::Debug,
-        "error" => log::LevelFilter::Error,
-        _ => log::LevelFilter::Info
+        "info" => LevelFilter::Info,
+        "debug" => LevelFilter::Debug,
+        "error" => LevelFilter::Error,
+        _ => LevelFilter::Info
     };
-    let file_path = get_log_file();
-    // Logging to log file.
-    let logfile = FileAppender::builder()
-        // Pattern: https://docs.rs/log4rs/*/log4rs/encode/pattern/index.html
-        .encoder(Box::new(PatternEncoder::new("{l} - {m}\n")))
-        .build(file_path.as_str())
-        .expect("Error Building Log File!");
+
+    fern::Dispatch::new()
+        .format(|out, message, record| {
+            out.finish(format_args!(
+                "{}[{}][{}] {}",
+                chrono::Local::now().format("[%Y-%m-%d][%H:%M:%S]"),
+                record.target(),
+                record.level(),
+                message
+            ))
+        })
+        .level(level)
+        .filter(drop_rocket)
+        .chain(std::fs::File::create(get_log_file().as_str())?)
+        .chain(std::io::stdout())
+        .apply()?;
+    Ok(())
+}
 
 
-    let config = Config::builder()
-        .appender(Appender::builder().build("logfile", Box::new(logfile)))
-        .build(
-            Root::builder()
-                .appender("logfile")
-                .build(level),
-        )
-        .expect("Error Building Log File Config!");
-    let _handle = log4rs::init_config(config)?;
+pub fn debug(value: &str) {
     debug!("{}", value);
-    Ok(())
 }
 
-pub fn error(value: &str) -> Result<(), SetLoggerError> {
-    let level = match get_log_level().as_str() {
-        "info" => log::LevelFilter::Info,
-        "debug" => log::LevelFilter::Debug,
-        "error" => log::LevelFilter::Error,
-        _ => log::LevelFilter::Info
-    };
-    let file_path = get_log_file();
-    // Logging to log file.
-    let logfile = FileAppender::builder()
-        // Pattern: https://docs.rs/log4rs/*/log4rs/encode/pattern/index.html
-        .encoder(Box::new(PatternEncoder::new("{l} - {m}\n")))
-        .build(file_path.as_str())
-        .expect("Error Building Log File!");
-
-
-    let config = Config::builder()
-        .appender(Appender::builder().build("logfile", Box::new(logfile)))
-        .build(
-            Root::builder()
-                .appender("logfile")
-                .build(level),
-        )
-        .expect("Error Building Log File Config!");
-    let _handle = log4rs::init_config(config)?;
+pub fn error(value: &str) {
     error!("{}", value);
-    Ok(())
 }
 
-pub fn info(value: &str) -> Result<(), SetLoggerError> {
-    let level = match get_log_level().as_str() {
-        "info" => log::LevelFilter::Info,
-        "debug" => log::LevelFilter::Debug,
-        "error" => log::LevelFilter::Error,
-        _ => log::LevelFilter::Info
-    };
-    let file_path = get_log_file();
-    // Logging to log file.
-    let logfile = FileAppender::builder()
-        // Pattern: https://docs.rs/log4rs/*/log4rs/encode/pattern/index.html
-        .encoder(Box::new(PatternEncoder::new("{l} - {m}\n")))
-        .build(file_path.as_str())
-        .expect("Error Building Log File!");
-
-
-    let config = Config::builder()
-        .appender(Appender::builder().build("logfile", Box::new(logfile)))
-        .build(
-            Root::builder()
-                .appender("logfile")
-                .build(level),
-        )
-        .expect("Error Building Log File Config!");
-    let _handle = log4rs::init_config(config)?;
-    info!("{}", value);
-    Ok(())
-}
 
 pub fn add(left: usize, right: usize) -> usize {
     left + right

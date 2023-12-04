@@ -11,17 +11,7 @@ use crate::worker;
 use crate::peer::Peer;
 
 
-
-
-#[derive(Debug)]
-pub enum PeerStrategy {
-    PrioritizeLowPing = 0,
-    PrioritizeLongestUnusedConn = 1,
-    RANDOM = 2
-}
-
 pub struct PeerSet {
-  strategy: PeerStrategy,
   peers: Vec<Peer>,
   req_channel: (spmc::Sender<QubicApiPacket>, spmc::Receiver<QubicApiPacket>),
   threads: HashMap<String, std::thread::JoinHandle<()>>
@@ -31,10 +21,9 @@ pub struct PeerSet {
 
 
 impl PeerSet {
-    pub fn new(strategy: PeerStrategy) -> Self {
+    pub fn new() -> Self {
         let channel = std::sync::mpsc::channel::<QubicApiPacket>();
         let peer_set = PeerSet {
-            strategy: strategy,
             peers: vec![],
             threads: HashMap::new(),
             req_channel: spmc::channel::<QubicApiPacket>(),
@@ -200,11 +189,10 @@ impl PeerSet {
 #[cfg(test)]
 pub mod peer_tests {
     use crate::peers::PeerSet;
-    use crate::peers::PeerStrategy::RANDOM;
 
     #[test]
     fn add_a_peer() {
-        let mut p_set = PeerSet::new(RANDOM);
+        let mut p_set = PeerSet::new();
         match p_set.add_peer("127.0.0.1:8000") {
             Ok(_) => {
                 assert_eq!(p_set.num_peers(), 1);

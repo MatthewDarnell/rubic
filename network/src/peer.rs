@@ -15,7 +15,6 @@ pub struct Peer {
     whitelisted: bool,
     last_responded: SystemTime,
     id: String,
-    thread_handle: Option<thread::JoinHandle<()>>
 }
 
 
@@ -29,7 +28,6 @@ impl Clone for Peer {
             whitelisted: self.get_whitelisted(),
             last_responded: self.get_last_responded(),
             id: self.get_id().to_owned(),
-            thread_handle: None
         }
     }
 }
@@ -47,7 +45,6 @@ impl Peer {
             whitelisted: false,
             last_responded: UNIX_EPOCH,
             id: Uuid::new_v4().to_string(),
-            thread_handle: None
         };
         match create_peer(get_db_path().as_str(),
             id.as_str(),

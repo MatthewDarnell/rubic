@@ -68,7 +68,7 @@ pub fn add_peer(address: &str, mtx: &rocket::State<Mutex<Sender<HashMap<String, 
     match tx.send(map) {
         Ok(_) => {},
         Err(err) => {
-            error(format!("Failed To Send Response From Peers Add Address! : {:?}", err).as_str()).unwrap();
+            error(format!("Failed To Send Response From Peers Add Address! : {:?}", err).as_str());
         }
     }
     let mut index = 0;
@@ -87,7 +87,7 @@ pub fn add_peer(address: &str, mtx: &rocket::State<Mutex<Sender<HashMap<String, 
                     continue;
                 }
             },
-            Err(err) => {
+            Err(_) => {
                //println!("got error {:?}", &err);
                // return format!("{}", err.to_string());
             }
@@ -173,7 +173,7 @@ pub fn create_random_identity(password: &str, mtx: &rocket::State<Mutex<Sender<H
                     continue;
                 }
             },
-            Err(err) => {
+            Err(_) => {
                 //println!("got error {:?}", &err);
                 // return format!("{}", err.to_string());
             }
@@ -215,7 +215,7 @@ pub fn add_identity(seed: &str, mtx: &rocket::State<Mutex<Sender<HashMap<String,
                     continue;
                 }
             },
-            Err(err) => {
+            Err(_) => {
                 //println!("got error {:?}", &err);
                 // return format!("{}", err.to_string());
             }
@@ -259,7 +259,7 @@ pub fn add_identity_with_password(seed: &str, password: &str, mtx: &rocket::Stat
                     continue;
                 }
             },
-            Err(err) => {
+            Err(_) => {
             }
         }
     }
@@ -305,7 +305,6 @@ pub fn set_master_password(password: &str) -> String {
             }
         }
     }
-    format!("ok")
 }
 
 #[get("/wallet/encrypt/<password>")]
@@ -342,7 +341,7 @@ pub fn encrypt_wallet(password: &str) -> String {
                             Err(err) => {return format!("{}", err);}
                         }
                     },
-                    Err(err) => {
+                    Err(_) => {
                         return format!("Invalid Password!");
                     }
                 }
@@ -352,7 +351,6 @@ pub fn encrypt_wallet(password: &str) -> String {
             return format!("{:?}", err);
         }
     }
-    format!("ok")
 }
 
 #[get("/wallet/download/<password>")]
@@ -431,18 +429,8 @@ pub fn transfer(source: &str, dest: &str, amount: &str, expiration: &str, passwo
     let rx = lock2.clone();
     drop(lock2);
 
-
-    let amount_to_send: u64 = match amount.parse() {
-        Ok(a) => a,
-        Err(err) => { return format!("Invalid Amount!"); }
-    };
-
     let string_amount: String = amount.to_string();
 
-    let expiration_tick: u64 = match expiration.parse() {
-        Ok(a) => a,
-        Err(err) => { return format!("Invalid Expiration Tick!"); }
-    };
     let string_expiration: String = expiration.to_string();
 
     let source_identity: String = source.to_string();
@@ -486,7 +474,8 @@ pub fn transfer(source: &str, dest: &str, amount: &str, expiration: &str, passwo
                     continue;
                 }
             },
-            Err(err) => {
+            Err(_) => {
+                //error!("Failed To Receive From Api");
             }
         }
     }

@@ -19,5 +19,4 @@ crypto =  { path = './crypto' }
 identity = { path = './identity' }
 logger = { path = './logger' }
 network = { path = './network' }
-server = { path = './server' }
 store = { path = './store' }
