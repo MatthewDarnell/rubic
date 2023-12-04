@@ -22,7 +22,9 @@
 #ifndef _MSC_VER
 #include <x86intrin.h>
 #define _rotl64 _rotl
+#ifndef __andn_u64
 #define _andn_u64 __andn_u64
+#endif
 #include <stdint.h>
 typedef __uint128_t uint128_t;
 #define UINT128(hi, lo) (((uint128_t) (hi)) << 64 | (lo))
