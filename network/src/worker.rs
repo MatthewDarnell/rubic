@@ -65,7 +65,7 @@ pub fn handle_new_peer(_id: String, peer: Peer, rx: spmc::Receiver<QubicApiPacke
                                 "Not Connected!".as_bytes()
                             },
                             _ => {
-                                println!("Unknown Error Kind! : {}", err.kind().to_string());
+                                //println!("Unknown Error Kind! : {}", err.kind().to_string());
                                 "Unknown Peer Error!".as_bytes()
                             }
                         }
