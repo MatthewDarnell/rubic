@@ -1,3 +1,3 @@
 [submodule "ffi-deps/simde"]
 	path = ffi-deps/simde
-	url = https://github.com/simd-everywhere/simde
+	url = httpgits://github.com/simd-everywhere/simde
