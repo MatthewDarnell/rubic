@@ -137,7 +137,6 @@ const getConnectedPeers = async () => {
     }
 }
 
-
 const getIdentities = async () => {
     const serverIp = document.getElementById("serverIp").value;
     const table = document.getElementById("identityTable");
@@ -150,7 +149,14 @@ const getIdentities = async () => {
             let encrypted = res[i + 1];
             const tr = document.createElement("tr");
             const td = document.createElement("td");
-            td.innerText = identity;
+            td.innerHTML = `&#x1f4cb ${identity}`;
+            td.addEventListener('click', () => {
+                navigator.clipboard.writeText(identity);
+                td.innerHTML = `&#x2705 ${identity}`;
+                setTimeout(() => {
+                    td.innerHTML = `&#x1f4cb ${identity}`;
+                }, 5000);
+            })
             tr.appendChild(td);
 
             const balanceTd = document.createElement("td");
@@ -582,6 +588,7 @@ window.onclick = function(event) {
 
 window.onload = () => {
     console.log("Rubic JS Loaded!");
+    document.getElementById("warningSpan").innerHTML = `&#x2757 This software comes with no warranty, real or implied. Secure storage of seeds and passwords is paramount; total loss of funds may ensue otherwise. &#x2757`;
     statusInfoLoopFunction();
     intervalLoopFunction();
 }
