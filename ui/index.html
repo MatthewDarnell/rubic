@@ -108,13 +108,13 @@
             </tr>
             <tr>
                 <td>
-                    <a href="#" onclick="switchToElement('identityDiv')">My Identities</a>
+                    <button id="switchIdentitiesBtn">Identities</button>
                 </td>
                 <td>
-                    <a href="#" onclick="switchToElement('peersDiv')">Connected Peers</a>
+                    <button id="switchPeersBtn">Connected Peers</button>
                 </td>
                 <td>
-                    <a href="#" onclick="switchToElement('settingsDiv')">Settings</a>
+                    <button id="switchSettingsBtn">Settings</button>
                 </td>
             </tr>
         </table>
@@ -148,13 +148,13 @@
                                 <span id="newIdentityPreviewSpan"></span>
                             </td>
                             <td>
-                                <button id="importNewIdentityBtn" onclick="addNewIdentity()" disabled>Import Identity</button>
+                                <button id="importNewIdentityBtn" disabled>Import Identity</button>
                             </td>
                         </tr>
                     <tr>
                         <td>
                             <div style="text-align: center;">
-                                <button id="generateRandomIdentityBtn" onclick="generateRandomIdentity()">Generate Random Identity</button>
+                                <button id="generateRandomIdentityBtn">Generate Random Identity</button>
                             </div>
                         </td>
                     </tr>
@@ -201,7 +201,7 @@
                     </tr>
                     <tr>
                         <td>
-                            <button id="addNewPeerBtn" onclick="addNewPeer()">Add Peer</button>
+                            <button id="addNewPeerBtn">Add Peer</button>
                         </td>
                         <td>
 
@@ -242,7 +242,7 @@
                     </tr>
                     <tr>
                         <td>
-                            <button id="setDbPassBtn" onclick="setMasterPassword()">Set Password</button>
+                            <button id="setDbPassBtn">Set Password</button>
                         </td>
                     </tr>
                     </tbody>
@@ -265,7 +265,7 @@
                     </tr>
                     <tr>
                         <td>
-                            <button id="encryptAllIdentitiesBtn" onclick="encryptAllIdentities()">Encrypt All Identities</button>
+                            <button id="encryptAllIdentitiesBtn" >Encrypt All Identities</button>
                         </td>
                     </tr>
                     </tbody>
@@ -288,7 +288,7 @@
                     </tr>
                     <tr>
                         <td>
-                            <button id="dumpDbBtn" onclick="exportDb()">Export As CSV</button>
+                            <button id="dumpDbBtn">Export As CSV</button>
                         </td>
                     </tr>
                     </tbody>
@@ -328,7 +328,7 @@
                 <tr id="sendModalPasswordInput"></tr>
                 <tr>
                     <td>
-                        <button id="sendQubicsBtn" onclick="initiateTransfer()">Send</button>
+                        <button id="sendQubicsBtn">Send</button>
                     </td>
                 </tr>
                 </tbody>

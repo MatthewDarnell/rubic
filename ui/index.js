@@ -582,6 +582,18 @@ window.onclick = function(event) {
 
 window.onload = () => {
     console.log("Rubic JS Loaded!");
+
+    document.getElementById("switchIdentitiesBtn").addEventListener('click', () => { switchToElement('identityDiv'); });
+    document.getElementById("switchSettingsBtn").addEventListener('click', () => { switchToElement('settingsDiv'); });
+    document.getElementById("switchPeersBtn").addEventListener('click', () => { switchToElement('peersDiv'); });
+    document.getElementById('importNewIdentityBtn').addEventListener('click', () => { addNewIdentity(); });
+    document.getElementById('generateRandomIdentityBtn').addEventListener('click', () => { generateRandomIdentity(); });
+    document.getElementById('addNewPeerBtn').addEventListener('click', () => { addNewPeer(); });
+    document.getElementById('setDbPassBtn').addEventListener('click', () => { setMasterPassword(); });
+    document.getElementById('encryptAllIdentitiesBtn').addEventListener('click', () => { encryptAllIdentities(); });
+    document.getElementById('dumpDbBtn').addEventListener('click', () => { exportDb(); });
+    document.getElementById('sendQubicsBtn').addEventListener('click', () => { initiateTransfer(); });
+
     statusInfoLoopFunction();
     intervalLoopFunction();
 }
