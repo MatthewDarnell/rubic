@@ -1,7 +1,7 @@
 use std::ffi::c_uchar;
 use identity::{Identity, get_public_key_from_identity};
 use crypto::hash::k12_bytes;
-
+use logger::info;
 extern {
     //extern ECCRYPTO_STATUS SchnorrQ_Sign(const unsigned char* SecretKey, const unsigned char* PublicKey, const unsigned char* Message, const unsigned int SizeMessage, unsigned char* Signature);
     fn sign(subseed: *const u8, publicKey: *const c_uchar, messageDigest: *const c_uchar, signature: *mut c_uchar);
@@ -23,7 +23,7 @@ pub struct TransferTransaction {
     pub _signature: Vec<u8>
 }
 
-static TICK_OFFSET: u32 = 10;
+static TICK_OFFSET: u32 = 30;
 
 impl TransferTransaction {
     pub fn from_vars(source_identity: &Identity, dest: &str, amount: u64, tick: u32) -> Self {
@@ -51,6 +51,7 @@ impl TransferTransaction {
             _input_size: 0,
             _signature: Vec::with_capacity(64)
         };
+        info!("Setting Expiration Tick For Transaction To {}", tick + TICK_OFFSET);
         let digest: Vec<u8> = k12_bytes(&t.as_bytes_without_signature());
         let mut sub_seed: [u8; 32] = [0; 32];
         unsafe {
@@ -131,5 +132,30 @@ fn create_transfer() {
     let id: Identity = Identity::new("lcehvbvddggkjfnokduyjuiyvkklrvrmsaozwbvjlzvgvfipqpnkkuf");
     let t: TransferTransaction = TransferTransaction::from_vars(&id, "EPYWDREDNLHXOFYVGQUKPHJGOMPBSLDDGZDPKVQUMFXAIQYMZGEHPZTAAWON", 100, 100);
     let expected: Vec<u8> = vec![170, 135, 62, 76, 253, 55, 228, 191, 82, 138, 42, 160, 30, 236, 239, 54, 84, 124, 153, 202, 170, 189, 27, 189, 247, 37, 58, 101, 176, 65, 119, 26, 170, 135, 62, 76, 253, 55, 228, 191, 82, 138, 42, 160, 30, 236, 239, 54, 84, 124, 153, 202, 170, 189, 27, 189, 247, 37, 58, 101, 176, 65, 119, 26, 100, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 110, 0, 0, 0, 105, 55, 108, 214, 255, 246, 151, 81, 6, 214, 129, 65, 96, 14, 146, 66, 206, 140, 212, 149, 217, 230, 189, 217, 106, 16, 216, 3, 208, 51, 185, 179, 25, 89, 215, 168, 85, 62, 9, 204, 52, 238, 245, 199, 48, 2, 43, 52, 117, 72, 109, 119, 84, 236, 135, 240, 56, 179, 194, 36, 96, 124, 32, 0];
+    assert_eq!(t.as_bytes().as_slice(), expected.as_slice());
+}
+
+
+#[test]
+fn create_another_transfer() {
+    let id: Identity = Identity::new("lcehvbvddggksfnokduyjuiyvkklrvrmsaozwbvjlzvgvfipqpnkkuf");
+    let t: TransferTransaction = TransferTransaction::from_vars(&id, "XBFULHWOBTSMNBHDGQXGUMPMLKWCECTIDIDEHCAJFCKYILPWPIVGADEGZTYJ", 10, 11202000);
+    let expected: Vec<u8> = vec![
+        37, 112,  53,  49, 107, 136, 119, 158, 242,  99, 180,  87,
+        210, 149,  13,  37, 184, 195,   1, 183,  74, 237, 103, 254,
+      177,  29, 206,  92, 194, 153, 169, 137,  21, 147, 195, 140,
+       38,  28,  76,  52, 221,  94,  94, 219, 189, 129, 136,  98,
+      148, 135, 210,  91,  26,  54, 242,  75,  66, 181,  44, 135,
+        8,  85,  12, 212,
+        10,   0,   0,   0,   0,   0,   0,   0,
+      238, 237, 170,   0,
+        0,   0,   0,   0,
+        /*begin signature */ 250, 222, 115, 210,
+       15,  11,  22,  11, 210, 206, 106, 144, 254, 178,   6,  38,
+      170,  40, 192, 122, 224, 242, 77,  35, 200,  90, 125,  75,
+        3,  86, 132, 160,  73,  63,  40, 119, 116, 227,  46, 249,
+       27,  40,   3, 234, 99, 187,  24, 212, 147,  79, 197,  92,
+       31, 156, 134, 46, 127,  72,  48, 237, 142, 193,  32,   0];
+
     assert_eq!(t.as_bytes().as_slice(), expected.as_slice());
 }

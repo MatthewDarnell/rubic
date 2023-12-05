@@ -91,8 +91,7 @@ extern "C" {
 // Definition of complementary cryptographic functions
 
 #define RandomBytesFunction     random_bytes    
-#define CryptoHashFunction      crypto_sha512        // Use SHA-512 by default
-
+//#define CryptoHashFunction      KangarooTwelve        // Use SHA-512 by default
 
 // Cache memory support
 

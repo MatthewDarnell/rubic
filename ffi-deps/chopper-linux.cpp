@@ -713,6 +713,13 @@ extern "C" {
         CopyMemory(output, finalNode.state, outputByteLen);
     }
 
+    int KangarooTwelveCryptoHashFunction(unsigned char* input, unsigned int inputByteLen, unsigned char* output)
+    {
+        KangarooTwelve(input, inputByteLen, output, 64);
+        return 0;
+    }
+
+
     void KangarooTwelve64To32(unsigned char* input, unsigned char* output)
     {
     #if AVX512

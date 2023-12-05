@@ -9,4 +9,5 @@ edition = "2021"
 chrono = "0.4.26"
 crypto = { path = '../crypto' }
 identity = { path = '../identity' }
+logger = { path = '../logger' }
 store = { path = '../store'}
