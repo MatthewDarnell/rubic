@@ -14,9 +14,14 @@ jobs:
         run: cargo +nightly build --release
       - name: Generate Commit Hash
         run: echo ${{ github.sha }} > Release.txt
+      - name: Generate release tag
+        id: tag
+        run: |
+          echo "::set-output name=release_tag::WindowsRelease_$(date +"%Y.%m.%d_%H-%M")"
       - name: Publish Release
         uses: softprops/action-gh-release@v1
         with:
+          tag_name: ${{ steps.tag.outputs.release_tag }}
           files: |
             target/release/rubic.exe
             LICENSE
