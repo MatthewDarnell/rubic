@@ -1,10 +1,11 @@
 
 
 const TIMEOUT_MS = 10000;
-const TICK_OFFSET = 10;
+const TICK_OFFSET = 30;
 const MAX_AMOUNT = 1000000000000000;
 let globalLatestTick = 0;
 let expirationPendingTick = -1;
+let transactionPending = false;
 
 const doArrayElementsAgree = (array, thresholdPercentage) => {
     const length = array.length;
@@ -525,6 +526,10 @@ window.initiateTransfer = async () => {
         document.getElementById("sendQubicsBtn").disabled = false;
         if(result !== "Transfer Sent!") {
             expirationPendingTick = expirationTick;
+        } else {
+            transactionPending = true;
+            const pendingTransferTable = document.getElementById("pendingTransferSpan");
+            pendingTransferTable.innerHTML = `Pending Transfer: (${sourceIdentity.substring(0, 4)}...) <b>${amountToSend}</b> Qus -> (${destinationIdentity}) Expires At Tick.(<b>${expirationPendingTick}</b>) `;
         }
         alert(result);
     } catch(error) {
@@ -537,6 +542,20 @@ window.initiateTransfer = async () => {
     Runtime
 */
 let numFuncsToCall = 4;
+
+
+const pendingTransferLoopFunction = () => {
+    if(transactionPending) {
+        if(expirationPendingTick > 0 && expirationPendingTick < globalLatestTick) {
+            transactionPending = false;
+            const pendingTransferTable = document.getElementById("pendingTransferSpan");
+            pendingTransferTable.innerHTML = "";
+        }
+        setTimeout(pendingTransferLoopFunction, 500);
+    } else {
+        setTimeout(pendingTransferLoopFunction, 5000);
+    }
+};
 
 const statusInfoLoopFunction = () => {
     getLatestTick()
@@ -589,6 +608,7 @@ window.onclick = function(event) {
 window.onload = () => {
     console.log("Rubic JS Loaded!");
     document.getElementById("warningSpan").innerHTML = `&#x2757 This software comes with no warranty, real or implied. Secure storage of seeds and passwords is paramount; total loss of funds may ensue otherwise. &#x2757`;
+    pendingTransferLoopFunction();
     statusInfoLoopFunction();
     intervalLoopFunction();
 }
