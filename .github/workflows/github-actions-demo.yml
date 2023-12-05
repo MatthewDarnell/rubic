@@ -11,7 +11,7 @@ jobs:
       - name: Install Cargo Toolchain
         run: rustup install nightly
       - name: Build
-        run: cargo build --verbose
+        run: cargo +nightly build --verbose
       - name: List files in the repository
         run: |
          ls ${{ github.workspace }}
