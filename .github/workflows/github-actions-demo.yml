@@ -11,8 +11,14 @@ jobs:
       - name: Install Cargo Toolchain
         run: rustup install nightly
       - name: Build
-        run: cargo +nightly build --verbose
-      - name: List files in the repository
-        run: |
-         ls ${{ github.workspace }}
+        run: cargo +nightly build --release
+      - name: Generate Commit Hash
+        run: echo ${{ github.sha }} > Release.txt
+      - name: Publish Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            target/release/rubic.exe
+            LICENSE
+            Release.txt
       - run: echo "🍏 This job's status is ${{ job.status }}."
