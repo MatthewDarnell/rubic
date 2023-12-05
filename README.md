@@ -55,7 +55,7 @@ This Directory is able to be changed in `.env`
 In the created directory it creates a log file as well as a SQLite database file used for storing Identities, Seeds, Transactions, Tick data and more.
 
 `Seeds` (when they are encrypted by storing a Master Password and Encrypting in Settings or at Import time)
-are encrypted using [bcrypt](https://en.wikipedia.org/wiki/Bcrypt) 
+are encrypted using [xsalsa20poly1305](https://nacl.cr.yp.to/valid.html) and stored locally hashed using [bcrypt](https://en.wikipedia.org/wiki/Bcrypt) 
 
 
 ### How can I get involved?
