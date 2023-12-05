@@ -1,10 +1,6 @@
 name: Rubic Builder
 run-name: Building Rubic With GitHub Action 🚀
-on:
-  push:
-    branches: [ 'main' ]
-  pull_request:
-    branches: [ 'github-actions' ]
+on: [push]
 env:
   CARGO_TERM_COLOR: always
 jobs:
