@@ -1,6 +1,10 @@
 name: Rubic Builder
 run-name: Building Rubic With GitHub Action 🚀
-on: [push]
+on:
+  push:
+  pull_request:
+    branches:
+      - main
 env:
   CARGO_TERM_COLOR: always
 jobs:
@@ -28,4 +32,5 @@ jobs:
             target/release/rubic.exe
             LICENSE
             Release.txt
+            ui/
       - run: echo "🍏 This job's status is ${{ job.status }}."
