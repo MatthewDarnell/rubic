@@ -20,6 +20,8 @@ jobs:
         run: cargo +nightly build --release
       - name: Generate Commit Hash
         run: echo ${{ github.sha }} > Release.txt
+      - name: Zip UI for deployment
+        run: tar.exe -a -c -f ui.zip ui/*
       - name: Generate release tag
         id: tag
         run: |
@@ -32,5 +34,5 @@ jobs:
             target/release/rubic.exe
             LICENSE
             Release.txt
-            ui/
+            ui.zip
       - run: echo "🍏 This job's status is ${{ job.status }}."
