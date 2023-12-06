@@ -27,7 +27,8 @@ Windows:
 ```
 ```agsl
 Mac:
-$ ./run-mac-m1.sh
+$ ./build-mac-m1.sh
+$cargo +nightly run
 ```
 
 Rubic will run a server at `localhost:3000`. You have the option to change this (as well as override several other options) in `.env`
