@@ -21,9 +21,23 @@ use rocket::fairing::{Fairing, Info, Kind};
 
 #[rocket::main]
 async fn main() {
+    let qubic_ascii_art_logo: &str = "
+   ....................
+   .....          .....
+   ...    || |||    ...
+   ..     || |||     ..
+   ..        |||    ...
+   ...       |||   ....
+   ......        ......
+   ....................
+     ";
+
+  const VERSION: &str = env!("CARGO_PKG_VERSION");
+
   setup_logger().expect("Failed To Set Up Logging!");
-  info!("Starting Rubic Application");
-  println!("Starting Rubic Application");
+  info!("Starting Rubic v{} - A Qubic Wallet", VERSION);
+  println!("{}", qubic_ascii_art_logo);
+  println!("Starting Rubic v{} - A Qubic Wallet", VERSION);
   println!("Warning! This software comes with no warranty, real or implied. Secure storage of seeds and passwords is paramount; total loss of funds may ensue otherwise.");
   info!("Warning! This software comes with no warranty, real or implied. Secure storage of seeds and passwords is paramount; total loss of funds may ensue otherwise.");
   let path = store::get_db_path();
@@ -45,7 +59,7 @@ async fn main() {
   let mut peer_set = PeerSet::new();
   for ip in peer_ips {
     debug!("Adding Peer {}", ip);
-    peer_set.add_peer(ip).unwrap();
+    peer_set.add_peer(ip).ok();
     debug!("Peer Added");
   }
 

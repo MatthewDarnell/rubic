@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use std::net::{SocketAddr, TcpStream};
 use std::thread;
 use api::QubicApiPacket;
-use logger::debug;
+use logger::{ debug, error };
 use std::time::{Duration};
 use store;
 
@@ -77,7 +77,7 @@ impl PeerSet {
                 Ok(())
             },
             Err(err) => {
-                println!("Error Adding Peer! {}", err.to_string());
+                error!("Error Adding Peer! {}", err.to_string());
                 Err(err.to_string())
             }
         }
