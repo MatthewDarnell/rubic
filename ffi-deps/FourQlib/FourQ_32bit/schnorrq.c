@@ -17,7 +17,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-extern int KangarooTwelveCryptoHashFunction(unsigned char* input, unsigned int inputByteLen, unsigned char* output);
+extern int KangarooTwelveCryptoHashFunction(const unsigned char* input, const unsigned int inputByteLen, unsigned char* output);
 #define CryptoHashFunction      KangarooTwelveCryptoHashFunction
 
 ECCRYPTO_STATUS SchnorrQ_KeyGeneration(const unsigned char* SecretKey, unsigned char* PublicKey)

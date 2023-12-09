@@ -18,7 +18,7 @@ fn main() {
     } else {
         cc::Build::new()
             .define("__LINUX__", "1")
-            .define("_ARM_", "1")
+            .define("_X86_", "1")
             .define("_AVX_", "1")
             .define("USE_ENDO", "true")
             .include("../ffi-deps/FourQlib/FourQ_32bit")
@@ -32,8 +32,16 @@ fn main() {
             .compile("libFourQ");
 
         cc::Build::new()
+            .include("../ffi-deps/K12/lib")
+            .include("../ffi-deps/K12/lib/Plain64")
+            .file("../ffi-deps/K12/lib/KangarooTwelve.c")
+            .compile("KangarooTwelve");
+
+        cc::Build::new()
             .file("../ffi-deps/chopper-linux.cpp")
-            .define("_AMD64_", "1")
+            .define("__LINUX__", "1")
+            .define("_X86_", "1")
+            //.define("_AMD64_", "1")
             .compile("Chopper")
     }
 }

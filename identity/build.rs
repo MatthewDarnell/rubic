@@ -13,7 +13,7 @@ fn main() {
     } else {
         cc::Build::new()
             .define("__LINUX__", "1")
-            .define("_ARM_", "1")
+            .define("_X86_", "1")
             .define("_AVX_", "1")
             .define("USE_ENDO", "true")
             .include("../ffi-deps/FourQlib/FourQ_32bit")
@@ -32,9 +32,11 @@ fn main() {
 
         cc::Build::new()
             .file("../ffi-deps/chopper-linux.cpp")
-            .define("_AMD64_", "1")
+            .define("__LINUX__", "1")
+            .define("_X86_", "1")
             .define("_AVX_", "1")
-            .include("../ffi-deps/FourQlib/FourQ_32bit/FourQ.h")
+            .include("../ffi-deps/FourQlib/FourQ_32bit")
+            .file("../ffi-deps/FourQlib/FourQ_32bit/FourQ.h")
             .compile("Chopper")
     }
 }
