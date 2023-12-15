@@ -20,11 +20,11 @@ fn main() {
     };
 
     if os == "windows" {
-        cc::Build::new()
+        return cc::Build::new()
             .file("../ffi-deps/chopper-win.cpp")
             .define("_MSC_VER", "1")
             .define("_AMD64_", "1")
-            .compile("Chopper")
+            .compile("Chopper");
     }
 
     cc::Build::new()
