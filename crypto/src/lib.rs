@@ -1,6 +1,5 @@
 #![feature(ascii_char)]
 #![feature(ascii_char_variants)]
-
 mod fourq;
 
 const A_LOWERCASE_ASCII: u8 = 97u8;
@@ -37,9 +36,12 @@ pub mod hash {
 
 
 pub mod qubic_identities {
+    use core::{ptr::copy_nonoverlapping, fmt::{Debug, Display}, str::FromStr};
+    use tiny_keccak::{Hasher, IntoXof, KangarooTwelve, Xof};
     use crate::{A_LOWERCASE_ASCII, hash};
     use hash::k12_bytes;
-    use crate::fourq::ops::{ecc_mul_fixed, encode};
+    use crate::fourq::consts::{CURVE_ORDER_0, CURVE_ORDER_1, CURVE_ORDER_2, CURVE_ORDER_3, MONTGOMERY_R_PRIME, ONE};
+    use crate::fourq::ops::{addcarry_u64, ecc_mul_fixed, encode, montgomery_multiply_mod_order, subborrow_u64};
     use crate::fourq::types::{PointAffine};
 
     //     fn getPublicKey(privateKey: *const u8, publicKey: *mut u8);
@@ -142,9 +144,81 @@ pub mod qubic_identities {
         Ok(public_key)
     }
 
+    pub fn sign_raw(subseed: &Vec<u8>, public_key: &[u8; 32], message_digest: [u8; 32]) -> [u8; 64] {
+
+        println!("Got Subseed: {:?}", subseed);
+        println!("Got Public Key: {:?}", public_key);
+        println!("Got Message Digest: {:?}", &message_digest);
+
+        let mut r_a = PointAffine::default();
+        let (mut k, mut h, mut temp) = ([0u8; 64], [0u8; 64], [0u8; 96]);
+        let mut r = [0u8; 64];
+
+
+        let mut kg = KangarooTwelve::new(b"");
+        kg.update(subseed.as_slice());
+        kg.into_xof().squeeze(&mut k);
+
+        let mut signature = [0u8; 64];
+
+        unsafe {
+            copy_nonoverlapping(k.as_ptr().offset(32), temp.as_mut_ptr().offset(32), 32);
+            copy_nonoverlapping(message_digest.as_ptr(), temp.as_mut_ptr().offset(64), 32);
+
+
+            let mut kg = KangarooTwelve::new(b"");
+            kg.update(&temp[32..]);
+            let mut im = [0u8; 64];
+            kg.into_xof().squeeze(&mut im);
+
+            copy_nonoverlapping(im.as_ptr(), r.as_mut_ptr(), 64);
+            let k: [u64; 8] = k.chunks_exact(8).map(|c| u64::from_le_bytes(c.try_into().unwrap())).collect::<Vec<_>>().try_into().unwrap();
+            let mut r: [u64; 8] = r.chunks_exact(8).map(|c| u64::from_le_bytes(c.try_into().unwrap())).collect::<Vec<_>>().try_into().unwrap();
+            ecc_mul_fixed(&r, &mut r_a);
+
+            encode(&mut r_a, &mut signature);
+            let mut signature_i: [u64; 8] = signature.chunks_exact(8).map(|c| u64::from_le_bytes(c.try_into().unwrap())).collect::<Vec<_>>().try_into().unwrap();
+
+            copy_nonoverlapping(signature_i.as_ptr() as *mut u8, temp.as_mut_ptr(), 32);
+            copy_nonoverlapping(public_key.as_ptr(), temp.as_mut_ptr().offset(32), 32);
+
+
+            let mut kg = KangarooTwelve::new(b"");
+            kg.update(&temp);
+            kg.into_xof().squeeze(&mut h);
+
+            let mut h: [u64; 8] = h.chunks_exact(8).map(|c| u64::from_le_bytes(c.try_into().unwrap())).collect::<Vec<_>>().try_into().unwrap();
+            let r_i = r;
+            montgomery_multiply_mod_order(&r_i, &MONTGOMERY_R_PRIME, &mut r);
+            let r_i = r;
+            montgomery_multiply_mod_order(&r_i, &ONE, &mut r);
+            let h_i = h;
+            montgomery_multiply_mod_order(&h_i, &MONTGOMERY_R_PRIME, &mut h);
+            let h_i = h;
+            montgomery_multiply_mod_order(&h_i, &ONE, &mut h);
+            montgomery_multiply_mod_order(&k, &MONTGOMERY_R_PRIME, &mut signature_i[4..]);
+            let h_i = h;
+            montgomery_multiply_mod_order(&h_i, &MONTGOMERY_R_PRIME, &mut h);
+            let mut s_i = [0u64; 4];
+            s_i.copy_from_slice(&signature_i[4..]);
+            montgomery_multiply_mod_order(&s_i, &h, &mut signature_i[4..]);
+            s_i.copy_from_slice(&signature_i[4..]);
+            montgomery_multiply_mod_order(&s_i, &ONE, &mut signature_i[4..]);
+
+            if subborrow_u64(subborrow_u64(subborrow_u64(subborrow_u64(0, r[0], signature_i[4], &mut signature_i[4]), r[1], signature_i[5], &mut signature_i[5]), r[2], signature_i[6], &mut signature_i[6]), r[3], signature_i[7], &mut signature_i[7]) != 0 {
+                addcarry_u64(addcarry_u64(addcarry_u64(addcarry_u64(0, signature_i[4], CURVE_ORDER_0, &mut signature_i[4]), signature_i[5], CURVE_ORDER_1, &mut signature_i[5]), signature_i[6], CURVE_ORDER_2, &mut signature_i[6]),signature_i[7], CURVE_ORDER_3, &mut signature_i[7]);
+            }
+
+            signature = signature_i.into_iter().flat_map(u64::to_le_bytes).collect::<Vec<_>>().try_into().unwrap();
+        }
+        signature
+    }
+
+
     #[cfg(test)]
     pub mod qubic_identity_primitive_tests {
-        use crate::qubic_identities::{get_identity, get_private_key, get_public_key, get_public_key_from_identity, get_subseed};
+        use crate::hash::k12_bytes;
+        use crate::qubic_identities::{get_identity, get_private_key, get_public_key, get_public_key_from_identity, get_subseed, sign_raw};
         #[test]
         fn get_a_subseed() {
             let seed = "lcehvbvddggkjfnokduyjuiyvkklrvrmsaozwbvjlzvgvfipqpnkkuf";
@@ -189,6 +263,23 @@ pub mod qubic_identities {
 
             assert_eq!(public_key, pub_key_from_id)
         }
+
+        #[test]
+        fn test_sign_a_message() {
+            let seed = "lcehvbvddggkjfnokduyjuiyvkklrvrmsaozwbvjlzvgvfipqpnkkuf";
+            let message: [u8; 32] = [1; 32];
+            let digest = k12_bytes(&message.to_vec());
+            let subseed = get_subseed(seed).unwrap();
+            let private_key = get_private_key(&subseed);
+            let public_key = get_public_key(&private_key);
+            let identity = get_identity(&public_key);
+            let pub_key_from_id = get_public_key_from_identity(&identity).unwrap();
+            let result = sign_raw(&subseed, &public_key, <[u8; 32]>::try_from(digest.as_slice()).expect("Failed!"));
+            println!("{:?}", result);
+            assert_eq!(public_key, pub_key_from_id)
+        }
+
+
     }
 }
 

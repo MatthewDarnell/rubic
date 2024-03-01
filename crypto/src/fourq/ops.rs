@@ -35,7 +35,7 @@ use crate::{
     }};
 
 #[inline(always)]
-fn addcarry_u64(c_in: u8, a: u64, b: u64, out: &mut u64) -> u8  {
+pub fn addcarry_u64(c_in: u8, a: u64, b: u64, out: &mut u64) -> u8  {
     #[cfg(target_arch = "x86_64")]
     unsafe {
         _addcarry_u64(c_in, a, b, out)
@@ -53,7 +53,7 @@ fn addcarry_u64(c_in: u8, a: u64, b: u64, out: &mut u64) -> u8  {
 }
 
 #[inline(always)]
-fn subborrow_u64(b_in: u8, a: u64, b: u64, out: &mut u64) -> u8 {
+pub fn subborrow_u64(b_in: u8, a: u64, b: u64, out: &mut u64) -> u8 {
     #[cfg(target_arch = "x86_64")]
     unsafe {
         _subborrow_u64(b_in, a, b, out)
@@ -212,7 +212,7 @@ pub fn fp2div1271(a: &mut F2elmT) {
     let mut mask: u64;
     let mut temp = [0u64; 2];
 
-    mask = 0 - (1 & a[0][0]);
+    mask = 0u64.wrapping_sub((1 & a[0][0]));
     addcarry_u64(addcarry_u64(0, a[0][0], mask, &mut temp[0]), a[0][1], mask >> 1, &mut temp[1]);
     a[0][0] = __shiftright128(temp[0], temp[1], 1);
     a[0][1] = temp[1] >> 1;
