@@ -110,9 +110,41 @@ pub mod qubic_identities {
         String::from_utf8(identity.to_vec()).unwrap()
     }
 
+    pub fn get_public_key_from_identity(identity: &String) -> Result<[u8; 32], bool> {
+        let id: &[u8] = identity.as_bytes();
+        let mut public_key: [u8; 32] = [0; 32];
+        for i in 0..4 {
+            public_key[i << 3..((i<<3) + 8)].copy_from_slice(&u64::to_le_bytes(0u64));
+            for j in 0..14 {
+                let index = 14 - j - 1;
+                if id[i * 14 + index] < b'A' || (id[i * 14 + index]) > b'Z' {
+                  return Err(false);
+                 }
+                let _bytes: [u8; 8] = public_key[i << 3..((i << 3) + 8)].try_into().unwrap();
+                let temp: u64 = u64::from_le_bytes(_bytes) * 26u64 +
+                    ((id[i * 14 + index] - b'A') as u64);
+                public_key[i << 3..((i<<3) + 8)].copy_from_slice(&u64::to_le_bytes(temp));
+
+            }
+        }
+        #[allow(unused_assignments)]
+        let mut identity_bytes_checksum: u32 = 0;
+        let hash: Vec<u8> = k12_bytes(&public_key.to_vec());
+        let bytes: [u8; 4] = hash[0..4].try_into().unwrap();
+        identity_bytes_checksum = u32::from_le_bytes(bytes);
+        identity_bytes_checksum &= 0x3FFFF;
+        for i in 0..4 {
+            if (identity_bytes_checksum % 26) as u8 + b'A' != identity.as_bytes()[56 + i] {
+                return Err(false)
+            }
+            identity_bytes_checksum /= 26;
+        }
+        Ok(public_key)
+    }
+
     #[cfg(test)]
     pub mod qubic_identity_primitive_tests {
-        use crate::qubic_identities::{get_identity, get_private_key, get_public_key, get_subseed};
+        use crate::qubic_identities::{get_identity, get_private_key, get_public_key, get_public_key_from_identity, get_subseed};
         #[test]
         fn get_a_subseed() {
             let seed = "lcehvbvddggkjfnokduyjuiyvkklrvrmsaozwbvjlzvgvfipqpnkkuf";
@@ -145,6 +177,17 @@ pub mod qubic_identities {
             let public_key = get_public_key(&private_key);
             let identity = get_identity(&public_key);
             assert_eq!(identity, "EPYWDREDNLHXOFYVGQUKPHJGOMPBSLDDGZDPKVQUMFXAIQYMZGEHPZTAAWON".to_string())
+        }
+        #[test]
+        fn get_a_public_key_from_identity() {
+            let seed = "lcehvbvddggkjfnokduyjuiyvkklrvrmsaozwbvjlzvgvfipqpnkkuf";
+            let subseed = get_subseed(seed).unwrap();
+            let private_key = get_private_key(&subseed);
+            let public_key = get_public_key(&private_key);
+            let identity = get_identity(&public_key);
+            let pub_key_from_id = get_public_key_from_identity(&identity).unwrap();
+
+            assert_eq!(public_key, pub_key_from_id)
         }
     }
 }

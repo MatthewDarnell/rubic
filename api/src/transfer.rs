@@ -1,6 +1,7 @@
 use std::ffi::c_uchar;
-use identity::{Identity, get_public_key_from_identity};
+use identity::Identity;
 use crypto::hash::k12_bytes;
+use crypto::qubic_identities::{ get_subseed, get_public_key_from_identity };
 use logger::info;
 extern {
     //extern ECCRYPTO_STATUS SchnorrQ_Sign(const unsigned char* SecretKey, const unsigned char* PublicKey, const unsigned char* Message, const unsigned int SizeMessage, unsigned char* Signature);
@@ -33,18 +34,18 @@ impl TransferTransaction {
         if source_identity.seed.len() != 55 {
             panic!("Trying To Transfer From Corrupted Identity!");
         }
-        let pub_key_src = match get_public_key_from_identity(source_identity.identity.as_str()) {
+        let pub_key_src = match get_public_key_from_identity(&source_identity.identity) {
             Ok(pub_key) => pub_key,
             Err(err) => panic!("{:?}", err)
         };
-        let pub_key_dest = match get_public_key_from_identity(dest) {
+        let pub_key_dest = match get_public_key_from_identity(&String::from(dest)) {
             Ok(pub_key) => pub_key,
             Err(err) => panic!("{:?}", err)
         };
 
         let mut t: TransferTransaction = TransferTransaction {
-            _source_public_key: pub_key_src.clone(),
-            _source_destination_public_key: pub_key_dest.clone(),
+            _source_public_key: pub_key_src.to_vec(),
+            _source_destination_public_key: pub_key_dest.to_vec(),
             _amount: amount,
             _tick: tick + TICK_OFFSET,
             _input_type: 0,
@@ -53,13 +54,14 @@ impl TransferTransaction {
         };
         info!("Setting Expiration Tick For Transaction To {}", tick + TICK_OFFSET);
         let digest: Vec<u8> = k12_bytes(&t.as_bytes_without_signature());
-        let mut sub_seed: [u8; 32] = [0; 32];
+        //let mut sub_seed: [u8; 32] = [0; 32];
+        let mut sub_seed: Vec<u8> = get_subseed(source_identity.seed.as_str()).expect("Failed To Get SubSeed!");
         unsafe {
             getSubseed(source_identity.seed.as_str().as_ptr(), sub_seed.as_mut_ptr());
         }
         let mut sig: [u8; 64] = [0; 64];
         unsafe {
-            sign(sub_seed.as_ptr(), pub_key_src.as_ptr(), digest.as_ptr(), sig.as_mut_ptr());
+            sign(sub_seed.as_slice().as_ptr(), pub_key_src.as_ptr(), digest.as_ptr(), sig.as_mut_ptr());
             //SchnorrQ_Sign(sub_seed.as_ptr(), pub_key_src.as_ptr(), digest.as_ptr(), 32, sig.as_mut_ptr());
         }
         t._signature = sig.to_vec();

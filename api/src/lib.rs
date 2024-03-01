@@ -5,7 +5,7 @@ extern crate crypto;
 extern crate identity;
 extern crate core;
 
-use identity::get_public_key_from_identity;
+use crypto::qubic_identities::get_public_key_from_identity;
 use crate::header::{ EntityType, RequestResponseHeader };
 use crate::transfer::TransferTransaction;
 
@@ -43,7 +43,7 @@ impl QubicApiPacket {
         let mut header = RequestResponseHeader::new();
         header.set_type(EntityType::RequestEntity);
 
-        let data: Vec<u8> = get_public_key_from_identity(id).unwrap();
+        let data: Vec<u8> = get_public_key_from_identity(&String::from(id)).unwrap().to_vec();
         let size = std::mem::size_of::<RequestResponseHeader>() + data.len();
         header.set_size(size);
         QubicApiPacket {
