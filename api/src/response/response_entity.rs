@@ -1,6 +1,6 @@
 use crate::QubicApiPacket;
 use crate::response::FormatQubicResponseDataToStructure;
-use crate::identity::get_identity_from_pub_key;
+use crate::crypto::qubic_identities::get_identity;
 #[derive(Debug, Clone)]
 pub struct ResponseEntity {
     pub identity: String,
@@ -63,7 +63,12 @@ pub fn handle_response_entity(response: &mut QubicApiPacket) -> Option<ResponseE
         return None;
     }
     //println!("Got Response Entity Peer Data: {:?}", data);
-    let sliced_identity = get_identity_from_pub_key(&data.as_slice()[8..40]);
+    let mut slice: [u8; 32] = [0; 32];
+    for (idx, p) in data.as_slice()[8..40].iter().enumerate() {
+        slice[idx] = *p;
+    }
+    let sliced_identity = get_identity(&slice);
+    //let sliced_identity = get_identity_from_pub_key(&data.as_slice()[8..40]);
     let sliced_incoming = &data.as_slice()[8 + 32..8+32 + 8];
     let sliced_outgoing = &data.as_slice()[8 + 32 + 8..8+32 + 8 + 8];
 

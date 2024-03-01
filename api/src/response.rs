@@ -29,6 +29,7 @@ pub fn get_formatted_response(response: &mut QubicApiPacket) {
                         Err(_err) => {}
                     }
                 } else {
+                    println!("{:?}", response);
                     println!("Malformed Current Tick Response.");
                 }
             }
