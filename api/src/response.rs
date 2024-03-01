@@ -17,7 +17,9 @@ pub fn get_formatted_response(response: &mut QubicApiPacket) {
     match response.api_type {
         EntityType::RespondCurrentTickInfo => {
             if let Some(peer_id) = &response.peer {
-                if response.data.len() == 12 {
+                if response.data.len() < 12 {
+                    println!("Malformed Current Tick Response.");
+                } else {
                     let mut data: [u8; 4] = [0; 4];
                     data[0] = response.data[4];
                     data[1] = response.data[5];
@@ -28,9 +30,6 @@ pub fn get_formatted_response(response: &mut QubicApiPacket) {
                         Ok(_) => {},
                         Err(_err) => {}
                     }
-                } else {
-                    println!("{:?}", response);
-                    println!("Malformed Current Tick Response.");
                 }
             }
         },
