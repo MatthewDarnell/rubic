@@ -1,52 +1,13 @@
-extern crate libc;
+#![allow(unused_assignments)]
+#![allow(dead_code)]
 use crypto;
-use std::str::Utf8Error;
-use logger::error;
-
-extern {
-    fn getSubseed(seed: *const u8, subseed: *mut u8) -> bool;
-    fn getPrivateKey(subseed: *const u8, privateKey: *mut u8);
-    fn getPublicKey(privateKey: *const u8, publicKey: *mut u8);
-    fn getIdentity(publicKey: *const u8, identity: *const u8, isLowerCase: bool);
-    //bool getPublicKeyFromIdentity(const unsigned char* identity, unsigned char* publicKey)
-    fn getPublicKeyFromIdentity(identity: *const u8, publicKey: *mut u8);
-
-    // bool getSharedKey(const unsigned char* privateKey, const unsigned char* publicKey, unsigned char* sharedKey)
-    //void sign(const unsigned char* subseed, const unsigned char* publicKey, const unsigned char* messageDigest, unsigned char* signature)
-    //bool verify(const unsigned char* publicKey, const unsigned char* messageDigest, const unsigned char* signature)
-}
-
-fn identity(seed: &str) -> Vec<u8> {
-    let mut own_subseed: [u8; 32] = [0; 32];
-    let mut private_key: [u8; 32] = [0; 32];
-    let mut public_key: [u8; 32] = [0; 32];
-    let mut identity: [u8; 60] = [0; 60];
-    unsafe {
-        getSubseed(seed.as_ptr(), own_subseed.as_mut_ptr());
-        getPrivateKey(own_subseed.as_ptr(), private_key.as_mut_ptr());
-        getPublicKey(private_key.as_ptr(), public_key.as_mut_ptr());
-        getIdentity(public_key.as_ptr(), identity.as_mut_ptr(), false);
-    }
-    identity.to_owned().to_vec()
-}
+use core::str::Utf8Error;
 
 fn identity_to_address(identity: &Vec<u8>) -> Result<String, Utf8Error> {
     match  std::str::from_utf8(identity.as_slice()) {
         Ok(val) => Ok(val.to_string()),
         Err(err) => Err(err)
     }
-}
-
-pub fn get_identity_from_pub_key(pub_key: &[u8]) -> String {
-    let mut identity: [u8; 60] = [0; 60];
-    unsafe {     getIdentity(pub_key.as_ptr(), identity.as_mut_ptr(), false); }
-    std::str::from_utf8(&identity).unwrap().to_string()
-}
-
-pub fn get_public_key_from_identity(identity: &str) -> Result<Vec<u8>, ()> {
-    let mut pub_key: [u8; 32] = [0; 32];
-    unsafe { getPublicKeyFromIdentity(identity.as_ptr(), pub_key.as_mut_ptr()) };
-    Ok(pub_key.to_owned().to_vec())
 }
 
 #[derive(Debug)]
@@ -63,14 +24,13 @@ impl Identity {
         if !self.contains_seed() {
             Err("Invalid Seed! Can't Get Public Key!".to_string())
         } else {
-            let mut own_subseed: [u8; 32] = [0; 32];
-            let mut private_key: [u8; 32] = [0; 32];
+            let mut own_subseed: Vec<u8> = vec![];
+            let mut private_key: Vec<u8> = vec![];
             let mut public_key: [u8; 32] = [0; 32];
-            unsafe {
-                getSubseed(self.seed.as_str().as_ptr(), own_subseed.as_mut_ptr());
-                getPrivateKey(own_subseed.as_ptr(), private_key.as_mut_ptr());
-                getPublicKey(private_key.as_ptr(), public_key.as_mut_ptr());
-            }
+            own_subseed = crypto::qubic_identities::get_subseed(self.seed.as_str()).expect("Failed To Get SubSeed!");
+            private_key = crypto::qubic_identities::get_private_key(&own_subseed);
+            public_key = crypto::qubic_identities::get_public_key(&private_key);
+            own_subseed = crypto::qubic_identities::get_subseed(self.seed.as_str()).expect("Failed To Get SubSeed!");
             Ok(Vec::from(public_key))
         }
     }
@@ -85,29 +45,16 @@ impl Identity {
     }
     pub fn contains_seed(&self) -> bool { self.seed.len() == 55}
     pub fn new(seed: &str) -> Self {
-        let id = identity(seed);
-
-
-        match identity_to_address(&id) {
-            Ok(address) => {
-                Identity {
-                    seed: String::from(seed),
-                    hash: String::from(""),
-                    salt: String::from(""),
-                    identity: address,
-                    encrypted: false
-                }
-            },
-            Err(err) => {
-                error!("Error Generating Identity! : {}", err.to_string());
-                Identity {
-                    seed: String::from(""),
-                    hash: String::from(""),
-                    salt: String::from(""),
-                    identity: String::from(""),
-                    encrypted: false
-                }
-            }
+        let subseed = crypto::qubic_identities::get_subseed(seed).expect("Failed To Get SubSeed!");
+        let private_key = crypto::qubic_identities::get_private_key(&subseed);
+        let public_key = crypto::qubic_identities::get_public_key(&private_key);
+        let id = crypto::qubic_identities::get_identity(&public_key);
+        Identity {
+            seed: String::from(seed),
+            hash: String::from(""),
+            salt: String::from(""),
+            identity: id,
+            encrypted: false
         }
     }
     pub fn encrypt_identity(&mut self, password: &str) -> Result<Self, String> {
@@ -173,7 +120,6 @@ mod create_identity {
         #[test]
         fn create_new_identity() {
             let id: Identity = Identity::new("lcehvbvddggkjfnokduyjuiyvkklrvrmsaozwbvjlzvgvfipqpnkkuf");
-            println!("{:?}", &id);
             assert_eq!(id.identity.as_str(), "EPYWDREDNLHXOFYVGQUKPHJGOMPBSLDDGZDPKVQUMFXAIQYMZGEHPZTAAWON");
         }
 
