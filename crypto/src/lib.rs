@@ -145,11 +145,6 @@ pub mod qubic_identities {
     }
 
     pub fn sign_raw(subseed: &Vec<u8>, public_key: &[u8; 32], message_digest: [u8; 32]) -> [u8; 64] {
-
-        println!("Got Subseed: {:?}", subseed);
-        println!("Got Public Key: {:?}", public_key);
-        println!("Got Message Digest: {:?}", &message_digest);
-
         let mut r_a = PointAffine::default();
         let (mut k, mut h, mut temp) = ([0u8; 64], [0u8; 64], [0u8; 96]);
         let mut r = [0u8; 64];

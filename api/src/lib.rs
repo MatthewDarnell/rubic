@@ -103,7 +103,7 @@ pub mod api_formatting_tests {
     #[test]
     fn create_identity_balance_request_entity() {
         let req = QubicApiPacket::get_identity_balance("EPYWDREDNLHXOFYVGQUKPHJGOMPBSLDDGZDPKVQUMFXAIQYMZGEHPZTAAWON");
-        println!("{:?}", req);
+        assert_eq!(req.header._size[0], 40u8);
     }
 
     #[test]
@@ -111,7 +111,6 @@ pub mod api_formatting_tests {
         let mut req = QubicApiPacket::get_identity_balance("EPYWDREDNLHXOFYVGQUKPHJGOMPBSLDDGZDPKVQUMFXAIQYMZGEHPZTAAWON");
         req.header.zero_dejavu();   //Dejavu is random 3 byte value
         let bytes = req.as_bytes();
-        println!("{:?}", &bytes);
         assert_eq!(bytes.len(), 40);
         assert_eq!(bytes.as_slice(),
                    vec![40, 0, 0, 31, 0, 0, 0, 0, 170, 135, 62, 76, 253, 55, 228, 191, 82, 138, 42, 160, 30, 236, 239, 54, 84, 124, 153, 202, 170, 189, 27, 189, 247, 37, 58, 101, 176, 65, 119, 26]

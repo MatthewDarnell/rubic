@@ -28,7 +28,6 @@ impl TransferTransaction {
             Ok(pub_key) => pub_key,
             Err(err) => panic!("{:?}", err)
         };
-        println!("{} -> {:?}", source_identity.identity.as_str(), &pub_key_src);
         let pub_key_dest = match get_public_key_from_identity(&String::from(dest)) {
             Ok(pub_key) => pub_key,
             Err(err) => panic!("{:?}", err)
@@ -50,7 +49,6 @@ impl TransferTransaction {
         let mut sig: [u8; 64] = [0; 64];
 
         sig = sign_raw(&sub_seed, &pub_key_src, digest.as_slice().try_into().unwrap());
-        println!("Signed Signature: {:?}", sig);
         t._signature = sig.to_vec();
         t
     }
