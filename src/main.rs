@@ -14,6 +14,7 @@ use std::sync::mpsc;
 use std::time::Duration;
 mod env;
 mod routes;
+mod api_request_handler;
 use rocket::http::Header;
 use rocket::{Request, Response};
 use rocket::fairing::{Fairing, Info, Kind};
@@ -21,6 +22,11 @@ use rocket::fairing::{Fairing, Info, Kind};
 
 #[rocket::main]
 async fn main() {
+
+  api_request_handler::submit_task("/info", None);
+
+
+
     let qubic_ascii_art_logo: &str = "
    ....................
    .....          .....
