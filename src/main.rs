@@ -14,7 +14,6 @@ use std::sync::mpsc;
 use std::time::Duration;
 mod env;
 mod routes;
-mod api_request_handler;
 use rocket::http::Header;
 use rocket::{Request, Response};
 use rocket::fairing::{Fairing, Info, Kind};
@@ -22,10 +21,6 @@ use rocket::fairing::{Fairing, Info, Kind};
 
 #[rocket::main]
 async fn main() {
-
-  api_request_handler::submit_task("/info", None);
-
-
 
     let qubic_ascii_art_logo: &str = "
    ....................
@@ -391,21 +386,25 @@ async fn main() {
       .merge(("address", host.as_str()));
   rocket::custom(figment)
       .mount("/", routes![
-        routes::info::latest_tick,
-        routes::info::is_wallet_encrypted,
-        routes::info::encrypt_wallet,
-        routes::info::set_master_password,
+        routes::identity::balance,
+        routes::identity::add_identity,
+        routes::identity::create_random_identity,
+        routes::identity::add_identity_with_password,
+        routes::identity::get_identities,
+        routes::identity::get_identity_from_seed,
+
         routes::info::info,
-        routes::info::peers,
-        routes::info::download_wallet,
-        routes::info::balance,
-        routes::info::add_peer,
-        routes::info::add_identity,
-        routes::info::create_random_identity,
-        routes::info::add_identity_with_password,
-        routes::info::get_identities,
-        routes::info::get_identity_from_seed,
-        routes::info::transfer
+        routes::info::latest_tick,
+
+        routes::peer::peers,
+        routes::peer::add_peer,
+
+        routes::transaction::transfer,
+
+        routes::wallet::is_wallet_encrypted,
+        routes::wallet::encrypt_wallet,
+        routes::wallet::set_master_password,
+        routes::wallet::download_wallet
       ])
       .manage(std::sync::Mutex::new(tx))
       .manage(std::sync::Mutex::new(rx_server_route_responses_from_thread))
