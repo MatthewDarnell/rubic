@@ -6,6 +6,7 @@ const MAX_AMOUNT = 1000000000000000;
 let globalLatestTick = 0;
 let expirationPendingTick = -1;
 let transactionPending = false;
+const passwordNotSetDefaultMessage = "You Can Set A Master Password In Settings.";
 
 const doArrayElementsAgree = (array, thresholdPercentage) => {
     const length = array.length;
@@ -328,7 +329,10 @@ window.addNewIdentity = () => {
     document.getElementById("addNewPeerBtn").disabled = true;
     document.getElementById("newIdentityPreview").style.display = "none";
     const seed = document.getElementById("seedInput").value;
-    const password = document.getElementById("passwordInput").value || "";
+    let password = document.getElementById("passwordInput").value || "";
+    if(password === passwordNotSetDefaultMessage) {
+        password = "";
+    }
     makeHttpRequest(`${serverIp}/identity/add/${seed}/${password}`).then(result => {
         if(result === 200 || result === '200') {
             document.getElementById("newIdentityPreview").style.display = "none";
@@ -392,14 +396,14 @@ const getIsWalletEncrypted = async () => {
             document.getElementById('setDbPassBtn').disabled = true;
             document.getElementById('setMasterPasswordInput').disabled = true;
             document.getElementById('passwordInput').disabled = false;
-            if (document.getElementById('passwordInput').value == "You Can Set A Master Password In Settings" ) {
+            if (document.getElementById('passwordInput').value === passwordNotSetDefaultMessage ) {
               document.getElementById('passwordInput').value = "";
             }
             document.getElementById('encryptAllIdentitiesInput').disabled = false;
             document.getElementById('encryptAllIdentitiesBtn').disabled = false;
         } else {
             document.getElementById('passwordInput').disabled = true;
-            document.getElementById('passwordInput').value = "You Can Set A Master Password In Settings";
+            document.getElementById('passwordInput').value = passwordNotSetDefaultMessage;
             document.getElementById('encryptAllIdentitiesInput').disabled = true;
             document.getElementById('encryptAllIdentitiesBtn').disabled = true;
             document.getElementById('setMasterPasswordInput').disabled = false;

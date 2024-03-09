@@ -5,7 +5,11 @@ use std::time::Duration;
 use rocket::get;
 use spmc::Receiver;
 use uuid::Uuid;
-use store;
+use store::get_db_path;
+use store::sqlite::crud::insert_new_identity;
+use store::sqlite::crud::master_password::get_master_password;
+use crypto::passwords::verify_password;
+use logger::error;
 
 #[get("/balance/<address>")]
 pub fn balance(address: &str) -> String {
@@ -40,22 +44,9 @@ pub fn get_identity_from_seed(seed: &str) -> String {
     format!("{}", i.identity.as_str())
 }
 
+
 #[get("/identity/new/<password>")]
-pub fn create_random_identity(password: &str, mtx: &rocket::State<Mutex<Sender<HashMap<String, String>>>>, responses: &rocket::State<Mutex<Receiver<HashMap<String, String>>>>) -> String {
-    let lock = mtx.lock().unwrap();
-    let tx = lock.clone();
-    drop(lock);
-
-    let lock2 = responses.lock().unwrap();
-    let rx = lock2.clone();
-    drop(lock2);
-
-
-    let mut map: HashMap<String, String> = HashMap::new();
-    map.insert("method".to_string(), "add_identity".to_string());
-
-
-
+pub fn create_random_identity(password: &str) -> String {
     let mut seed_string: String = String::from("");
     while seed_string.len() < 55 {
         let temp_seed: Vec<u8> = crypto::random::random_bytes(32);
@@ -67,120 +58,74 @@ pub fn create_random_identity(password: &str, mtx: &rocket::State<Mutex<Sender<H
                 }
             }
         }
-
     }
-    if password.len() > 4 {
-        map.insert("password".to_string(), password.to_string());
-    }
-    map.insert("seed".to_string(), seed_string);
-
-    let request_id: String = Uuid::new_v4().to_string();
-    map.insert("message_id".to_string(), request_id.clone());
-    tx.send(map).unwrap();
-    let mut index = 0;
-    loop {
-        index = index + 1;
-        if index > 5 {
-            return format!("Timed Out")
-        }
-        std::thread::sleep(Duration::from_secs(1));
-        match rx.try_recv() {
-            Ok(response) => {
-                let id = response.get(&"message_id".to_string()).unwrap();
-                if id == &request_id {
-                    return format!("{}", response.get(&"status".to_string()).unwrap());
-                } else {
-                    continue;
+    let mut id: identity::Identity = identity::Identity::new(seed_string.as_str());
+    if password.len() > 4 { //Minimum length
+        let master_password = get_master_password(get_db_path().as_str())
+                                            .expect("Failed To Fetch Master Password!");
+        match verify_password(password, master_password[1].as_str()) {
+            Ok(verified) => {
+                if !verified {
+                    return format!("Invalid Password!");
                 }
+                id = id.encrypt_identity(password).expect("Failed To Encrypt Identity!");
             },
-            Err(_) => {
-                //println!("got error {:?}", &err);
-                // return format!("{}", err.to_string());
-            }
+            Err(error) => { return format!("Failed to Verify Master Password!: <{}>", error); }
         }
     }
+
+    let response = match insert_new_identity(get_db_path().as_str(), &id) {
+        Ok(_) => "200",
+        Err(err) => "Failed To Insert Identity!"
+    };
+    return format!("{}", response);
 }
 
-
 #[get("/identity/add/<seed>")]
-pub fn add_identity(seed: &str, mtx: &rocket::State<Mutex<Sender<HashMap<String, String>>>>, responses: &rocket::State<Mutex<Receiver<HashMap<String, String>>>>) -> String {
-    let lock = mtx.lock().unwrap();
-    let tx = lock.clone();
-    drop(lock);
-
-    let lock2 = responses.lock().unwrap();
-    let rx = lock2.clone();
-    drop(lock2);
-
-
-    let mut map: HashMap<String, String> = HashMap::new();
-    map.insert("method".to_string(), "add_identity".to_string());
-    map.insert("seed".to_string(), seed.to_string());
-    let request_id: String = Uuid::new_v4().to_string();
-    map.insert("message_id".to_string(), request_id.clone());
-    tx.send(map).unwrap();
-    let mut index = 0;
-    loop {
-        index = index + 1;
-        if index > 5 {
-            return format!("Timed Out")
-        }
-        std::thread::sleep(Duration::from_secs(1));
-        match rx.try_recv() {
-            Ok(response) => {
-                let id = response.get(&"message_id".to_string()).unwrap();
-                if id == &request_id {
-                    return format!("{}", response.get(&"status".to_string()).unwrap());
-                } else {
-                    continue;
-                }
-            },
-            Err(_) => {
-                //println!("got error {:?}", &err);
-                // return format!("{}", err.to_string());
-            }
+pub fn add_identity(seed: &str) -> String {
+    if seed.len() != 55 {
+        return format!("Invalid Seed! Must be Exactly 55 characters in length!");
+    }
+    for i in seed.as_bytes() {
+        if *i < b'a' || *i > b'z' {
+            return format!("Invalid Seed! Must be a-z lowercase!");
         }
     }
+    let id: identity::Identity = identity::Identity::new(seed);
+    let response = match insert_new_identity(get_db_path().as_str(), &id) {
+        Ok(_) => "200",
+        Err(err) => "Failed To Insert Identity!"
+    };
+    return format!("{}", response);
 }
 
 #[get("/identity/add/<seed>/<password>")]
-pub fn add_identity_with_password(seed: &str, password: &str, mtx: &rocket::State<Mutex<Sender<HashMap<String, String>>>>, responses: &rocket::State<Mutex<Receiver<HashMap<String, String>>>>) -> String {
-    let lock = mtx.lock().unwrap();
-    let tx = lock.clone();
-    drop(lock);
-
-    let lock2 = responses.lock().unwrap();
-    let rx = lock2.clone();
-    drop(lock2);
-
-
-    let mut map: HashMap<String, String> = HashMap::new();
-    map.insert("method".to_string(), "add_identity".to_string());
-    map.insert("seed".to_string(), seed.to_string());
-    if password.len() > 1 {
-        map.insert("password".to_string(), password.to_string());
+pub fn add_identity_with_password(seed: &str, password: &str) -> String {
+    if seed.len() != 55 {
+        return format!("Invalid Seed! Must be Exactly 55 characters in length!");
     }
-    let request_id: String = Uuid::new_v4().to_string();
-    map.insert("message_id".to_string(), request_id.clone());
-    tx.send(map).unwrap();
-    let mut index = 0;
-    loop {
-        index = index + 1;
-        if index > 5 {
-            return format!("Timed Out")
+    for i in seed.as_bytes() {
+        if *i < b'a' || *i > b'z' {
+            return format!("Invalid Seed! Must be a-z lowercase!");
         }
-        std::thread::sleep(Duration::from_secs(1));
-        match rx.try_recv() {
-            Ok(response) => {
-                let id = response.get(&"message_id".to_string()).unwrap();
-                if id == &request_id {
-                    return format!("{}", response.get(&"status".to_string()).unwrap());
-                } else {
-                    continue;
+    }
+    let mut id: identity::Identity = identity::Identity::new(seed);
+    if password.len() > 4 { //Minimum length
+        let master_password = get_master_password(get_db_path().as_str())
+            .expect("Failed To Fetch Master Password!");
+        match verify_password(password, master_password[1].as_str()) {
+            Ok(verified) => {
+                if !verified {
+                    return format!("Invalid Password!");
                 }
+                id = id.encrypt_identity(password).expect("Failed To Encrypt Identity!");
             },
-            Err(_) => {
-            }
+            Err(error) => { return format!("Failed to Verify Master Password!: <{}>", error); }
         }
     }
+    let response = match insert_new_identity(get_db_path().as_str(), &id) {
+        Ok(_) => "200",
+        Err(_) => "Failed To Insert Identity!"
+    };
+    return format!("{}", response);
 }

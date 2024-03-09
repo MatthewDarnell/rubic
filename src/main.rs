@@ -256,7 +256,7 @@ async fn main() {
                             id = id.encrypt_identity(pass.as_str()).unwrap();
                             match crud::insert_new_identity(get_db_path().as_str(), &id) {
                               Ok(_) => {
-                                error!("Failed To Insert Identity");
+                                error!("Inserted New Identity!");
                                 response.insert("message_id".to_string(), message_id.to_string());
                                 response.insert("status".to_string(), "200".to_string());
                               },
