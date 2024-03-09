@@ -36,7 +36,7 @@ pub mod hash {
 
 
 pub mod qubic_identities {
-    use core::{ptr::copy_nonoverlapping, fmt::{Debug, Display}, str::FromStr};
+    use core::ptr::copy_nonoverlapping;
     use tiny_keccak::{Hasher, IntoXof, KangarooTwelve, Xof};
     use crate::{A_LOWERCASE_ASCII, hash};
     use hash::k12_bytes;

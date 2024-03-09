@@ -1,15 +1,8 @@
-use std::collections::HashMap;
-use std::sync::mpsc::Sender;
-use std::sync::Mutex;
-use std::time::Duration;
 use rocket::get;
-use spmc::Receiver;
-use uuid::Uuid;
 use store::get_db_path;
 use store::sqlite::crud::insert_new_identity;
 use store::sqlite::crud::master_password::get_master_password;
 use crypto::passwords::verify_password;
-use logger::error;
 
 #[get("/balance/<address>")]
 pub fn balance(address: &str) -> String {
@@ -76,7 +69,7 @@ pub fn create_random_identity(password: &str) -> String {
 
     let response = match insert_new_identity(get_db_path().as_str(), &id) {
         Ok(_) => "200",
-        Err(err) => "Failed To Insert Identity!"
+        Err(_) => "Failed To Insert Identity!"
     };
     return format!("{}", response);
 }
@@ -94,7 +87,7 @@ pub fn add_identity(seed: &str) -> String {
     let id: identity::Identity = identity::Identity::new(seed);
     let response = match insert_new_identity(get_db_path().as_str(), &id) {
         Ok(_) => "200",
-        Err(err) => "Failed To Insert Identity!"
+        Err(_) => "Failed To Insert Identity!"
     };
     return format!("{}", response);
 }

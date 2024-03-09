@@ -5,7 +5,6 @@ use std::time::Duration;
 use rocket::get;
 use spmc::Receiver;
 use uuid::Uuid;
-use store;
 
 
 //transfer/${sourceIdentity}/${destinationIdentity}/${amountToSend}/${expirationTick}/${password}
