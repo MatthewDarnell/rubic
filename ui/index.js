@@ -6,10 +6,11 @@ const MAX_AMOUNT = 1000000000000000;
 let globalLatestTick = 0;
 let expirationPendingTick = -1;
 let transactionPending = false;
+const passwordNotSetDefaultMessage = "You Can Set A Master Password In Settings.";
 
 const doArrayElementsAgree = (array, thresholdPercentage) => {
     const length = array.length;
-    if(length < 3) {
+    if(length < 2) {
         return -1;
     }
     const threshold = thresholdPercentage / 100;
@@ -94,6 +95,11 @@ const getNumConnectedPeers = async () => {
         const span = document.getElementById("numPeersSpan");
         const result = await makeHttpRequest(`${serverIp}/info`);
         span.innerHTML = `<b>${result}</b>`;
+        if(parseInt(result) < 2) {
+            document.getElementById("myIdentitiesSpan").innerHTML = "My Identities    (<b>Too Few Peers To Retreive Balance - Add More!</b>)"
+        } else {
+            document.getElementById("myIdentitiesSpan").innerHTML = "My Identities"
+        }
     } catch(error) {
     }
 }
@@ -223,6 +229,7 @@ const getBalance = async identity => {
     const serverIp = document.getElementById("serverIp").value;
     const balanceTd = document.getElementById(`${identity}:balance:td`);
     try {
+        const numPeers = parseInt(document.getElementById("numPeersSpan").value);
         const result = await makeHttpRequest(`${serverIp}/balance/${identity}`);
         const res = JSON.parse(result);
         if(res.length < 3) {
@@ -240,7 +247,7 @@ const getBalance = async identity => {
         for (let i = 0; i < res.length; i += 3) {
             balanceArray.push(res[i+2]);
         }
-        const isQuorumMet = doArrayElementsAgree(balanceArray, 66); // 2/3 of peers agree at this tick?
+        const isQuorumMet = doArrayElementsAgree(balanceArray, 50); // 1/2 of peers agree at this tick?
 
         const isEncrypted = document.getElementById(`${identity}:encrypted:td`).innerText.toLowerCase() === "true";
         if (balanceArray.every(v => v === res[0]) || isQuorumMet >= 0) {
@@ -328,7 +335,10 @@ window.addNewIdentity = () => {
     document.getElementById("addNewPeerBtn").disabled = true;
     document.getElementById("newIdentityPreview").style.display = "none";
     const seed = document.getElementById("seedInput").value;
-    const password = document.getElementById("passwordInput").value || "";
+    let password = document.getElementById("passwordInput").value || "";
+    if(password === passwordNotSetDefaultMessage) {
+        password = "";
+    }
     makeHttpRequest(`${serverIp}/identity/add/${seed}/${password}`).then(result => {
         if(result === 200 || result === '200') {
             document.getElementById("newIdentityPreview").style.display = "none";
@@ -392,14 +402,14 @@ const getIsWalletEncrypted = async () => {
             document.getElementById('setDbPassBtn').disabled = true;
             document.getElementById('setMasterPasswordInput').disabled = true;
             document.getElementById('passwordInput').disabled = false;
-            if (document.getElementById('passwordInput').value == "You Can Set A Master Password In Settings" ) {
+            if (document.getElementById('passwordInput').value === passwordNotSetDefaultMessage ) {
               document.getElementById('passwordInput').value = "";
             }
             document.getElementById('encryptAllIdentitiesInput').disabled = false;
             document.getElementById('encryptAllIdentitiesBtn').disabled = false;
         } else {
             document.getElementById('passwordInput').disabled = true;
-            document.getElementById('passwordInput').value = "You Can Set A Master Password In Settings";
+            document.getElementById('passwordInput').value = passwordNotSetDefaultMessage;
             document.getElementById('encryptAllIdentitiesInput').disabled = true;
             document.getElementById('encryptAllIdentitiesBtn').disabled = true;
             document.getElementById('setMasterPasswordInput').disabled = false;

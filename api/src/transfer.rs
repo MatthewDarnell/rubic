@@ -45,9 +45,9 @@ impl TransferTransaction {
         info!("Setting Expiration Tick For Transaction To {}", tick + TICK_OFFSET);
         let digest: Vec<u8> = k12_bytes(&t.as_bytes_without_signature());
         //let mut sub_seed: [u8; 32] = [0; 32];
-        let mut sub_seed: Vec<u8> = get_subseed(source_identity.seed.as_str()).expect("Failed To Get SubSeed!");
+        let sub_seed: Vec<u8> = get_subseed(source_identity.seed.as_str()).expect("Failed To Get SubSeed!");
+        #[allow(unused_assignments)]
         let mut sig: [u8; 64] = [0; 64];
-
         sig = sign_raw(&sub_seed, &pub_key_src, digest.as_slice().try_into().unwrap());
         t._signature = sig.to_vec();
         t

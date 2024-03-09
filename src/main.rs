@@ -21,6 +21,7 @@ use rocket::fairing::{Fairing, Info, Kind};
 
 #[rocket::main]
 async fn main() {
+
     let qubic_ascii_art_logo: &str = "
    ....................
    .....          .....
@@ -238,63 +239,6 @@ async fn main() {
                 tx.send(response).unwrap();
                 continue;
               }
-              else if method == &"add_identity".to_string() {
-                let seed = map.get(&"seed".to_string()).unwrap();
-                let mut id: identity::Identity = identity::Identity::new(seed.as_str());
-                let message_id = map.get(&"message_id".to_string()).unwrap();
-                let mut response: HashMap<String, String> = HashMap::new();
-                if let Some(pass) = map.get(&"password".to_string()) {
-                  match crud::master_password::get_master_password(get_db_path().as_str()) {
-                    Ok(master_password) => {
-                      match crypto::passwords::verify_password(pass.as_str(), master_password[1].as_str()) {
-                        Ok(verified) => {
-                          if !verified {
-                            response.insert("message_id".to_string(), message_id.to_string());
-                            response.insert("status".to_string(), "Invalid Password!".to_string());
-                          } else {
-                            id = id.encrypt_identity(pass.as_str()).unwrap();
-                            match crud::insert_new_identity(get_db_path().as_str(), &id) {
-                              Ok(_) => {
-                                error!("Failed To Insert Identity");
-                                response.insert("message_id".to_string(), message_id.to_string());
-                                response.insert("status".to_string(), "200".to_string());
-                              },
-                              Err(err) => {
-                                response.insert("message_id".to_string(), message_id.to_string());
-                                response.insert("status".to_string(), err.to_string());
-                                error!("Failed To Insert! {:?}", err);
-                              }
-                            }
-                          }
-                        },
-                        Err(err) => {
-                          response.insert("message_id".to_string(), message_id.to_string());
-                          response.insert("status".to_string(), err.to_string());
-                          error!("Failed To Verify Master Password!");
-                        }
-                      }
-                    },
-                    Err(_) => {
-                      response.insert("message_id".to_string(), message_id.to_string());
-                      response.insert("status".to_string(), "No Master Password Set!".to_string());
-                    }
-                  }
-                } else {
-                  match crud::insert_new_identity(get_db_path().as_str(), &id) {
-                    Ok(_) => {
-                      info!("Inserted New Identity {}", id.identity.as_str());
-                      response.insert("message_id".to_string(), message_id.to_string());
-                      response.insert("status".to_string(), "200".to_string());
-                    },
-                    Err(err) => {
-                      response.insert("message_id".to_string(), message_id.to_string());
-                      response.insert("status".to_string(), err.to_string());
-                      error!("Failed To Insert! {:?}", err);
-                    }
-                  }
-                }
-                tx.send(response).unwrap();
-              }
             }
           },
           Err(_) => {
@@ -385,21 +329,25 @@ async fn main() {
       .merge(("address", host.as_str()));
   rocket::custom(figment)
       .mount("/", routes![
-        routes::info::latest_tick,
-        routes::info::is_wallet_encrypted,
-        routes::info::encrypt_wallet,
-        routes::info::set_master_password,
+        routes::identity::balance,
+        routes::identity::add_identity,
+        routes::identity::create_random_identity,
+        routes::identity::add_identity_with_password,
+        routes::identity::get_identities,
+        routes::identity::get_identity_from_seed,
+
         routes::info::info,
-        routes::info::peers,
-        routes::info::download_wallet,
-        routes::info::balance,
-        routes::info::add_peer,
-        routes::info::add_identity,
-        routes::info::create_random_identity,
-        routes::info::add_identity_with_password,
-        routes::info::get_identities,
-        routes::info::get_identity_from_seed,
-        routes::info::transfer
+        routes::info::latest_tick,
+
+        routes::peer::peers,
+        routes::peer::add_peer,
+
+        routes::transaction::transfer,
+
+        routes::wallet::is_wallet_encrypted,
+        routes::wallet::encrypt_wallet,
+        routes::wallet::set_master_password,
+        routes::wallet::download_wallet
       ])
       .manage(std::sync::Mutex::new(tx))
       .manage(std::sync::Mutex::new(rx_server_route_responses_from_thread))

@@ -733,7 +733,7 @@ pub fn fetch_balance_by_identity(path: &str, identity: &str) -> Result<Vec<Strin
                 FROM response_entity
                 WHERE identity = :identity
                 GROUP by tick
-                HAVING COUNT (DISTINCT peer) > 2
+                HAVING COUNT (DISTINCT peer) >= 2
                 ORDER BY tick DESC
                 LIMIT 1
         ) a
