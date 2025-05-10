@@ -1,5 +1,4 @@
-#![feature(ascii_char)]
-#![feature(ascii_char_variants)]
+
 mod fourq;
 
 const A_LOWERCASE_ASCII: u8 = 97u8;
@@ -391,21 +390,34 @@ pub mod encryption {
 
 
 pub mod passwords {
-    use bcrypt::{DEFAULT_COST, hash, verify};
+    use random::random_bytes;
+    use argon2::{
+        password_hash::{
+            PasswordHash, PasswordHasher, PasswordVerifier, SaltString
+        },
+        Argon2
+    };
+    use crate::random;
+
     pub fn hash_password(password: &str) -> Result<String, String> {
-        match hash(password, DEFAULT_COST) {
-            Ok(hashed) => {
-                Ok(hashed)
-            },
-            Err(err) => {
-                println!("Error Hashing Password! : {}", err.to_string().as_str());
-                Err(err.to_string())
-            }
+        let salt: SaltString = SaltString::encode_b64(
+            random_bytes(32).as_slice()
+        ).unwrap();
+        let argon2 = Argon2::default();
+        match argon2.hash_password(password.as_bytes(), &salt) {
+            Ok(ph) => Ok(ph.to_string()),
+            Err(_) => Err("Could not hash password".to_string())
         }
     }
     pub fn verify_password(password: &str, ciphertext: &str) -> Result<bool, String> {
-        match  verify(password, ciphertext) {
-            Ok(result) => Ok(result),
+        let argon2 = Argon2::default();
+        match PasswordHash::parse(ciphertext, Default::default()) {
+            Ok(ph) => {
+                match argon2.verify_password(password.as_bytes(), &ph) {
+                    Ok(_) => Ok(true),
+                    Err(_) => Ok(false)
+                }
+            },
             Err(err) => {
                 println!("Error Verifying Password! : {:?}", err.to_string().as_str());
                 Err(err.to_string())
@@ -414,34 +426,48 @@ pub mod passwords {
     }
 
     #[cfg(test)]
-    pub mod bcrypt_tests {
+    pub mod password_hash_tests {
         use crate::passwords::{ hash_password, verify_password };
 
         #[test]
         fn hash_a_password_correct_len() {
-            let res = hash_password("hello").unwrap();
-            assert_eq!(res.len(), 60)
+            let res = hash_password("superSecretPassword").unwrap();
+            assert_eq!(res.len(), 118)
         }
 
         #[test]
         fn hash_a_password_ensure_unique() {
             let res = hash_password("wrong_password_for_result").unwrap();
-            assert_ne!(res.as_str(), "$2b$12$tfOakqclS.o0bV5Tht57tOumU7Nyumh0qjjd3LqgMV1gLQBD68jT6")
+            assert_ne!(res.as_str(), "$argon2id$v=19$m=19456,t=2,p=1$OGvJ/8bPLl5ReXN9h0uzZOESj6bGfv/K/6KIf9heg+s$3PDL8se7IfHxVNfIYikDxERwRtF9lNy5kxlSfwIWPJg")
         }
 
         #[test]
         fn verify_a_password() {
-            match verify_password("hello", "$2b$12$tfOakqclS.o0bV5Tht57tOumU7Nyumh0qjjd3LqgMV1gLQBD68jT6") {
-                Ok(_) => {},
-                Err(_) => { assert_eq!(1, 2) }
+            match hash_password("superSecretPassword") {
+                Ok(ph) => {
+                    match verify_password("superSecretPassword", ph.as_str()) {
+                        Ok(verified) => { assert_eq!(verified, true) },
+                        Err(_) => { assert_eq!(1, 2) }
+                    }
+                },
+                Err(_) => {
+                    assert_eq!(1, 2)
+                }
             }
         }
 
         #[test]
         fn verify_a_password_invalid_hash_throws() {
-            match verify_password("hello", "") {
-                Ok(_) => assert_eq!(1, 2),
-                Err(_) => {}
+            match hash_password("superSecretPassword") {
+                Ok(ph) => {
+                    match verify_password("bogusPassword", ph.as_str()) {
+                        Ok(verified) => { assert_eq!(verified, false) },
+                        Err(_) => { assert_eq!(1, 2) }
+                    }
+                },
+                Err(_) => {
+                    assert_eq!(1, 2)
+                }
             }
         }
     }
