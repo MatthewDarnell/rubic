@@ -14,6 +14,8 @@ use std::sync::mpsc;
 use std::time::Duration;
 mod env;
 mod routes;
+mod tx_monitor;
+
 use rocket::http::Header;
 use rocket::{Request, Response};
 use rocket::fairing::{Fairing, Info, Kind};
@@ -76,6 +78,8 @@ async fn main() {
 
       let mut tick_updated: bool;
 
+      let transaction_monitor: tx_monitor::TransactionMonitor;
+      
       //Main Thread Loop
       loop {
         let request = api::QubicApiPacket::get_latest_tick();
@@ -231,8 +235,12 @@ async fn main() {
                 response.insert("status".to_string(), "Transfer Sent!".to_string());
 
                 let request = api::QubicApiPacket::broadcast_transaction(&transfer_tx);
+                let txid = transfer_tx.txid();
                 match peer_set.make_request(request) {
-                  Ok(_) => { info!("Transaction Sent!"); },
+                  Ok(_) => {
+                    info!("{}", txid); 
+                    //TODO: Spawn Thread Watching this Txid for Finality
+                  },
                   //Ok(_) => println!("{:?}", request.response_data),
                   Err(err) => error!("{}", err)
                 }

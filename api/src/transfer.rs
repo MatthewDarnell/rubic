@@ -1,7 +1,9 @@
 use identity::Identity;
 use crypto::hash::k12_bytes;
-use crypto::qubic_identities::{get_subseed, get_public_key_from_identity, sign_raw};
+use crypto::qubic_identities::{get_subseed, get_public_key_from_identity, sign_raw, get_identity};
 use logger::info;
+use crate::header::RequestResponseHeader;
+use crate::QubicApiPacket;
 
 #[derive(Debug, Clone)]
 pub struct TransferTransaction {
@@ -109,13 +111,18 @@ impl TransferTransaction {
 
         bytes
     }
+    
+    pub fn txid(&self) -> String {
+        let digest: [u8; 32] = k12_bytes(&self.as_bytes()).try_into().unwrap();
+        get_identity(&digest).to_lowercase()
+    }
 
 }
 
 
   
 #[test]
-fn create_transfer() {
+fn create_transfer_and_check_txid() {
     let id: Identity = Identity::new("lcehvbvddggkjfnokduyjuiyvkklrvrmsaozwbvjlzvgvfipqpnkkuf");
     let t: TransferTransaction = TransferTransaction::from_vars(&id, "EPYWDREDNLHXOFYVGQUKPHJGOMPBSLDDGZDPKVQUMFXAIQYMZGEHPZTAAWON", 100, 80);
     let expected: Vec<u8> = vec![
@@ -137,7 +144,7 @@ fn create_transfer() {
     ];
 
     assert_eq!(t.as_bytes().as_slice(), expected.as_slice());
-
+    assert_eq!(t.txid().as_str(), "ncpeapoygdnmibkoxrvydquuifobdotzzjtjjdeacddymugdazstafqbvnug");
 }
 
 
