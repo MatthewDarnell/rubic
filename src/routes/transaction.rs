@@ -45,6 +45,9 @@ pub fn transfer(source: &str, dest: &str, amount: &str, expiration: &str, passwo
         map.insert("password".to_string(), password_string);
     }
     let request_id: String = Uuid::new_v4().to_string();
+    
+    
+    
     map.insert("message_id".to_string(), request_id.clone());
     tx.send(map).unwrap();
     let mut index = 0;

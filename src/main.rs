@@ -50,6 +50,7 @@ async fn main() {
   let (tx2, rx_server_route_responses_from_thread) = spmc::channel::<std::collections::HashMap<String, String>>();
 
   let (tx_incoming_api_request, rx_incoming_api_request) = mpsc::channel::<HashMap<String, String>>();
+    start_peer_set_thread(&tx, rx_incoming_api_request);
 
   {
     let tx = tx_incoming_api_request;
@@ -76,7 +77,6 @@ async fn main() {
 
 
 
-  start_peer_set_thread(&tx, rx_incoming_api_request);
 
   let host = env::get_host();
   let port: u32 = match env::get_port().parse() {
