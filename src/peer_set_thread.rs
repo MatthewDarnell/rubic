@@ -94,26 +94,7 @@ pub fn start_peer_set_thread(tx: &mpsc::Sender<std::collections::HashMap<String,
                         println!("[PeerSetThread] Received API Route Request");
                         if let Some(method) = map.get(&"method".to_string()) {
                             debug!("Api got request method=[{}]", method.as_str());
-                            if method == &"add_peer".to_string() {
-                                let peer_ip = map.get(&"peer_ip".to_string()).unwrap();
-                                //todo: validate peer_ip
-                                let message_id = map.get(&"message_id".to_string()).unwrap();
-                                let mut response: HashMap<String, String> = HashMap::new();
-                                match peer_set.add_peer(peer_ip) {
-                                    Ok(_) => {
-                                        response.insert("message_id".to_string(), message_id.to_string());
-                                        response.insert("status".to_string(), "Peer Added".to_string());
-                                        tx.send(response).unwrap();
-                                    },
-                                    Err(err) => {
-                                        response.insert("message_id".to_string(), message_id.to_string());
-                                        response.insert("status".to_string(), err.as_str().to_string());
-                                        error(format!("Failed To Add Peer.({}) = ({})", peer_ip.as_str(), err.as_str()).as_str());
-                                        tx.send(response).unwrap();
-                                    }
-                                }
-                            }
-                            else if method == &"transfer".to_string() {
+                            if method == &"transfer".to_string() {
                                 let message_id = map.get(&"message_id".to_string()).unwrap();
                                 let mut response: HashMap<String, String> = HashMap::new();
 
