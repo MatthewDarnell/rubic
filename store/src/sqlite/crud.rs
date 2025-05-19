@@ -1628,7 +1628,7 @@ mod store_crud_tests {
 
         #[test]
         #[serial]
-        fn create_transfer_and_insert_and_fetch() {
+        fn create_transfer_and_insert_and_fetch_and_set_broadcast() {
             let mut id: Identity = Identity::new("lcehvbvddggkjfnokduyjuiyvkklrvrmsaozwbvjlzvgvfipqpnkkuf");
             insert_new_identity("test.sqlite", &id);
             match create_transfer("test.sqlite", "EPYWDREDNLHXOFYVGQUKPHJGOMPBSLDDGZDPKVQUMFXAIQYMZGEHPZTAAWON", 
@@ -1641,7 +1641,26 @@ mod store_crud_tests {
                             assert_eq!(response_vec.len(), 1);
                             let mut tx = response_vec.first().unwrap();
                             assert_eq!(tx.get(&"broadcast".to_string()).unwrap(), &"0".to_string());
-                            //assert_eq!(response_vec[0].peer.as_ref().unwrap().as_str(), "127.0.0.1");
+                            match set_transfer_as_broadcast("test.sqlite", "txid") {
+                                Ok(_) => {
+                                    match fetch_transfer_by_txid("test.sqlite", "txid") {
+                                        Ok(response_vec) => {
+                                            println!("{:?}", response_vec);
+                                            assert_eq!(response_vec.len(), 1);
+                                            let mut tx = response_vec.first().unwrap();
+                                            assert_eq!(tx.get(&"broadcast".to_string()).unwrap(), &"1".to_string());
+                                        },
+                                        Err(err) => {
+                                            println!("Failed To Fetch Transfer! : {}", err.as_str());
+                                            assert_eq!(1, 2);
+                                        }
+                                    }
+                                },    
+                                Err(err) => {
+                                    println!("{}", err);
+                                    assert_eq!(1, 2);
+                                }
+                            }
                         },
                         Err(err) => {
                             assert_eq!(1, 2);
