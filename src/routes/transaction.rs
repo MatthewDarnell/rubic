@@ -1,22 +1,11 @@
-use std::collections::HashMap;
-use std::sync::mpsc::Sender;
-use std::sync::Mutex;
-use std::time::Duration;
-use rocket::figment::map;
 use rocket::get;
-use spmc::Receiver;
-use uuid::Uuid;
 use logger::{debug, error, info};
-use store::{get_db_path, sqlite};
+use store::get_db_path;
 use store::sqlite::crud;
 
 //transfer/${sourceIdentity}/${destinationIdentity}/${amountToSend}/${expirationTick}/${password}
 #[get("/transfer/<source>/<dest>/<amount>/<expiration>/<password>")]
 pub fn transfer(source: &str, dest: &str, amount: &str, expiration: &str, password: &str) -> String {
-    let string_amount: String = amount.to_string();
-
-    let string_expiration: String = expiration.to_string();
-
     let source_identity: String = source.to_string();
     let dest_identity: String = dest.to_string();
 
@@ -82,11 +71,9 @@ pub fn transfer(source: &str, dest: &str, amount: &str, expiration: &str, passwo
     let txid = transfer_tx.txid();
 
     let sig = transfer_tx._signature;
-    println!("Signature: {:?}", &sig);
     let sig_str = hex::encode(sig);
-    println!("Signature: {}", sig_str);
 
-    match sqlite::crud::create_transfer(
+    match crud::create_transfer(
         get_db_path().as_str(),
         source_identity.identity.as_str(),
         dest_identity.as_str(),

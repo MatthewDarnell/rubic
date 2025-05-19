@@ -1190,7 +1190,7 @@ pub fn fetch_transfers_to_broadcast(path: &str) -> Result<Vec<HashMap<String, St
                                 transfer.insert("signature".to_string(), statement.read::<String, _>("signature").unwrap());
                                 transfer.insert("txid".to_string(), statement.read::<String, _>("txid").unwrap());
                                 transfer.insert("broadcast".to_string(), statement.read::<String, _>("broadcast").unwrap());
-                                transfer.insert("success".to_string(), statement.read::<String, _>("success").unwrap());
+                                transfer.insert("status".to_string(), statement.read::<String, _>("status").unwrap().to_string());
                                 transfer.insert("created".to_string(), statement.read::<String, _>("created").unwrap());
                                 response.push(transfer);
                             }
@@ -1243,6 +1243,83 @@ pub fn set_transfer_as_broadcast(path: &str, txid: &str) -> Result<(), String> {
         }
     }
 }
+
+pub fn fetch_expired_and_broadcasted_transfers_with_unknown_status(path: &str, latest_tick: u32) -> Result<Vec<HashMap<String, String>>, String> {
+    let prep_query = "SELECT * FROM transfer WHERE broadcast = true AND tick < :latest_tick AND status = -1 ORDER BY tick ASC;";
+    let _lock = SQLITE_MUTEX.lock().unwrap();
+    match open_database(path, true) {
+        Ok(connection) => {
+            match prepare_crud_statement(&connection, prep_query) {
+                Ok(mut statement) => {
+                    match statement.bind::<&[(&str, &str)]>(&[
+                        (":latest_tick", latest_tick.to_string().as_str()),
+                    ][..]) {
+                        Ok(_) => {
+                            let mut response: Vec<HashMap<String, String>> = vec![];
+                            while let Ok(State::Row) = statement.next() {
+                                let mut transfer: HashMap<String, String> = HashMap::new();
+                                transfer.insert("source".to_string(), statement.read::<String, _>("source_identity").unwrap());
+                                transfer.insert("destination".to_string(), statement.read::<String, _>("destination_identity").unwrap());
+                                transfer.insert("amount".to_string(), statement.read::<String, _>("amount").unwrap());
+                                transfer.insert("tick".to_string(), statement.read::<String, _>("tick").unwrap());
+                                transfer.insert("signature".to_string(), statement.read::<String, _>("signature").unwrap());
+                                transfer.insert("txid".to_string(), statement.read::<String, _>("txid").unwrap());
+                                transfer.insert("broadcast".to_string(), statement.read::<String, _>("broadcast").unwrap());
+                                transfer.insert("status".to_string(), statement.read::<String, _>("status").unwrap());
+                                transfer.insert("created".to_string(), statement.read::<String, _>("created").unwrap());
+                                response.push(transfer);
+                            }
+                            Ok(response)
+                        },
+                        Err(err) => Err(err.to_string())
+                    }
+                },
+                Err(err) => {
+                    error!("Error in fetch_transfer_by_txid! : {}", &err);
+                    Err(err)
+                }
+            }
+        },
+        Err(err) => {
+            error!("Error in fetch_transfer_by_txid! : {}", &err);
+            Err(err)
+        }
+    }
+}
+
+pub fn set_broadcasted_transfer_as_success(path: &str, txid: &str) -> Result<(), String> {
+    let prep_query = "UPDATE transfer SET status = 0 WHERE txid = :txid AND broadcast = true;";
+    let _lock = SQLITE_MUTEX.lock().unwrap();
+    match open_database(path, true) {
+        Ok(connection) => {
+            match prepare_crud_statement(&connection, prep_query) {
+                Ok(mut statement) => {
+                    match statement.bind::<&[(&str, &str)]>(&[
+                        (":txid", txid),
+                    ][..]) {
+                        Ok(_) => {
+                            match statement.next() {
+                                Ok(State::Done) => { Ok(()) },
+                                Err(error) => { Err(error.to_string()) },
+                                _ => { Err("Weird!".to_string()) }
+                            }
+                        },
+                        Err(err) => { Err(err.to_string()) }
+                    }
+                },
+                Err(err) => {
+                    error(format!("Failed To Prepare Statement! {}", err.to_string()).as_str());
+                    Err(err.to_string())
+                }
+            }
+        },
+        Err(err) => {
+            error(format!("Failed To Open Database! {}", err.to_string()).as_str());
+            Err(err.to_string())
+        }
+    }
+}
+
 
 #[cfg(test)]
 mod store_crud_tests {

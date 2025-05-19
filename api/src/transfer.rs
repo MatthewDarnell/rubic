@@ -2,8 +2,6 @@ use identity::Identity;
 use crypto::hash::k12_bytes;
 use crypto::qubic_identities::{get_subseed, get_public_key_from_identity, sign_raw, get_identity};
 use logger::info;
-use crate::header::RequestResponseHeader;
-use crate::QubicApiPacket;
 
 #[derive(Debug, Clone)]
 pub struct TransferTransaction {
@@ -16,7 +14,7 @@ pub struct TransferTransaction {
     pub _signature: Vec<u8>
 }
 
-static TICK_OFFSET: u32 = 30;
+static TICK_OFFSET: u32 = 10;
 
 impl TransferTransaction {
 

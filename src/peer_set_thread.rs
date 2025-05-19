@@ -1,10 +1,6 @@
-use std::collections::HashMap;
 use std::sync::mpsc;
-use std::time::Duration;
-use api::RequestedEntity;
 use api::transfer::TransferTransaction;
 use crypto::qubic_identities::get_public_key_from_identity;
-use identity::Identity;
 use logger::{debug, error, info, trace};
 use network::peers::PeerSet;
 use store::get_db_path;
@@ -12,10 +8,16 @@ use store::sqlite::crud;
 use store::sqlite::crud::set_transfer_as_broadcast;
 use crate::env;
 
-pub fn start_peer_set_thread(tx: &mpsc::Sender<std::collections::HashMap<String, String>>, rx: mpsc::Receiver<std::collections::HashMap<String, String>>) {
+pub fn start_peer_set_thread(_: &mpsc::Sender<std::collections::HashMap<String, String>>, _: mpsc::Receiver<std::collections::HashMap<String, String>>) {
     {
         std::thread::spawn(move || {
-            println!("PEER SET THREAD SPAWNED");
+
+                /*
+                *
+                *   SECTION <Add Initial Seeded Peers, Figure Out Our Latest Known Tick>
+                *
+                */
+            
             let peer_ips = vec![
                 "62.2.98.75:21841",
                 "185.117.0.116:21841",
@@ -44,18 +46,17 @@ pub fn start_peer_set_thread(tx: &mpsc::Sender<std::collections::HashMap<String,
 
             //Main Thread Loop
             loop {
-                
+
                 /*
                 *
                 *   SECTION <Update Latest Tick And Update Balances>
                 *
                 */
-                
-                
+
+
                 let request = api::QubicApiPacket::get_latest_tick();
                 match peer_set.make_request(request) {
                     Ok(_) => {},
-                    //Ok(_) => println!("{:?}", request.response_data),
                     Err(err) => error!("{}", err)
                 }
                 tick_updated = false;
@@ -99,7 +100,7 @@ pub fn start_peer_set_thread(tx: &mpsc::Sender<std::collections::HashMap<String,
                 *   SECTION <Handle Disconnected Peers>
                 *
                 */
-                
+
                 for peer in peer_set.get_peer_ids() {
                     match crud::peer::fetch_peer_by_id(get_db_path().as_str(), peer.as_str()) {
                         Ok(temp_peer) => {
@@ -125,7 +126,7 @@ pub fn start_peer_set_thread(tx: &mpsc::Sender<std::collections::HashMap<String,
                 *   SECTION <Connect To New Peers As Needed>
                 *
                 */
-                
+
                 //Try To Spin up New Peers Until We Reach The Min Number
                 let min_peers: usize = env::get_min_peers();
                 let num_peers: usize = peer_set.get_peers().len();
@@ -151,34 +152,33 @@ pub fn start_peer_set_thread(tx: &mpsc::Sender<std::collections::HashMap<String,
                     }
                 }
 
-                
-                
+
+
                 /*
                 *
                 *   SECTION <Look For Pending Transfers To Broadcast>
                 *
                 */
-                
+
                 match crud::fetch_transfers_to_broadcast(get_db_path().as_str()) {
                     Ok(transfers_to_broadcast) => {
-                        println!("Found {} Transfers To Broadcast", transfers_to_broadcast.len());
                         for transfer_map in transfers_to_broadcast {
                             let source_id = transfer_map.get("source").unwrap();
                             let dest_id = transfer_map.get("destination").unwrap();
-                            
+
                             let amount = transfer_map.get("amount").unwrap();
                             let tick = transfer_map.get("tick").unwrap();
-                            
+
                             let amt: u64 = amount.parse().unwrap();
                             let tck: u32 = tick.parse().unwrap();
-                            
+
                             let source_pub_key = get_public_key_from_identity(source_id).unwrap();
                             let des_pub_key = get_public_key_from_identity(dest_id).unwrap();
-                            
+
                             let signature = transfer_map.get("signature").unwrap();
                             let sig_arr = hex::decode(signature).unwrap();
                             let txid = transfer_map.get("txid").unwrap();
-                            
+
                             let tx = TransferTransaction::from_signed_data(
                                 &source_pub_key,
                                 &des_pub_key,
@@ -190,27 +190,49 @@ pub fn start_peer_set_thread(tx: &mpsc::Sender<std::collections::HashMap<String,
                             );
 
                             let broadcast = api::QubicApiPacket::broadcast_transaction(&tx);
-                            println!("Got Broadcast Tx for <{}>: ", txid);
-                            println!("{:?}", &broadcast);
+                            set_transfer_as_broadcast(get_db_path().as_str(), txid.as_str()).unwrap();
                             match peer_set.make_request(broadcast) {
                                 Ok(_) => {
                                     match set_transfer_as_broadcast(get_db_path().as_str(), txid.as_str()) {
                                         Ok(_) => {
                                             info!("Transaction {} Broadcast", txid);
-                                            println!("Transaction <{}> Broadcast", txid);
                                         },
                                         Err(err) => {
-                                            error!("Failed To Set Transaction <{}> as Broadcast!", txid);
+                                            error!("Failed To Set Transaction <{}> as Broadcast! ({})", txid, err);
                                         }
                                     }
                                 },
                                 Err(err) => error!("{}", err)
                             }
-                            
                         }
                     },
                     Err(_) => {}
                 }
+
+
+
+                /*
+                *
+                *   SECTION <Look For Broadcasted Transfers That Are Expired To Confirm>
+                *
+                */
+                match crud::fetch_expired_and_broadcasted_transfers_with_unknown_status(get_db_path().as_str(), latest_tick) {
+                    Ok(transfers) => {
+                        for transfer in transfers {
+                            //TODO: Query Peers for Transfer Status (-1 UNKNOWN, 0 SUCCESS, 1 FAILED)
+                            let txid = transfer.get(&"txid".to_string()).unwrap();
+                            match crud::set_broadcasted_transfer_as_success(get_db_path().as_str(), txid.as_str()) {
+                                Ok(_) => {},
+                                Err(err) => {
+                                    println!("Failed To Confirm Transaction {} ({})", txid.as_str(), err);
+                                }
+                            }
+                        }
+                    },
+                    Err(_) => error!("Db Error Fetching Transfers to Broadcast")
+                }
+                
+                
             }
         });   
     }

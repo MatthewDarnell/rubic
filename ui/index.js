@@ -574,7 +574,7 @@ const statusInfoLoopFunction = () => {
         .then(getConnectedPeers)
         .then(_ => {
             //Finished Update Loop
-            setTimeout(statusInfoLoopFunction, 1000);
+            setTimeout(statusInfoLoopFunction, 250);
         })
         .catch(() => {
             setTimeout(statusInfoLoopFunction, 3000);

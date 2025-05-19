@@ -4,12 +4,8 @@ use std::collections::HashMap;
 use rocket::routes;
 
 extern crate dotenv_codegen;
-use network::peers::PeerSet;
-use logger::{setup_logger, info, trace, debug, error};
+use logger::{setup_logger, info};
 use store::sqlite::crud;
-use store::get_db_path;
-use identity;
-use api;
 use std::sync::mpsc;
 use std::time::Duration;
 mod env;
@@ -47,7 +43,7 @@ async fn main() {
   crud::peer::set_all_peers_disconnected(path.as_str()).unwrap();
 
   let (tx, rx) = mpsc::channel::<std::collections::HashMap<String, String>>();
-  let (tx2, rx_server_route_responses_from_thread) = spmc::channel::<std::collections::HashMap<String, String>>();
+  let (_, rx_server_route_responses_from_thread) = spmc::channel::<std::collections::HashMap<String, String>>();
 
   let (tx_incoming_api_request, rx_incoming_api_request) = mpsc::channel::<HashMap<String, String>>();
     start_peer_set_thread(&tx, rx_incoming_api_request);
