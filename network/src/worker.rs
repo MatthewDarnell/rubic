@@ -3,7 +3,7 @@ use std::io::ErrorKind;
 use std::time::Duration;
 use crate::peer::Peer;
 use api::{QubicApiPacket, response};
-use api::header::{ RequestResponseHeader };
+use api::header::{EntityType, RequestResponseHeader};
 use store::get_db_path;
 use store::sqlite::crud::peer::set_peer_disconnected;
 
@@ -18,6 +18,15 @@ pub fn handle_new_peer(_id: String, peer: Peer, rx: spmc::Receiver<QubicApiPacke
         //Block until we receive work
         match rx.clone().recv() {
             Ok(mut request) => {
+                match request.api_type {                        //Granular delays based on frequency of api request types
+                    EntityType::RequestCurrentTickInfo => {     //This will help us be a good peer and avoid rate limits
+                        std::thread::sleep(Duration::from_millis(350));
+                    },
+                    EntityType::RequestEntity => {
+                        std::thread::sleep(Duration::from_millis(100));
+                    },
+                    _ => {}
+                }
                 //println!("REQUEST : {:?}", &request.as_bytes());
                 match stream.write(request.as_bytes().as_slice()) {
                     Ok(_) => {

@@ -14,7 +14,7 @@ pub struct TransferTransaction {
     pub _signature: Vec<u8>
 }
 
-static TICK_OFFSET: u32 = 30;
+static TICK_OFFSET: u32 = 25;
 
 impl TransferTransaction {
 

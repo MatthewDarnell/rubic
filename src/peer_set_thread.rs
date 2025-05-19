@@ -1,4 +1,5 @@
 use std::sync::mpsc;
+use std::time::Duration;
 use api::transfer::TransferTransaction;
 use crypto::qubic_identities::get_public_key_from_identity;
 use logger::{debug, error, info, trace};
@@ -43,7 +44,7 @@ pub fn start_peer_set_thread(_: &mpsc::Sender<std::collections::HashMap<String, 
             };
 
             let mut tick_updated: bool;
-
+            let mut time = std::time::SystemTime::now();
             //Main Thread Loop
             loop {
 
@@ -53,12 +54,19 @@ pub fn start_peer_set_thread(_: &mpsc::Sender<std::collections::HashMap<String, 
                 *
                 */
 
+                //We have to sleep to avoid being rate limited
+                                                                                 // by our peers
 
-                let request = api::QubicApiPacket::get_latest_tick();
-                match peer_set.make_request(request) {
-                    Ok(_) => {},
-                    Err(err) => error!("{}", err)
+                let curr_time = std::time::SystemTime::now();
+                if curr_time >= time + Duration::from_millis(900) {
+                    time = curr_time;
+                    let request = api::QubicApiPacket::get_latest_tick();
+                    match peer_set.make_request(request) {
+                        Ok(_) => {},
+                        Err(err) => error!("{}", err)
+                    }
                 }
+
                 tick_updated = false;
                 let temp_latest_tick: u32 = match crud::fetch_latest_tick(get_db_path().as_str()) {
                     Ok(tick) => {
@@ -68,7 +76,7 @@ pub fn start_peer_set_thread(_: &mpsc::Sender<std::collections::HashMap<String, 
                         0 as u32
                     }
                 };
-                if temp_latest_tick > latest_tick {
+                if temp_latest_tick > (latest_tick + 5) {
                     debug!("Tick Updated! {} -> {}", latest_tick, temp_latest_tick);
                     latest_tick = temp_latest_tick;
                     tick_updated = true;
@@ -190,6 +198,7 @@ pub fn start_peer_set_thread(_: &mpsc::Sender<std::collections::HashMap<String, 
                             );
 
                             let broadcast = api::QubicApiPacket::broadcast_transaction(&tx);
+
                             match peer_set.make_request(broadcast) {
                                 Ok(_) => {
                                     match set_transfer_as_broadcast(get_db_path().as_str(), txid.as_str()) {
@@ -203,6 +212,7 @@ pub fn start_peer_set_thread(_: &mpsc::Sender<std::collections::HashMap<String, 
                                 },
                                 Err(err) => error!("{}", err)
                             }
+
                         }
                     },
                     Err(_) => {}
