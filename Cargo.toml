@@ -20,3 +20,4 @@ identity = { path = './identity' }
 logger = { path = './logger' }
 network = { path = './network' }
 store = { path = './store' }
+hex = "0.4.3"
