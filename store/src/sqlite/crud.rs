@@ -1087,9 +1087,9 @@ pub fn fetch_latest_response_entity_by_identity_group_peers(path: &str, identity
         created DATETIME DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY(source_identity) REFERENCES identities(identity)
 */
-pub fn create_transfer(path: &str, source: &str, destination: &str, amount: u64, tick: u32, txid: &str) -> Result<(), String> {
+pub fn create_transfer(path: &str, source: &str, destination: &str, amount: u64, tick: u32, signature: &str, txid: &str) -> Result<(), String> {
     let prep_query = "INSERT INTO transfer (source_identity, destination_identity, amount, tick, signature, txid) VALUES (
-    :source, :destination, :amount, :tick, :txid
+    :source, :destination, :amount, :tick, :signature, :txid
     );";
     let _lock = SQLITE_MUTEX.lock().unwrap();
     match open_database(path, true) {
@@ -1101,6 +1101,7 @@ pub fn create_transfer(path: &str, source: &str, destination: &str, amount: u64,
                         (":destination", destination),
                         (":amount", amount.to_string().as_str()),
                         (":tick", tick.to_string().as_str()),
+                        (":signature", signature.to_string().as_str()),
                         (":txid", txid),
                     ][..]) {
                         Ok(_) => {
@@ -1142,10 +1143,12 @@ pub fn fetch_transfer_by_txid(path: &str, txid: &str) -> Result<Vec<HashMap<Stri
                                 transfer.insert("source".to_string(), statement.read::<String, _>("source_identity").unwrap());
                                 transfer.insert("destination".to_string(), statement.read::<String, _>("destination_identity").unwrap());
                                 transfer.insert("amount".to_string(), statement.read::<String, _>("amount").unwrap());
-                                transfer.insert("input_type".to_string(), statement.read::<String, _>("input_type").unwrap());
-                                transfer.insert("input_size".to_string(), statement.read::<String, _>("input_size").unwrap());
                                 transfer.insert("tick".to_string(), statement.read::<String, _>("tick").unwrap());
+                                transfer.insert("signature".to_string(), statement.read::<String, _>("signature").unwrap());
                                 transfer.insert("txid".to_string(), statement.read::<String, _>("txid").unwrap());
+                                transfer.insert("broadcast".to_string(), statement.read::<String, _>("broadcast").unwrap());
+                                transfer.insert("success".to_string(), statement.read::<String, _>("success").unwrap());
+                                transfer.insert("created".to_string(), statement.read::<String, _>("created").unwrap());
                                 response.push(transfer);
                             }
                             Ok(response)
@@ -1183,10 +1186,12 @@ pub fn fetch_transfers_to_broadcast(path: &str) -> Result<Vec<HashMap<String, St
                                 transfer.insert("source".to_string(), statement.read::<String, _>("source_identity").unwrap());
                                 transfer.insert("destination".to_string(), statement.read::<String, _>("destination_identity").unwrap());
                                 transfer.insert("amount".to_string(), statement.read::<String, _>("amount").unwrap());
-                                transfer.insert("input_type".to_string(), statement.read::<String, _>("input_type").unwrap());
-                                transfer.insert("input_size".to_string(), statement.read::<String, _>("input_size").unwrap());
                                 transfer.insert("tick".to_string(), statement.read::<String, _>("tick").unwrap());
+                                transfer.insert("signature".to_string(), statement.read::<String, _>("signature").unwrap());
                                 transfer.insert("txid".to_string(), statement.read::<String, _>("txid").unwrap());
+                                transfer.insert("broadcast".to_string(), statement.read::<String, _>("broadcast").unwrap());
+                                transfer.insert("success".to_string(), statement.read::<String, _>("success").unwrap());
+                                transfer.insert("created".to_string(), statement.read::<String, _>("created").unwrap());
                                 response.push(transfer);
                             }
                             Ok(response)
@@ -1616,24 +1621,35 @@ mod store_crud_tests {
     }
 
     pub mod transfer {
-        use crate::sqlite::crud::{create_transfer, fetch_transfer_by_txid, fetch_transfers_to_broadcast, set_transfer_as_broadcast};
+        use crate::sqlite::crud::{create_transfer, fetch_transfer_by_txid, fetch_transfers_to_broadcast, insert_new_identity, set_transfer_as_broadcast};
         use serial_test::serial;
         use std::fs;
+        use identity::Identity;
 
         #[test]
         #[serial]
         fn create_transfer_and_insert_and_fetch() {
-            let data: Vec<u8> = vec![80, 3, 0, 167, 8, 105, 98, 32, 80, 3, 0, 167, 8, 105, 98, 32, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 225, 245, 5, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 250, 100, 124, 0, 0, 0, 0, 0, 124, 141, 129, 0, 1, 0, 0, 0, 42, 90, 241, 198, 106, 243, 239, 74, 41, 78, 9, 242, 122, 237, 3, 13, 63, 174, 255, 185, 161, 145, 0, 18, 70, 139, 156, 127, 62, 70, 189, 159, 18, 49, 252, 149, 121, 228, 161, 156, 5, 104, 234, 45, 220, 245, 230, 19, 51, 151, 17, 31, 147, 163, 145, 11, 96, 54, 223, 194, 153, 88, 7, 153, 236, 214, 251, 45, 205, 47, 16, 11, 86, 100, 214, 84, 204, 245, 113, 6, 108, 13, 172, 151, 88, 42, 241, 66, 109, 41, 52, 62, 12, 163, 125, 174, 57, 33, 123, 231, 45, 173, 64, 110, 153, 145, 12, 112, 192, 130, 163, 44, 89, 9, 43, 129, 141, 112, 192, 170, 171, 155, 11, 204, 121, 169, 79, 92, 65, 156, 144, 198, 90, 88, 74, 154, 40, 181, 191, 15, 219, 29, 67, 231, 230, 43, 230, 5, 19, 23, 124, 204, 180, 165, 144, 161, 73, 135, 50, 77, 141, 111, 78, 247, 107, 163, 45, 75, 151, 228, 192, 122, 239, 28, 53, 101];;
-            create_transfer("test.sqlite", "EPYWDREDNLHXOFYVGQUKPHJGOMPBSLDDGZDPKVQUMFXAIQYMZGEHPZTAAWON", 
+            let mut id: Identity = Identity::new("lcehvbvddggkjfnokduyjuiyvkklrvrmsaozwbvjlzvgvfipqpnkkuf");
+            insert_new_identity("test.sqlite", &id);
+            match create_transfer("test.sqlite", "EPYWDREDNLHXOFYVGQUKPHJGOMPBSLDDGZDPKVQUMFXAIQYMZGEHPZTAAWON", 
                             "PBPMLQVFUQKBSCZSJLRMNCYEJXSBQOEKECAXARVEIDKDQZPNVSGVSLZFDQMD",
-            100, ).unwrap();
-            create_peer_response("test.sqlite", "127.0.0.1", &data).unwrap();
-            match fetch_peer_response_by_type("test.sqlite", 32) {
-                Ok(response_vec) => {
-                    assert_eq!(response_vec.len(), 2);
-                    //assert_eq!(response_vec[0].peer.as_ref().unwrap().as_str(), "127.0.0.1");
+            100, 4000, "signature", "txid") {
+                Ok(_) => {
+                    match fetch_transfer_by_txid("test.sqlite", "txid") {
+                        Ok(response_vec) => {
+                            println!("{:?}", response_vec);
+                            assert_eq!(response_vec.len(), 1);
+                            let mut tx = response_vec.first().unwrap();
+                            assert_eq!(tx.get(&"broadcast".to_string()).unwrap(), &"0".to_string());
+                            //assert_eq!(response_vec[0].peer.as_ref().unwrap().as_str(), "127.0.0.1");
+                        },
+                        Err(err) => {
+                            assert_eq!(1, 2);
+                        }
+                    }
                 },
                 Err(err) => {
+                    println!("{}", err);
                     assert_eq!(1, 2);
                 }
             }

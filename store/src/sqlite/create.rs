@@ -60,7 +60,7 @@ pub fn open_database(path: &str, create: bool) -> Result<sqlite::Connection, Str
         signature TEXT NOT NULL,
         txid TEXT DEFAULT NULL UNIQUE,
         broadcast BOOLEAN DEFAULT FALSE,
-        success BOOLEAN DEFAULT NULL,
+        success BOOLEAN DEFAULT FALSE,
         created DATETIME DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY(source_identity) REFERENCES identities(identity)
     );
