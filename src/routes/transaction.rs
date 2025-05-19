@@ -28,7 +28,7 @@ pub fn transfer(source: &str, dest: &str, amount: &str, expiration: &str, passwo
         return format!("Invalid Destination Identity!");
     }
 
-    
+
     let mut source_identity = match crud::fetch_identity(get_db_path().as_str(), source) {
         Ok(identity) => identity,
         Err(_) => {
@@ -80,14 +80,14 @@ pub fn transfer(source: &str, dest: &str, amount: &str, expiration: &str, passwo
     info!("Creating Transfer: {} .({}) ---> {} (Expires At Tick.<{}>)", &source_identity.identity.as_str(), amt.to_string().as_str(), dest, tck.to_string().as_str());
     let transfer_tx = api::transfer::TransferTransaction::from_vars(&source_identity, &dest, amt, tck);
     let txid = transfer_tx.txid();
-    
+
     let sig = transfer_tx._signature;
     println!("Signature: {:?}", &sig);
     let sig_str = hex::encode(sig);
     println!("Signature: {}", sig_str);
-    
+
     match sqlite::crud::create_transfer(
-        get_db_path().as_str(), 
+        get_db_path().as_str(),
         source_identity.identity.as_str(),
         dest_identity.as_str(),
         amt,

@@ -19,6 +19,26 @@ pub struct TransferTransaction {
 static TICK_OFFSET: u32 = 30;
 
 impl TransferTransaction {
+
+    pub fn from_signed_data(
+                            src_pub_key: &[u8; 32],
+                            dest_pub_key: &[u8; 32],
+                            amount: u64,
+                            tick: u32,
+                            input_type: u16,
+                            input_size: u16,
+                            sig: &[u8]) -> Self
+    {
+        TransferTransaction {
+            _source_public_key: src_pub_key.to_vec(),
+            _source_destination_public_key: dest_pub_key.to_vec(),
+            _amount: amount,
+            _tick: tick,
+            _input_type: input_type,
+            _input_size: input_size,
+            _signature: sig.to_vec()
+        }
+    }
     pub fn from_vars(source_identity: &Identity, dest: &str, amount: u64, tick: u32) -> Self {
         if source_identity.encrypted {
             panic!("Trying to Transfer From Encrypted Wallet!");
@@ -120,7 +140,6 @@ impl TransferTransaction {
 }
 
 
-  
 #[test]
 fn create_transfer_and_check_txid() {
     let id: Identity = Identity::new("lcehvbvddggkjfnokduyjuiyvkklrvrmsaozwbvjlzvgvfipqpnkkuf");

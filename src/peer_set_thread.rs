@@ -2,16 +2,18 @@ use std::collections::HashMap;
 use std::sync::mpsc;
 use std::time::Duration;
 use api::RequestedEntity;
+use api::transfer::TransferTransaction;
+use crypto::qubic_identities::get_public_key_from_identity;
+use identity::Identity;
 use logger::{debug, error, info, trace};
 use network::peers::PeerSet;
 use store::get_db_path;
 use store::sqlite::crud;
+use store::sqlite::crud::set_transfer_as_broadcast;
 use crate::env;
 
 pub fn start_peer_set_thread(tx: &mpsc::Sender<std::collections::HashMap<String, String>>, rx: mpsc::Receiver<std::collections::HashMap<String, String>>) {
     {
-        let tx = tx.clone();
-        let rx = rx;
         std::thread::spawn(move || {
             println!("PEER SET THREAD SPAWNED");
             let peer_ips = vec![
@@ -153,13 +155,59 @@ pub fn start_peer_set_thread(tx: &mpsc::Sender<std::collections::HashMap<String,
                 
                 /*
                 *
-                *   SECTION <Look For Pending Transfers>
+                *   SECTION <Look For Pending Transfers To Broadcast>
                 *
                 */
                 
                 match crud::fetch_transfers_to_broadcast(get_db_path().as_str()) {
                     Ok(transfers_to_broadcast) => {
                         println!("Found {} Transfers To Broadcast", transfers_to_broadcast.len());
+                        for transfer_map in transfers_to_broadcast {
+                            let source_id = transfer_map.get("source").unwrap();
+                            let dest_id = transfer_map.get("destination").unwrap();
+                            
+                            let amount = transfer_map.get("amount").unwrap();
+                            let tick = transfer_map.get("tick").unwrap();
+                            
+                            let amt: u64 = amount.parse().unwrap();
+                            let tck: u32 = tick.parse().unwrap();
+                            
+                            let source_pub_key = get_public_key_from_identity(source_id).unwrap();
+                            let des_pub_key = get_public_key_from_identity(dest_id).unwrap();
+                            
+                            let signature = transfer_map.get("signature").unwrap();
+                            let sig_arr = hex::decode(signature).unwrap();
+                            let txid = transfer_map.get("txid").unwrap();
+                            
+                            let tx = TransferTransaction::from_signed_data(
+                                &source_pub_key,
+                                &des_pub_key,
+                                amt,
+                                tck,
+                                0,
+                                0,
+                                sig_arr.as_slice()
+                            );
+
+                            let broadcast = api::QubicApiPacket::broadcast_transaction(&tx);
+                            println!("Got Broadcast Tx for <{}>: ", txid);
+                            println!("{:?}", &broadcast);
+                            match peer_set.make_request(broadcast) {
+                                Ok(_) => {
+                                    match set_transfer_as_broadcast(get_db_path().as_str(), txid.as_str()) {
+                                        Ok(_) => {
+                                            info!("Transaction {} Broadcast", txid);
+                                            println!("Transaction <{}> Broadcast", txid);
+                                        },
+                                        Err(err) => {
+                                            error!("Failed To Set Transaction <{}> as Broadcast!", txid);
+                                        }
+                                    }
+                                },
+                                Err(err) => error!("{}", err)
+                            }
+                            
+                        }
                     },
                     Err(_) => {}
                 }
