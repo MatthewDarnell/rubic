@@ -77,8 +77,8 @@ pub fn transfer(source: &str, dest: &str, amount: &str, expiration: &str, passwo
         get_db_path().as_str(),
         source_identity.identity.as_str(),
         dest_identity.as_str(),
-        amt,
-        tck,
+        transfer_tx._amount,
+        transfer_tx._tick,
         sig_str.as_str(),
         txid.as_str()
     ) {

@@ -169,7 +169,7 @@ impl PeerSet {
                 }
             }
             request.peer = Some(peer.get_id().to_owned());
-            thread::sleep(Duration::from_millis(50));
+            //thread::sleep(Duration::from_millis(50));
             match self.req_channel.0.send(request.clone()) {
                 Ok(_) => { },
                 Err(err) => {

@@ -53,7 +53,8 @@ async fn main() {
     let rx = rx;
     std::thread::spawn(move || {
       loop {
-        match rx.recv_timeout(Duration::from_secs(5)) {
+        match rx.recv() {
+        //match rx.recv_timeout(Duration::from_secs(5)) {
           Ok(map) => {
             match tx.send(map) {
                 Ok(_) => {

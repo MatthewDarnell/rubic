@@ -190,7 +190,6 @@ pub fn start_peer_set_thread(_: &mpsc::Sender<std::collections::HashMap<String, 
                             );
 
                             let broadcast = api::QubicApiPacket::broadcast_transaction(&tx);
-                            set_transfer_as_broadcast(get_db_path().as_str(), txid.as_str()).unwrap();
                             match peer_set.make_request(broadcast) {
                                 Ok(_) => {
                                     match set_transfer_as_broadcast(get_db_path().as_str(), txid.as_str()) {
@@ -222,7 +221,9 @@ pub fn start_peer_set_thread(_: &mpsc::Sender<std::collections::HashMap<String, 
                             //TODO: Query Peers for Transfer Status (-1 UNKNOWN, 0 SUCCESS, 1 FAILED)
                             let txid = transfer.get(&"txid".to_string()).unwrap();
                             match crud::set_broadcasted_transfer_as_success(get_db_path().as_str(), txid.as_str()) {
-                                Ok(_) => {},
+                                Ok(_) => {
+                                    println!("Transaction <{}> confirmed.", txid);
+                                },
                                 Err(err) => {
                                     println!("Failed To Confirm Transaction {} ({})", txid.as_str(), err);
                                 }
