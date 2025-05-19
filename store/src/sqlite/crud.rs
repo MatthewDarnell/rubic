@@ -1629,7 +1629,7 @@ mod store_crud_tests {
         #[test]
         #[serial]
         fn create_transfer_and_insert_and_fetch_and_set_broadcast() {
-            let mut id: Identity = Identity::new("lcehvbvddggkjfnokduyjuiyvkklrvrmsaozwbvjlzvgvfipqpnkkuf");
+            let id: Identity = Identity::new("lcehvbvddggkjfnokduyjuiyvkklrvrmsaozwbvjlzvgvfipqpnkkuf");
             insert_new_identity("test.sqlite", &id);
             match create_transfer("test.sqlite", "EPYWDREDNLHXOFYVGQUKPHJGOMPBSLDDGZDPKVQUMFXAIQYMZGEHPZTAAWON", 
                             "PBPMLQVFUQKBSCZSJLRMNCYEJXSBQOEKECAXARVEIDKDQZPNVSGVSLZFDQMD",
@@ -1637,7 +1637,6 @@ mod store_crud_tests {
                 Ok(_) => {
                     match fetch_transfer_by_txid("test.sqlite", "txid") {
                         Ok(response_vec) => {
-                            println!("{:?}", response_vec);
                             assert_eq!(response_vec.len(), 1);
                             let mut tx = response_vec.first().unwrap();
                             assert_eq!(tx.get(&"broadcast".to_string()).unwrap(), &"0".to_string());
@@ -1645,7 +1644,6 @@ mod store_crud_tests {
                                 Ok(_) => {
                                     match fetch_transfer_by_txid("test.sqlite", "txid") {
                                         Ok(response_vec) => {
-                                            println!("{:?}", response_vec);
                                             assert_eq!(response_vec.len(), 1);
                                             let mut tx = response_vec.first().unwrap();
                                             assert_eq!(tx.get(&"broadcast".to_string()).unwrap(), &"1".to_string());
