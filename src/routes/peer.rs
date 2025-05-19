@@ -1,4 +1,3 @@
-use std::net::Ipv4Addr;
 use std::str::FromStr;
 use rocket::get;
 use network::peer::Peer;
@@ -17,7 +16,7 @@ pub fn peers() -> String {
 
 #[get("/peers/add/<address>")]
 pub fn add_peer(address: &str) -> String {
-    match Ipv4Addr::from_str(address) {
+    match std::net::SocketAddrV4::from_str(address) {
         Ok(_) => {
             Peer::new(address, None, "");
             match store::sqlite::crud::peer::fetch_peer_by_ip(store::get_db_path().as_str(), address) {

@@ -14,7 +14,7 @@ pub struct TransferTransaction {
     pub _signature: Vec<u8>
 }
 
-static TICK_OFFSET: u32 = 10;
+static TICK_OFFSET: u32 = 30;
 
 impl TransferTransaction {
 
@@ -52,7 +52,6 @@ impl TransferTransaction {
             Ok(pub_key) => pub_key,
             Err(err) => panic!("{:?}", err)
         };
-
         let mut t: TransferTransaction = TransferTransaction {
             _source_public_key: pub_key_src.to_vec(),
             _source_destination_public_key: pub_key_dest.to_vec(),
@@ -185,6 +184,35 @@ fn create_another_transfer() {
         3,  86, 132, 160,  73,  63,  40, 119, 116, 227,  46, 249,
        27,  40,   3, 234, 99, 187,  24, 212, 147,  79, 197,  92,
        31, 156, 134, 46, 127,  72,  48, 237, 142, 193,  32,   0];
-
+    
     assert_eq!(t.as_bytes().as_slice(), expected.as_slice());
+}
+
+#[test]
+fn create_transfer_from_signed_vars() {
+    let id: Identity = Identity::new("lcehvbvddggksfnokduyjuiyvkklrvrmsaozwbvjlzvgvfipqpnkkuf");
+    let t: TransferTransaction = TransferTransaction::from_vars(&id, "XBFULHWOBTSMNBHDGQXGUMPMLKWCECTIDIDEHCAJFCKYILPWPIVGADEGZTYJ", 10, 11202000);
+    
+    let source = get_public_key_from_identity(&id.identity).unwrap();
+    let dest = get_public_key_from_identity(&"XBFULHWOBTSMNBHDGQXGUMPMLKWCECTIDIDEHCAJFCKYILPWPIVGADEGZTYJ".to_string()).unwrap();
+    let t2: TransferTransaction = TransferTransaction::from_signed_data(&source, &dest, 10, t._tick, 0, 0, t._signature.as_slice());
+    
+    let expected: Vec<u8> = vec![
+        37, 112,  53,  49, 107, 136, 119, 158, 242,  99, 180,  87,
+        210, 149,  13,  37, 184, 195,   1, 183,  74, 237, 103, 254,
+        177,  29, 206,  92, 194, 153, 169, 137,  21, 147, 195, 140,
+        38,  28,  76,  52, 221,  94,  94, 219, 189, 129, 136,  98,
+        148, 135, 210,  91,  26,  54, 242,  75,  66, 181,  44, 135,
+        8,  85,  12, 212,
+        10,   0,   0,   0,   0,   0,   0,   0,
+        238, 237, 170,   0,
+        0,   0,   0,   0,
+        /*begin signature */ 250, 222, 115, 210,
+        15,  11,  22,  11, 210, 206, 106, 144, 254, 178,   6,  38,
+        170,  40, 192, 122, 224, 242, 77,  35, 200,  90, 125,  75,
+        3,  86, 132, 160,  73,  63,  40, 119, 116, 227,  46, 249,
+        27,  40,   3, 234, 99, 187,  24, 212, 147,  79, 197,  92,
+        31, 156, 134, 46, 127,  72,  48, 237, 142, 193,  32,   0];
+
+    assert_eq!(t2.as_bytes().as_slice(), expected.as_slice());
 }

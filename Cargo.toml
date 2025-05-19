@@ -7,13 +7,10 @@ authors = ["Matthew Darnell"]
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-crossbeam-channel = "0.5.8"
 dotenv = "0.15.0"
 dotenv_codegen = "0.15.0"
 rocket = "0.5.0-rc.3"
 spmc = "0.3.0"
-tokio = "1.32.0"
-uuid = { version = "1.4.1", features = ["v4"] }
 api = { path = './api' }
 crypto =  { path = './crypto' }
 identity = { path = './identity' }

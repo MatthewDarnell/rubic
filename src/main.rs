@@ -7,7 +7,6 @@ extern crate dotenv_codegen;
 use logger::{setup_logger, info};
 use store::sqlite::crud;
 use std::sync::mpsc;
-use std::time::Duration;
 mod env;
 mod routes;
 mod peer_set_thread;

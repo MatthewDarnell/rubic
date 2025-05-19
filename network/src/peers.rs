@@ -1,7 +1,6 @@
 use std::io::prelude::*;
 use std::collections::HashMap;
 use std::net::{SocketAddr, TcpStream};
-use std::thread;
 use api::QubicApiPacket;
 use logger::{ debug, error };
 use std::time::{Duration};
