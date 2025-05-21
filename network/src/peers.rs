@@ -1,7 +1,6 @@
 use std::io::prelude::*;
 use std::collections::HashMap;
 use std::net::{SocketAddr, TcpStream};
-use std::thread;
 use api::QubicApiPacket;
 use logger::{ debug, error };
 use std::time::{Duration};
@@ -169,7 +168,7 @@ impl PeerSet {
                 }
             }
             request.peer = Some(peer.get_id().to_owned());
-            thread::sleep(Duration::from_millis(50));
+
             match self.req_channel.0.send(request.clone()) {
                 Ok(_) => { },
                 Err(err) => {

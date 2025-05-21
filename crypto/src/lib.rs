@@ -1,5 +1,3 @@
-#![feature(ascii_char)]
-#![feature(ascii_char_variants)]
 mod fourq;
 
 const A_LOWERCASE_ASCII: u8 = 97u8;
