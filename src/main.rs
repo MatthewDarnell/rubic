@@ -1,5 +1,3 @@
-#![feature(proc_macro_hygiene, decl_macro)]
-
 use std::collections::HashMap;
 use rocket::routes;
 
