@@ -1,4 +1,3 @@
-
 mod fourq;
 
 const A_LOWERCASE_ASCII: u8 = 97u8;
