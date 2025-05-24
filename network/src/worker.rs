@@ -27,11 +27,9 @@ pub fn handle_new_peer(_id: String, peer: Peer, rx: spmc::Receiver<QubicApiPacke
                     },
                     _ => {}
                 }
-                //println!("REQUEST : {:?}", &request.as_bytes());
                 match stream.write(request.as_bytes().as_slice()) {
                     Ok(_) => {
                         stream.flush().unwrap();
-                        //println!("Bytes Written, Attempting To Peek.");
                         //let response = ["Peer ", id.as_str(), " Responded At Time ", Utc::now().to_string().as_str()].join("");
                         //println!( "Worker Thread Responding");
                         let mut peeked: [u8; 8] = [0; 8];
@@ -53,11 +51,12 @@ pub fn handle_new_peer(_id: String, peer: Peer, rx: spmc::Receiver<QubicApiPacke
                                 }
                             },
                             Err(_err) => {
-                                 //println!("Failed To Peek! {}", err);
-                                //set_peer_disconnected(get_db_path().as_str(), peer.get_id().as_str()).unwrap();
+                                //println!("Failed To Peek! {}", _err);
+                                set_peer_disconnected(get_db_path().as_str(), peer.get_id().as_str()).unwrap();
                                 // break;
                             }
-                        }
+                        }   
+                        
                     },
                     Err(err) => {   //Probably the peer closed the tcp connection
                         let _error = match err.kind() {

@@ -3,6 +3,34 @@ use crypto::hash::k12_bytes;
 use crypto::qubic_identities::{get_subseed, get_public_key_from_identity, sign_raw, get_identity};
 use logger::info;
 
+
+/*
+    Helper Functions
+*/
+fn read_le_u64(input: &mut &[u8]) -> u64 {
+    let (int_bytes, rest) = input.split_at(std::mem::size_of::<u64>());
+    *input = rest;
+    u64::from_le_bytes(int_bytes.try_into().unwrap())
+}
+
+fn read_le_u32(input: &mut &[u8]) -> u32 {
+    let (int_bytes, rest) = input.split_at(std::mem::size_of::<u32>());
+    *input = rest;
+    u32::from_le_bytes(int_bytes.try_into().unwrap())
+}
+
+fn read_le_u16(input: &mut &[u8]) -> u16 {
+    let (int_bytes, rest) = input.split_at(std::mem::size_of::<u16>());
+    *input = rest;
+    u16::from_le_bytes(int_bytes.try_into().unwrap())
+}
+
+/*
+    End Helper Functions
+*/
+
+
+
 #[derive(Debug, Clone)]
 pub struct TransferTransaction {
     pub _source_public_key: Vec<u8>,
@@ -70,6 +98,26 @@ impl TransferTransaction {
         sig = sign_raw(&sub_seed, &pub_key_src, digest.as_slice().try_into().unwrap());
         t._signature = sig.to_vec();
         t
+    }
+    
+    pub fn digest(&self) -> Vec<u8> {
+        k12_bytes(&self.as_bytes())
+    }
+    pub fn from_bytes(bytes: &[u8]) -> Self {
+        let _signature = match bytes.len() > 80 {
+            true => { bytes[80..].to_vec() },
+            false => { Vec::<u8>::with_capacity(64) }
+        };
+        
+        TransferTransaction {
+            _source_public_key: bytes[0..32].to_vec(),
+            _source_destination_public_key: bytes[32..64].to_vec(),
+            _amount: read_le_u64(&mut &bytes[64..]),
+            _tick: read_le_u32(&mut &bytes[72..]),
+            _input_size: read_le_u16(&mut &bytes[76..]),
+            _input_type: read_le_u16(&mut &bytes[78..]),
+            _signature
+        }
     }
 
     pub fn as_bytes(&self) -> Vec<u8> {
@@ -215,4 +263,28 @@ fn create_transfer_from_signed_vars() {
         31, 156, 134, 46, 127,  72,  48, 237, 142, 193,  32,   0];
 
     assert_eq!(t2.as_bytes().as_slice(), expected.as_slice());
+}
+
+#[test]
+fn decode_transfer_from_bytes() {
+    let bytes: [u8; 144] = [
+        166, 41, 241, 226, 116, 35, 157, 108, 212, 167, 113, 153, 176, 79, 33, 74, 13, 230, 165, 250, 7, 
+        252, 247, 41, 6, 184, 109, 194, 112, 39, 244, 142, 106, 235, 5, 192, 171, 45, 199, 46, 175, 10,
+        157, 100, 205, 136, 236, 111, 160, 220, 202, 77, 251, 59, 207, 90, 198, 106, 15, 178, 17, 231, 29, 
+        90, 123, 0, 0, 0, 0, 0, 0, 0, 255, 122, 142, 1, 0, 0, 0, 0, 58, 232, 176, 8, 64, 18, 193, 54, 82, 
+        219, 127, 162, 148, 121, 0, 113, 194, 214, 214, 243, 158, 31, 91, 59, 157, 250, 193, 57, 255, 155, 
+        217, 22, 107, 108, 109, 78, 118, 169, 147, 157, 120, 45, 121, 222, 216, 241, 234, 60, 243, 68, 227, 
+        159, 233, 16, 148, 118, 145, 104, 59, 100, 83, 192, 27, 0
+    ];
+    let tx = TransferTransaction::from_bytes(&bytes);
+    let source_id = get_identity(<&[u8; 32]>::try_from(tx._source_public_key.as_slice()).unwrap());
+    let dest_id = get_identity(<&[u8; 32]>::try_from(tx._source_destination_public_key.as_slice()).unwrap());
+    assert_eq!(source_id, "SKMWVDLPBBJAEDIWAWWAXCBDJZDCZOSAQMQDZOYRFBUBYFHYTESONYDEXBFA".to_string());
+    assert_eq!(dest_id, "WGGASSAPFMJIJBVPFQELBGORINGDKJVBPFMNIZUOQCSEBRWBGSDKFBQCNFZJ".to_string());
+    assert_eq!(tx._amount, 123);
+    assert_eq!(tx._tick, 26114815);
+    assert_eq!(tx._input_size, 0);
+    assert_eq!(tx._input_type, 0);
+    assert_eq!(tx._signature.len(), 64);
+    assert_eq!(tx._signature[0], 58);
 }

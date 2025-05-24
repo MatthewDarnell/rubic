@@ -53,6 +53,19 @@ impl QubicApiPacket {
             response_data: None
         }
     }
+    pub fn get_transaction(digest: &Vec<u8>) -> Self {
+        let mut header = RequestResponseHeader::new();
+        header.set_type(EntityType::RequestTransactionInfo);
+        let size = std::mem::size_of::<RequestResponseHeader>() + digest.len();
+        header.set_size(size);
+        QubicApiPacket {
+            api_type: EntityType::RequestTransactionInfo,
+            peer: None,
+            header: header,
+            data: digest.clone(),
+            response_data: None
+        }
+    }
     pub fn broadcast_transaction(transaction: &TransferTransaction) -> Self {
         //let entity: EntityType = EntityType::RequestEntity;
         let mut header = RequestResponseHeader::new();

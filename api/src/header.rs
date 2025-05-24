@@ -12,10 +12,27 @@ pub enum EntityType {
     UNKNOWN = -1,
     ExchangePeers = 0,
     BroadcastTransaction = 24,
+    RequestTransactionInfo = 26,
     RequestCurrentTickInfo = 27,
     RespondCurrentTickInfo = 28,
     RequestEntity = 31,
     ResponseEntity = 32
+}
+
+impl EntityType {
+    pub fn to_byte(&self) -> i8 {
+        match self {
+            EntityType::ERROR => 55,
+            EntityType::UNKNOWN => -1,
+            EntityType::ExchangePeers => 0,
+            EntityType::BroadcastTransaction => 24,
+            EntityType::RequestTransactionInfo => 26,
+            EntityType::RequestCurrentTickInfo => 27,
+            EntityType::RespondCurrentTickInfo => 28,
+            EntityType::RequestEntity => 31,
+            EntityType::ResponseEntity => 32
+        }
+    }
 }
 
 impl RequestResponseHeader {
@@ -78,6 +95,7 @@ impl RequestResponseHeader {
         match self._type {
             0 => EntityType::ExchangePeers,
             24 => EntityType::BroadcastTransaction,
+            26 => EntityType::RequestTransactionInfo,
             27 => EntityType::RequestCurrentTickInfo,
             28 => EntityType::RespondCurrentTickInfo,
             31 => EntityType::RequestEntity,

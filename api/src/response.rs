@@ -3,13 +3,18 @@ use crate::QubicApiPacket;
 use crate::header::EntityType;
 use crate::response::exchange_peers::ExchangePeersEntity;
 use crate::response::response_entity::ResponseEntity;
+//use crate::response::broadcast_transaction::BroadcastTransactionEntity;
+
 use store::get_db_path;
 use store::sqlite::crud::{create_response_entity, peer::update_peer_last_responded, insert_latest_tick};
+use crate::response::broadcast_transaction::BroadcastTransactionEntity;
+
 pub mod exchange_peers;
 pub mod response_entity;
+pub mod broadcast_transaction;
 
 pub trait FormatQubicResponseDataToStructure {
-    fn format_qubic_response_data_to_structure(response: & mut QubicApiPacket) -> Self;
+    fn format_qubic_response_data_to_structure(response: & mut QubicApiPacket) -> Option<Self> where Self: Sized;
 }
 
 pub fn get_formatted_response(response: &mut QubicApiPacket) {
@@ -34,35 +39,45 @@ pub fn get_formatted_response(response: &mut QubicApiPacket) {
             }
         },
         EntityType::ExchangePeers => {
-            let resp: ExchangePeersEntity = ExchangePeersEntity::format_qubic_response_data_to_structure(response);
-            //println!("ExchangePeersEntity: {:?}", resp);
-            match update_peer_last_responded(path.as_str(), resp.peer.as_str(), SystemTime::now()) {
-                Ok(_) => {},
-                Err(_err) => { /* println!("Error Updating Peer {} Last Responded: {}", resp.peer.as_str(), err.as_str())*/ }
+            match ExchangePeersEntity::format_qubic_response_data_to_structure(response) {
+                Some(resp) => {
+                    //println!("ExchangePeersEntity: {:?}", resp);
+                    match update_peer_last_responded(path.as_str(), resp.peer.as_str(), SystemTime::now()) {
+                        Ok(_) => {},
+                        Err(_err) => { /* println!("Error Updating Peer {} Last Responded: {}", resp.peer.as_str(), err.as_str())*/ }
+                    }
+                },
+                None => {
+                    
+                }
             }
         },
         EntityType::ResponseEntity => {
-            let resp: ResponseEntity = ResponseEntity::format_qubic_response_data_to_structure(response);
-            //println!("Got ResponseEntity: {:?}", &resp);
-            match create_response_entity(path.as_str(),
-                                   resp.peer.as_str(),
-                                   resp.identity.as_str(),
-                                   resp.incoming,
-                                   resp.outgoing,
-                                   resp.final_balance,
-                         resp.number_incoming_transactions,
-                        resp.number_outgoing_transactions,
-                                   resp.latest_incoming_transfer_tick,
-                       resp.latest_outgoing_transfer_tick,
-                                   resp.tick,
-                                   resp.spectrum_index
-            ) {
-                Ok(_) => {
-                    update_peer_last_responded(path.as_str(), resp.peer.as_str(), SystemTime::now()).ok();
+            match ResponseEntity::format_qubic_response_data_to_structure(response) {
+                Some(resp) => {
+                    //println!("Got ResponseEntity: {:?}", &resp);
+                    match create_response_entity(path.as_str(),
+                                                 resp.peer.as_str(),
+                                                 resp.identity.as_str(),
+                                                 resp.incoming,
+                                                 resp.outgoing,
+                                                 resp.final_balance,
+                                                 resp.number_incoming_transactions,
+                                                 resp.number_outgoing_transactions,
+                                                 resp.latest_incoming_transfer_tick,
+                                                 resp.latest_outgoing_transfer_tick,
+                                                 resp.tick,
+                                                 resp.spectrum_index
+                    ) {
+                        Ok(_) => {
+                            update_peer_last_responded(path.as_str(), resp.peer.as_str(), SystemTime::now()).ok();
+                        },
+                        Err(err) => {
+                            println!("Failed To Insert Response Entity: {}", err);
+                        }
+                    }
                 },
-                Err(err) => {
-                    println!("Failed To Insert Response Entity: {}", err);
-                }
+                None => {}
             }
         },
         EntityType::ERROR => {
@@ -72,57 +87,21 @@ pub fn get_formatted_response(response: &mut QubicApiPacket) {
             }
             //panic!("exiting");
         },
-        EntityType::BroadcastTransaction => {
-            println!("GOT BROADCAST TRANSACTION RESPONSE : {:?}", response);
-        }
-        _ => {/*  println!("Unknown Entity Type"); */ }
-    }
-    /*
-    if response.len() < 8 { //header size
-        return ;
-    }
-    //todo: check header reported size against len of full data body
-    let header = RequestResponseHeader::from_vec(response);
-    let size = std::mem::size_of::<RequestResponseHeader>();
-    if header.get_type().is_none() {
-        println!("unknown type");
-        return;
-    }
-    let resp_type = header.get_type().unwrap();
-    let data_size = header.get_size() ;
-    if data_size == 0 {
-        return;
-    }
-
-    println!("Full Response: {:?}", response);
-    let header_slice = &response.as_slice()[..8];
-    let address_slice = &response.as_slice()[8..8+32];
-     match resp_type {
-        EntityType::ExchangePeers => {
-           match exchange_peers::handle_exchange_peers(response) {
-               Some(_) => {},
-               None => println!("Error Formatting Exchange Peers!")
-           }
+        EntityType::RequestTransactionInfo => {
+            println!("GOT RequestTransactionInfo");
         },
-        EntityType::RequestEntity => { /* this isn't a response... */ },
-        EntityType::ResponseEntity => {
-            match response_entity::handle_response_entity(response) {
-                Some(value) => {
-
+        EntityType::BroadcastTransaction => {
+            match BroadcastTransactionEntity::format_qubic_response_data_to_structure(response) {
+                Some(resp) => {
+                    //TODO: Insert this tx into db and update status as succeeded
                 },
-                None => println!("Error Formatting Response Entity!")
+                None => {}
             }
         },
-        _ => {
-            None    //Unknown Response Type
+        _ => { 
+            //println!("Unknown Entity Type {:?}", response.api_type);
+            //println!("{:?}", response);
         }
-    };
-
-    println!("Handling Response\nReading Response: {:?}", header);
-    println!("Num Bytes Of Response: {}", response.len());
-    println!("Response Type: {:?}", resp_type);
-    println!("Data Size: {}", data_size);
-    println!("Header: {:?}", header_slice);
-*/
+    }
 
 }
