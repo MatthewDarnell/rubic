@@ -1126,6 +1126,68 @@ pub fn create_transfer(path: &str, source: &str, destination: &str, amount: u64,
         }
     }
 }
+
+pub fn fetch_transfers(path: &str, asc_tick: bool, limit: u32, offset: u32) -> Result<Vec<HashMap<String, String>>, String> {
+    let ordering = match asc_tick {
+        true => "ASC",
+        false => "DESC"
+    };
+    
+    let _limit: i32 = match limit {
+        0 => -1,    //Don't return empty set
+        _ => limit as i32
+    };
+    
+    let prep_query = format!("SELECT * FROM transfer ORDER BY tick {} LIMIT {} OFFSET {}", ordering, _limit, offset);
+    let _lock = SQLITE_MUTEX.lock().unwrap();
+    match open_database(path, true) {
+        Ok(connection) => {
+            match prepare_crud_statement(&connection, prep_query.as_str()) {
+                Ok(mut statement) => {
+                    match statement.bind::<&[(&str, &str)]>(&[][..]) {
+                        Ok(_) => {
+                            let mut response: Vec<HashMap<String, String>> = vec![];
+                            while let Ok(State::Row) = statement.next() {
+                                //let peer_ip = statement.read::<String, _>("peer").unwrap();
+                                let source = statement.read::<String, _>("source_identity").unwrap();
+                                let dest = statement.read::<String, _>("destination_identity").unwrap();
+                                let amount = statement.read::<String, _>("amount").unwrap();
+                                let tick = statement.read::<String, _>("tick").unwrap();
+                                let signature = statement.read::<String, _>("signature").unwrap();
+                                let txid = statement.read::<String, _>("txid").unwrap();
+                                let broadcast = statement.read::<String, _>("broadcast").unwrap();
+                                let status = statement.read::<String, _>("status").unwrap();
+                                let created = statement.read::<String, _>("created").unwrap();
+                                let mut temp: HashMap<String, String> = HashMap::new();
+                                temp.insert("source".to_string(), source);
+                                temp.insert("dest".to_string(), dest);
+                                temp.insert("amount".to_string(), amount);
+                                temp.insert("tick".to_string(), tick);
+                                temp.insert("signature".to_string(), signature);
+                                temp.insert("txid".to_string(), txid);
+                                temp.insert("broadcast".to_string(), broadcast);
+                                temp.insert("status".to_string(), status);
+                                temp.insert("created".to_string(), created);
+                                response.push(temp);
+                            }
+                            Ok(response)
+                        },
+                        Err(err) => Err(err.to_string())
+                    }
+                },
+                Err(err) => {
+                    error!("Error in fetch_transfer_by_txid! : {}", &err);
+                    Err(err)
+                }
+            }
+        },
+        Err(err) => {
+            error!("Error in fetch_transfer_by_txid! : {}", &err);
+            Err(err)
+        }
+    }
+}
+
 pub fn fetch_transfer_by_txid(path: &str, txid: &str) -> Result<Vec<HashMap<String, String>>, String> {
     let prep_query = "SELECT * FROM transfer WHERE txid = :txid ORDER BY created DESC;";
     let _lock = SQLITE_MUTEX.lock().unwrap();
@@ -1147,7 +1209,7 @@ pub fn fetch_transfer_by_txid(path: &str, txid: &str) -> Result<Vec<HashMap<Stri
                                 transfer.insert("signature".to_string(), statement.read::<String, _>("signature").unwrap());
                                 transfer.insert("txid".to_string(), statement.read::<String, _>("txid").unwrap());
                                 transfer.insert("broadcast".to_string(), statement.read::<String, _>("broadcast").unwrap());
-                                transfer.insert("success".to_string(), statement.read::<String, _>("success").unwrap());
+                                transfer.insert("status".to_string(), statement.read::<String, _>("status").unwrap());
                                 transfer.insert("created".to_string(), statement.read::<String, _>("created").unwrap());
                                 response.push(transfer);
                             }
@@ -1319,6 +1381,38 @@ pub fn set_broadcasted_transfer_as_success(path: &str, txid: &str) -> Result<(),
         }
     }
 }
+pub fn set_broadcasted_transfer_as_failed(path: &str, txid: &str) -> Result<(), String> {
+    let prep_query = "UPDATE transfer SET status = 1 WHERE txid = :txid AND broadcast = true;";
+    let _lock = SQLITE_MUTEX.lock().unwrap();
+    match open_database(path, true) {
+        Ok(connection) => {
+            match prepare_crud_statement(&connection, prep_query) {
+                Ok(mut statement) => {
+                    match statement.bind::<&[(&str, &str)]>(&[
+                        (":txid", txid),
+                    ][..]) {
+                        Ok(_) => {
+                            match statement.next() {
+                                Ok(State::Done) => { Ok(()) },
+                                Err(error) => { Err(error.to_string()) },
+                                _ => { Err("Weird!".to_string()) }
+                            }
+                        },
+                        Err(err) => { Err(err.to_string()) }
+                    }
+                },
+                Err(err) => {
+                    error(format!("Failed To Prepare Statement! {}", err.to_string()).as_str());
+                    Err(err.to_string())
+                }
+            }
+        },
+        Err(err) => {
+            error(format!("Failed To Open Database! {}", err.to_string()).as_str());
+            Err(err.to_string())
+        }
+    }
+}
 
 
 #[cfg(test)]
@@ -1377,7 +1471,6 @@ mod store_crud_tests {
 
 
     pub mod peers {
-        use std::alloc::System;
         use serial_test::serial;
         use std::fs;
         use std::time::{Duration, SystemTime, UNIX_EPOCH};
@@ -1402,7 +1495,7 @@ mod store_crud_tests {
                     assert_eq!(nineteen_seventy.duration_since(UNIX_EPOCH).unwrap().as_secs(), 0);
                     assert_ne!(Duration::from_secs(time_secs).as_secs(), nineteen_seventy.duration_since(UNIX_EPOCH).unwrap().as_secs());
                 },
-                Err(err) => {
+                Err(_) => {
                     println!("Peer Couldn't be Fetched!");
                     assert_eq!(1, 2);
                 }
@@ -1419,7 +1512,7 @@ mod store_crud_tests {
                     assert_eq!(peer.keys().len(), 7);
                     assert_eq!(peer.get("nick").unwrap(), "nickname");
                 },
-                Err(err) => {
+                Err(_) => {
                     println!("Peer Couldn't be Fetched!");
                     assert_eq!(1, 2);
                 }
@@ -1436,7 +1529,7 @@ mod store_crud_tests {
                     assert_eq!(peer.keys().len(), 7);
                     assert_eq!(peer.get("nick").unwrap(), "nickname");
                 },
-                Err(err) => {
+                Err(_) => {
                     println!("Peer Couldn't be Fetched!");
                     assert_eq!(1, 2);
                 }
@@ -1453,7 +1546,7 @@ mod store_crud_tests {
                     assert_eq!(peer.keys().len(), 7);
                     assert_eq!(peer.get("nick").unwrap(), "nickname");
                 },
-                Err(err) => {
+                Err(_) => {
                     println!("Peer Couldn't be Fetched!");
                     assert_eq!(1, 2);
                 }
@@ -1474,7 +1567,7 @@ mod store_crud_tests {
                     assert_eq!(peer2.len(), 8);
                     assert_eq!(peer2[2], "nickname2");
                 },
-                Err(err) => {
+                Err(_) => {
                     println!("Peer Couldn't be Fetched!");
                     assert_eq!(1, 2);
                 }
@@ -1498,7 +1591,7 @@ mod store_crud_tests {
                     assert_eq!(response_vec.len(), 2);
                         assert_eq!(response_vec[0].get("identity").unwrap().as_str(), "EPYWDREDNLHXOFYVGQUKPHJGOMPBSLDDGZDPKVQUMFXAIQYMZGEHPZTAAWON");
                     },
-                    Err(err) => {
+                    Err(_) => {
                         println!("ResponseEntity Couldn't be Fetched!");
                         assert_eq!(1, 2);
                     }
@@ -1538,7 +1631,7 @@ mod store_crud_tests {
                         }
                     }
                 },
-                Err(err) => {
+                Err(_) => {
                     println!("ResponseEntity Couldn't be Fetched!");
                     assert_eq!(1, 2);
                 }
@@ -1548,7 +1641,7 @@ mod store_crud_tests {
         #[test]
         #[serial]
         fn delete_db() {
-            fs::remove_file("test.sqlite"); //Don't care about the result
+            fs::remove_file("test.sqlite").expect("Failed To Delete Test Db"); //Don't care about the result
         }
     }
 
@@ -1560,7 +1653,7 @@ mod store_crud_tests {
         #[test]
         #[serial]
         fn create_response_and_insert_and_fetch() {
-            let data: Vec<u8> = vec![80, 3, 0, 167, 8, 105, 98, 32, 80, 3, 0, 167, 8, 105, 98, 32, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 225, 245, 5, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 250, 100, 124, 0, 0, 0, 0, 0, 124, 141, 129, 0, 1, 0, 0, 0, 42, 90, 241, 198, 106, 243, 239, 74, 41, 78, 9, 242, 122, 237, 3, 13, 63, 174, 255, 185, 161, 145, 0, 18, 70, 139, 156, 127, 62, 70, 189, 159, 18, 49, 252, 149, 121, 228, 161, 156, 5, 104, 234, 45, 220, 245, 230, 19, 51, 151, 17, 31, 147, 163, 145, 11, 96, 54, 223, 194, 153, 88, 7, 153, 236, 214, 251, 45, 205, 47, 16, 11, 86, 100, 214, 84, 204, 245, 113, 6, 108, 13, 172, 151, 88, 42, 241, 66, 109, 41, 52, 62, 12, 163, 125, 174, 57, 33, 123, 231, 45, 173, 64, 110, 153, 145, 12, 112, 192, 130, 163, 44, 89, 9, 43, 129, 141, 112, 192, 170, 171, 155, 11, 204, 121, 169, 79, 92, 65, 156, 144, 198, 90, 88, 74, 154, 40, 181, 191, 15, 219, 29, 67, 231, 230, 43, 230, 5, 19, 23, 124, 204, 180, 165, 144, 161, 73, 135, 50, 77, 141, 111, 78, 247, 107, 163, 45, 75, 151, 228, 192, 122, 239, 28, 53, 101];;
+            let data: Vec<u8> = vec![80, 3, 0, 167, 8, 105, 98, 32, 80, 3, 0, 167, 8, 105, 98, 32, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 225, 245, 5, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 250, 100, 124, 0, 0, 0, 0, 0, 124, 141, 129, 0, 1, 0, 0, 0, 42, 90, 241, 198, 106, 243, 239, 74, 41, 78, 9, 242, 122, 237, 3, 13, 63, 174, 255, 185, 161, 145, 0, 18, 70, 139, 156, 127, 62, 70, 189, 159, 18, 49, 252, 149, 121, 228, 161, 156, 5, 104, 234, 45, 220, 245, 230, 19, 51, 151, 17, 31, 147, 163, 145, 11, 96, 54, 223, 194, 153, 88, 7, 153, 236, 214, 251, 45, 205, 47, 16, 11, 86, 100, 214, 84, 204, 245, 113, 6, 108, 13, 172, 151, 88, 42, 241, 66, 109, 41, 52, 62, 12, 163, 125, 174, 57, 33, 123, 231, 45, 173, 64, 110, 153, 145, 12, 112, 192, 130, 163, 44, 89, 9, 43, 129, 141, 112, 192, 170, 171, 155, 11, 204, 121, 169, 79, 92, 65, 156, 144, 198, 90, 88, 74, 154, 40, 181, 191, 15, 219, 29, 67, 231, 230, 43, 230, 5, 19, 23, 124, 204, 180, 165, 144, 161, 73, 135, 50, 77, 141, 111, 78, 247, 107, 163, 45, 75, 151, 228, 192, 122, 239, 28, 53, 101];
             create_peer_response("test.sqlite", "127.0.0.1", &data).unwrap();
             create_peer_response("test.sqlite", "127.0.0.1", &data).unwrap();
             match fetch_peer_response_by_type("test.sqlite", 32) {
@@ -1568,7 +1661,7 @@ mod store_crud_tests {
                     assert_eq!(response_vec.len(), 2);
                     //assert_eq!(response_vec[0].peer.as_ref().unwrap().as_str(), "127.0.0.1");
                 },
-                Err(err) => {
+                Err(_) => {
                     assert_eq!(1, 2);
                 }
             }
@@ -1577,7 +1670,7 @@ mod store_crud_tests {
         #[test]
         #[serial]
         fn delete_db() {
-            fs::remove_file("test.sqlite"); //Don't care about the result
+            fs::remove_file("test.sqlite").expect("Failed To Delete Test Db"); //Don't care about the result
         }
     }
 
@@ -1616,10 +1709,10 @@ mod store_crud_tests {
                         match delete_identity("test.sqlite", &id.identity.as_str()) {
                             Ok(_) => {
                                 match fetch_identity("test.sqlite", "EPYWDREDNLHXOFYVGQUKPHJGOMPBSLDDGZDPKVQUMFXAIQYMZGEHPZTAAWON") {
-                                    Ok(identity) => {
+                                    Ok(_) => {
                                         assert_eq!(1, 2);
                                     },
-                                    Err(err) => {
+                                    Err(_) => {
                                         println!("Identity Deleted Ok!");
                                     }
                                 }
@@ -1698,7 +1791,7 @@ mod store_crud_tests {
     }
 
     pub mod transfer {
-        use crate::sqlite::crud::{create_transfer, fetch_transfer_by_txid, fetch_transfers_to_broadcast, insert_new_identity, set_transfer_as_broadcast};
+        use crate::sqlite::crud::{create_transfer, fetch_transfer_by_txid, fetch_transfers, insert_new_identity, set_transfer_as_broadcast};
         use serial_test::serial;
         use std::fs;
         use identity::Identity;
@@ -1707,7 +1800,7 @@ mod store_crud_tests {
         #[serial]
         fn create_transfer_and_insert_and_fetch_and_set_broadcast() {
             let id: Identity = Identity::new("lcehvbvddggkjfnokduyjuiyvkklrvrmsaozwbvjlzvgvfipqpnkkuf");
-            insert_new_identity("test.sqlite", &id);
+            insert_new_identity("test.sqlite", &id).unwrap();
             match create_transfer("test.sqlite", "EPYWDREDNLHXOFYVGQUKPHJGOMPBSLDDGZDPKVQUMFXAIQYMZGEHPZTAAWON", 
                             "PBPMLQVFUQKBSCZSJLRMNCYEJXSBQOEKECAXARVEIDKDQZPNVSGVSLZFDQMD",
             100, 4000, "signature", "txid") {
@@ -1715,14 +1808,14 @@ mod store_crud_tests {
                     match fetch_transfer_by_txid("test.sqlite", "txid") {
                         Ok(response_vec) => {
                             assert_eq!(response_vec.len(), 1);
-                            let mut tx = response_vec.first().unwrap();
+                            let tx = response_vec.first().unwrap();
                             assert_eq!(tx.get(&"broadcast".to_string()).unwrap(), &"0".to_string());
                             match set_transfer_as_broadcast("test.sqlite", "txid") {
                                 Ok(_) => {
                                     match fetch_transfer_by_txid("test.sqlite", "txid") {
                                         Ok(response_vec) => {
                                             assert_eq!(response_vec.len(), 1);
-                                            let mut tx = response_vec.first().unwrap();
+                                            let tx = response_vec.first().unwrap();
                                             assert_eq!(tx.get(&"broadcast".to_string()).unwrap(), &"1".to_string());
                                         },
                                         Err(err) => {
@@ -1737,7 +1830,7 @@ mod store_crud_tests {
                                 }
                             }
                         },
-                        Err(err) => {
+                        Err(_) => {
                             assert_eq!(1, 2);
                         }
                     }
@@ -1749,10 +1842,42 @@ mod store_crud_tests {
             }
             fs::remove_file("test.sqlite").unwrap();
         }
+        
+        #[test]
+        #[serial]
+        fn create_multiple_transfers_and_fetch() {
+            let id: Identity = Identity::new("lcehvbvddggkjfnokduyjuiyvkklrvrmsaozwbvjlzvgvfipqpnkkuf");
+            insert_new_identity("test.sqlite", &id).unwrap();
+            
+            create_transfer("test.sqlite", "EPYWDREDNLHXOFYVGQUKPHJGOMPBSLDDGZDPKVQUMFXAIQYMZGEHPZTAAWON",
+                                  "PBPMLQVFUQKBSCZSJLRMNCYEJXSBQOEKECAXARVEIDKDQZPNVSGVSLZFDQMD",
+                                  100, 4000, "signature", "txid").unwrap();
+            create_transfer("test.sqlite", "EPYWDREDNLHXOFYVGQUKPHJGOMPBSLDDGZDPKVQUMFXAIQYMZGEHPZTAAWON",
+                            "PBPMLQVFUQKBSCZSJLRMNCYEJXSBQOEKECAXARVEIDKDQZPNVSGVSLZFDQMD",
+                            101, 4000, "signature", "txid2").unwrap();
+            create_transfer("test.sqlite", "EPYWDREDNLHXOFYVGQUKPHJGOMPBSLDDGZDPKVQUMFXAIQYMZGEHPZTAAWON",
+                            "PBPMLQVFUQKBSCZSJLRMNCYEJXSBQOEKECAXARVEIDKDQZPNVSGVSLZFDQMD",
+                            102, 4000, "signature", "txid3").unwrap();
+            create_transfer("test.sqlite", "EPYWDREDNLHXOFYVGQUKPHJGOMPBSLDDGZDPKVQUMFXAIQYMZGEHPZTAAWON",
+                            "PBPMLQVFUQKBSCZSJLRMNCYEJXSBQOEKECAXARVEIDKDQZPNVSGVSLZFDQMD",
+                            103, 4000, "signature", "txid4").unwrap();
+            match fetch_transfers("test.sqlite", true, 2, 1) {
+                Ok(response_vec) => {
+                    assert_eq!(response_vec.len(), 2);
+                    let tx = response_vec.first().unwrap();
+                    assert_eq!(tx.get(&"txid".to_string()).unwrap(), &"txid2".to_string());
+                },
+                Err(_) => {
+                    assert_eq!(1, 2);
+                }
+            }
+            fs::remove_file("test.sqlite").unwrap();
+        }
+        
         #[test]
         #[serial]
         fn delete_db() {
-            fs::remove_file("test.sqlite"); //Don't care about the result
+            fs::remove_file("test.sqlite").expect("Failed Deleting Test Db"); //Don't care about the result
         }
     }
 }

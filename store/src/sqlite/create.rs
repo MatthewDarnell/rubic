@@ -87,10 +87,8 @@ pub fn open_database(path: &str, create: bool) -> Result<sqlite::Connection, Str
 
 #[cfg(test)]
 mod store_tests {
-    use identity::Identity;
     use crate::sqlite::create::open_database;
     use serial_test::serial;
-    use std::fs;
 
     # [test]
     # [serial]
