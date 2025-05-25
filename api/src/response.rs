@@ -8,10 +8,12 @@ use crate::response::response_entity::ResponseEntity;
 use store::get_db_path;
 use store::sqlite::crud::{create_response_entity, peer::update_peer_last_responded, insert_latest_tick};
 use crate::response::broadcast_transaction::BroadcastTransactionEntity;
+use crate::response::request_tick_data::TickData;
 
 pub mod exchange_peers;
 pub mod response_entity;
 pub mod broadcast_transaction;
+mod request_tick_data;
 
 pub trait FormatQubicResponseDataToStructure {
     fn format_qubic_response_data_to_structure(response: & mut QubicApiPacket) -> Option<Self> where Self: Sized;
@@ -52,6 +54,17 @@ pub fn get_formatted_response(response: &mut QubicApiPacket) {
                 }
             }
         },
+        EntityType::RequestTickData => {
+            println!("Requesting Tick Data Response");
+            match TickData::format_qubic_response_data_to_structure(response) {
+                Some(resp) => {
+                    println!("{:?}", resp);
+                },
+                None => {  
+                    println!("Error Formatting Tick Data Response");
+                }
+            }
+        }
         EntityType::ResponseEntity => {
             match ResponseEntity::format_qubic_response_data_to_structure(response) {
                 Some(resp) => {

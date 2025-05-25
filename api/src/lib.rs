@@ -83,6 +83,24 @@ impl QubicApiPacket {
             response_data: None
         }
     }
+    
+    pub fn request_tick_data(tick: u32) -> Self {
+        let mut header = RequestResponseHeader::new();
+        header.set_type(EntityType::RequestTickData);
+        header.zero_dejavu();
+
+        let data: Vec<u8> = tick.to_le_bytes().to_vec();
+        let size = std::mem::size_of::<RequestResponseHeader>() + data.len();
+        header.set_size(size);
+        QubicApiPacket {
+            api_type: EntityType::RequestTickData,
+            peer: None,
+            header: header,
+            data: data,
+            response_data: None
+        }
+    }
+    
     pub fn as_bytes(&mut self) -> Vec<u8> {
         let mut res: Vec<u8> = self.header.as_bytes();
         res.append(&mut self.data);
@@ -99,7 +117,7 @@ impl QubicApiPacket {
     }
     pub fn format_response_from_bytes(peer_id: &String, data: Vec<u8>) -> Option<Self> {
         let header: RequestResponseHeader = RequestResponseHeader::from_vec(&data);
-        //println!("RESPONSE: {:?}", &header.get_type());
+        println!("RESPONSE: {:?}", &header.get_type());
         Some(QubicApiPacket {
             api_type: header.get_type().to_owned(),
             peer: Some(peer_id.to_owned()),
@@ -112,6 +130,7 @@ impl QubicApiPacket {
 
 #[cfg(test)]
 pub mod api_formatting_tests {
+    use crate::header::EntityType;
     use crate::QubicApiPacket;
     #[test]
     fn create_identity_balance_request_entity() {
@@ -128,5 +147,13 @@ pub mod api_formatting_tests {
         assert_eq!(bytes.as_slice(),
                    vec![40, 0, 0, 31, 0, 0, 0, 0, 170, 135, 62, 76, 253, 55, 228, 191, 82, 138, 42, 160, 30, 236, 239, 54, 84, 124, 153, 202, 170, 189, 27, 189, 247, 37, 58, 101, 176, 65, 119, 26]
         );
+    }
+
+    #[test]
+    fn create_request_Tick_data_packet() {
+        let req = QubicApiPacket::request_tick_data(1000);
+        let tick = u32::from_le_bytes([req.data[0], req.data[1], req.data[2], req.data[3]]);
+        assert_eq!(req.header._type, EntityType::RequestTickData as u8);
+        assert_eq!(tick, 1000);
     }
 }

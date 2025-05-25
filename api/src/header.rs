@@ -11,6 +11,9 @@ pub enum EntityType {
     ERROR = 55, //This is for internal message passing, not a real value
     UNKNOWN = -1,
     ExchangePeers = 0,
+    
+    RequestTickData = 16,
+    
     BroadcastTransaction = 24,
     RequestTransactionInfo = 26,
     RequestCurrentTickInfo = 27,
@@ -25,6 +28,7 @@ impl EntityType {
             EntityType::ERROR => 55,
             EntityType::UNKNOWN => -1,
             EntityType::ExchangePeers => 0,
+            EntityType::RequestTickData => 16,
             EntityType::BroadcastTransaction => 24,
             EntityType::RequestTransactionInfo => 26,
             EntityType::RequestCurrentTickInfo => 27,
