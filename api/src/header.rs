@@ -11,7 +11,8 @@ pub enum EntityType {
     ERROR = 55, //This is for internal message passing, not a real value
     UNKNOWN = -1,
     ExchangePeers = 0,
-    
+
+    BroadcastFutureTickData = 8,
     RequestTickData = 16,
     
     BroadcastTransaction = 24,
@@ -28,6 +29,7 @@ impl EntityType {
             EntityType::ERROR => 55,
             EntityType::UNKNOWN => -1,
             EntityType::ExchangePeers => 0,
+            EntityType::BroadcastFutureTickData => 8,
             EntityType::RequestTickData => 16,
             EntityType::BroadcastTransaction => 24,
             EntityType::RequestTransactionInfo => 26,
@@ -98,6 +100,7 @@ impl RequestResponseHeader {
     pub fn get_type(&self) -> EntityType {
         match self._type {
             0 => EntityType::ExchangePeers,
+            8 => EntityType::BroadcastFutureTickData,
             24 => EntityType::BroadcastTransaction,
             26 => EntityType::RequestTransactionInfo,
             27 => EntityType::RequestCurrentTickInfo,

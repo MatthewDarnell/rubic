@@ -13,7 +13,7 @@ use crate::response::request_tick_data::TickData;
 pub mod exchange_peers;
 pub mod response_entity;
 pub mod broadcast_transaction;
-mod request_tick_data;
+pub mod request_tick_data;
 
 pub trait FormatQubicResponseDataToStructure {
     fn format_qubic_response_data_to_structure(response: & mut QubicApiPacket) -> Option<Self> where Self: Sized;
@@ -54,17 +54,17 @@ pub fn get_formatted_response(response: &mut QubicApiPacket) {
                 }
             }
         },
-        EntityType::RequestTickData => {
+        EntityType::BroadcastFutureTickData => {
             println!("Requesting Tick Data Response");
             match TickData::format_qubic_response_data_to_structure(response) {
                 Some(resp) => {
-                    println!("{:?}", resp);
+                    resp.print();
                 },
                 None => {  
                     println!("Error Formatting Tick Data Response");
                 }
             }
-        }
+        },
         EntityType::ResponseEntity => {
             match ResponseEntity::format_qubic_response_data_to_structure(response) {
                 Some(resp) => {

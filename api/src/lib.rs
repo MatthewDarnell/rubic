@@ -87,7 +87,6 @@ impl QubicApiPacket {
     pub fn request_tick_data(tick: u32) -> Self {
         let mut header = RequestResponseHeader::new();
         header.set_type(EntityType::RequestTickData);
-        header.zero_dejavu();
 
         let data: Vec<u8> = tick.to_le_bytes().to_vec();
         let size = std::mem::size_of::<RequestResponseHeader>() + data.len();
@@ -117,7 +116,7 @@ impl QubicApiPacket {
     }
     pub fn format_response_from_bytes(peer_id: &String, data: Vec<u8>) -> Option<Self> {
         let header: RequestResponseHeader = RequestResponseHeader::from_vec(&data);
-        println!("RESPONSE: {:?}", &header.get_type());
+        //println!("RESPONSE: {:?}", &header.get_type());
         Some(QubicApiPacket {
             api_type: header.get_type().to_owned(),
             peer: Some(peer_id.to_owned()),
