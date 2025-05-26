@@ -2,6 +2,7 @@
 pub fn open_database(path: &str, create: bool) -> Result<sqlite::Connection, String> {
     let query = "
     PRAGMA foreign_keys = ON;
+    PRAGMA journal_mode = WAL;
     CREATE TABLE IF NOT EXISTS peer (
       id TEXT UNIQUE NOT NULL PRIMARY KEY,
       ip TEXT UNIQUE NOT NULL,
@@ -87,10 +88,8 @@ pub fn open_database(path: &str, create: bool) -> Result<sqlite::Connection, Str
 
 #[cfg(test)]
 mod store_tests {
-    use identity::Identity;
     use crate::sqlite::create::open_database;
     use serial_test::serial;
-    use std::fs;
 
     # [test]
     # [serial]

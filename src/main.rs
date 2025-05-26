@@ -118,6 +118,7 @@ async fn main() {
         routes::peer::peers,
         routes::peer::add_peer,
 
+        routes::transaction::fetch_transfers,
         routes::transaction::transfer,
 
         routes::wallet::is_wallet_encrypted,

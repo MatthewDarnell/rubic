@@ -6,12 +6,13 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-base64 = "0.21.3"
+base64 = "0.22.1"
 dotenv = "0.15.0"
 dotenv_codegen = "0.15.0"
 home = "0.5.5"
 lazy_static = "1.4.0"
-serial_test = "2.0.0"
-sqlite = "0.32.0"
+serial_test = "3.2.0"
+sqlite = "0.37.0"
 logger = { path = '../logger' }
+crypto = { path = '../crypto' }
 identity = { path = '../identity' }
