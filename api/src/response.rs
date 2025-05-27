@@ -19,6 +19,30 @@ pub trait FormatQubicResponseDataToStructure {
     fn format_qubic_response_data_to_structure(response: & mut QubicApiPacket) -> Option<Self> where Self: Sized;
 }
 
+
+pub fn get_formatted_response_from_multiple(response: &mut Vec<QubicApiPacket>) {
+    let path = store::get_db_path();
+    let api_type = response.first().unwrap().api_type;
+    match api_type {
+        EntityType::BroadcastTick => {
+            println!("Broadcast Quorum Tick Data Response");
+            println!("Header: {:?}", response.first().unwrap().header);
+            println!("Some Data: {:?}, Length={}", &response.first().unwrap().data[0..32], response.first().unwrap().data.len());
+            /*
+            match TickData::format_qubic_response_data_to_structure(response) {
+                Some(resp) => {
+                    println!("{:?}", resp);
+                },
+                None => {
+                    println!("Error Formatting Tick Data Response");
+                }
+            }
+            */
+        },
+        _ => {}
+    }
+}
+
 pub fn get_formatted_response(response: &mut QubicApiPacket) {
     let path = store::get_db_path();
     match response.api_type {

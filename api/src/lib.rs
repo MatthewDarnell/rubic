@@ -100,6 +100,23 @@ impl QubicApiPacket {
             response_data: None
         }
     }
+
+
+    pub fn request_quorum_tick(tick: u32) -> Self {
+        let mut header = RequestResponseHeader::new();
+        header.set_type(EntityType::RequestedQuorumTick);
+        let mut data: Vec<u8> = tick.to_le_bytes().to_vec();
+        data.append(&mut vec![0u8; 86]);    //Vote Flags (676+7) / 8, round up
+        let size = std::mem::size_of::<RequestResponseHeader>() + data.len();
+        header.set_size(size);
+        QubicApiPacket {
+            api_type: EntityType::RequestedQuorumTick,
+            peer: None,
+            header: header,
+            data: data,
+            response_data: None
+        }
+    }
     
     pub fn as_bytes(&mut self) -> Vec<u8> {
         let mut res: Vec<u8> = self.header.as_bytes();
@@ -117,12 +134,15 @@ impl QubicApiPacket {
     }
     pub fn format_response_from_bytes(peer_id: &String, data: Vec<u8>) -> Option<Self> {
         let header: RequestResponseHeader = RequestResponseHeader::from_vec(&data);
-        println!("RESPONSE: {:?}", &header.get_type());
+        //println!("RESPONSE: {:?} ({:?})", &header.get_type(), &header._type);
         Some(QubicApiPacket {
             api_type: header.get_type().to_owned(),
             peer: Some(peer_id.to_owned()),
-            header: header,
-            data: data[8..].to_vec(),
+            header,
+            data: match data.len() > 8 {
+                true => data[8..].to_vec(),
+                false => Vec::new()
+            },
             response_data: None
         })
     }
