@@ -1,4 +1,5 @@
 use crypto::qubic_identities::get_identity;
+use crate::header::RequestResponseHeader;
 use crate::QubicApiPacket;
 use crate::response::FormatQubicResponseDataToStructure;
 use crate::response::response_entity::ResponseEntity;
@@ -30,33 +31,44 @@ pub struct TickData {
 }
 
 impl TickData {
+    pub fn print(&self) {
+        println!("-----\nTick:\n\ttick.({})\n\tcomputor.({})\n\tepoch.({})\n\tnum_txs.({})\n\tsig: {:?}\n-----",
+        self.tick,
+        self.computor_index,
+        self.epoch,
+        self.transaction_digests.len(),
+        &self.signature);
+    }
     pub fn new(data: &Vec<u8>) -> TickData {
+        let(x, right) = data.split_at(std::mem::size_of::<RequestResponseHeader>());
+        let tick: u32 = u32::from_le_bytes([right[4], right[5], right[6], right[7]]);
         let mut tx_digests = Vec::<TransactionDigest>::with_capacity(32);
-        let mut tx_digest_iter = data[48..32816].chunks_exact(1024);
+        let mut tx_digest_iter = right[48..32816].chunks_exact(1024);
         while let Some(value) = tx_digest_iter.next() {
             let temp: TransactionDigest = TransactionDigest(value[0..1024].try_into().unwrap());
             tx_digests.push(temp);
         }
+        println!("Formatted {} Tx Digests For Tick {}", tx_digests.len(), tick);
 
         let mut contract_fees = Vec::<i64>::with_capacity(1024);
-        let mut contract_fee_iter = data[32817..32817 + (1024 * 8)].chunks_exact(8);
+        let mut contract_fee_iter = right[32817..32817 + (1024 * 8)].chunks_exact(8);
         while let Some(value) = contract_fee_iter.next() {
             let temp: i64 = i64::from_le_bytes(value.try_into().unwrap());
             contract_fees.push(temp);
         }
         
-        let signature: Vec<u8> = data[32817 + (1024 * 8) + 1..].to_vec();
+        let signature: Vec<u8> = right[32817 + (1024 * 8) + 1..].to_vec();
         TickData {
-            computor_index: u16::from_le_bytes([data[0], data[1]]),
-            epoch: u16::from_le_bytes([data[2], data[3]]),
-            tick: u32::from_le_bytes([data[4], data[5], data[6], data[7]]),
-            millisecond: u8::from_le_bytes([data[8]]),
-            second: u8::from_le_bytes([data[9]]),
-            minute: u8::from_le_bytes([data[10]]),
-            hour: u8::from_le_bytes([data[11]]),
-            day: u8::from_le_bytes([data[12]]),
-            month: u8::from_le_bytes([data[13]]),
-            year: u8::from_le_bytes([data[14]]),
+            computor_index: u16::from_le_bytes([right[0], right[1]]),
+            epoch: u16::from_le_bytes([right[2], right[3]]),
+            tick: u32::from_le_bytes([right[4], right[5], right[6], right[7]]),
+            millisecond: u8::from_le_bytes([right[8]]),
+            second: u8::from_le_bytes([right[9]]),
+            minute: u8::from_le_bytes([right[10]]),
+            hour: u8::from_le_bytes([right[11]]),
+            day: u8::from_le_bytes([right[12]]),
+            month: u8::from_le_bytes([right[13]]),
+            year: u8::from_le_bytes([right[14]]),
 
             time_lock: data[15..47].try_into().unwrap(),
             transaction_digests: tx_digests,

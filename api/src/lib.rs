@@ -87,7 +87,6 @@ impl QubicApiPacket {
     pub fn request_tick_data(tick: u32) -> Self {
         let mut header = RequestResponseHeader::new();
         header.set_type(EntityType::RequestTickData);
-        header.zero_dejavu();
 
         let data: Vec<u8> = tick.to_le_bytes().to_vec();
         let size = std::mem::size_of::<RequestResponseHeader>() + data.len();

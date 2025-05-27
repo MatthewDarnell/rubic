@@ -14,6 +14,8 @@ pub enum EntityType {
     BroadcastTick = 3,
 
     RequestedQuorumTick = 14,
+
+    BroadcastFutureTickData = 8,
     RequestTickData = 16,
     
     BroadcastTransaction = 24,
@@ -33,6 +35,7 @@ impl EntityType {
             EntityType::ExchangePeers => 0,
             EntityType::BroadcastTick => 3,
             EntityType::RequestedQuorumTick => 14,
+            EntityType::BroadcastFutureTickData => 8,
             EntityType::RequestTickData => 16,
             EntityType::BroadcastTransaction => 24,
             EntityType::RequestTransactionInfo => 26,
@@ -107,6 +110,7 @@ impl RequestResponseHeader {
             3 => EntityType::BroadcastTick,
             14 => EntityType::RequestedQuorumTick,
             16 => EntityType::RequestTickData,
+            8 => EntityType::BroadcastFutureTickData,
             24 => EntityType::BroadcastTransaction,
             26 => EntityType::RequestTransactionInfo,
             27 => EntityType::RequestCurrentTickInfo,
