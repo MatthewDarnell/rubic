@@ -1,11 +1,9 @@
-use crypto::qubic_identities::get_identity;
 use crate::header::RequestResponseHeader;
 use crate::QubicApiPacket;
 use crate::response::FormatQubicResponseDataToStructure;
-use crate::response::response_entity::ResponseEntity;
 
 #[derive(Debug, Clone)]
-struct TransactionDigest([u8; 1024]);
+pub struct TransactionDigest([u8; 1024]);
 
 #[derive(Debug, Clone)]
 pub struct TickData {
@@ -40,7 +38,7 @@ impl TickData {
         &self.signature);
     }
     pub fn new(data: &Vec<u8>) -> TickData {
-        let(x, right) = data.split_at(std::mem::size_of::<RequestResponseHeader>());
+        let(_, right) = data.split_at(std::mem::size_of::<RequestResponseHeader>());
         let tick: u32 = u32::from_le_bytes([right[4], right[5], right[6], right[7]]);
         let mut tx_digests = Vec::<TransactionDigest>::with_capacity(32);
         let mut tx_digest_iter = right[48..32816].chunks_exact(1024);

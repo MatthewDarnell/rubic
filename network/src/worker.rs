@@ -2,8 +2,7 @@ use std::io::prelude::*;
 use std::io::ErrorKind;
 use std::time::Duration;
 use crate::peer::Peer;
-use api::{QubicApiPacket, response};
-use api::header::{EntityType, RequestResponseHeader};
+use api::QubicApiPacket;
 use store::get_db_path;
 use store::sqlite::crud::peer::set_peer_disconnected;
 use crate::tcp_recv::qubic_tcp_receive_data;
@@ -19,9 +18,6 @@ pub fn handle_new_peer(_id: String, peer: Peer, rx: spmc::Receiver<QubicApiPacke
         //Block until we receive work
         match rx.clone().recv() {
             Ok(mut request) => {
-                let mut read_multiple_packets: bool = false; //This response of type <BroadcastTick> will contain
-                                                            // a series of packets of type <Tick> until we receive a response of type
-                                                            // 35, signifying EndResponse.
                 match stream.write(request.as_bytes().as_slice()) {
                     Ok(_) => {
                         stream.flush().unwrap();

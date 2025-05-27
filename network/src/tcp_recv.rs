@@ -26,7 +26,7 @@ pub fn qubic_tcp_receive_data (peer: &Peer, stream: &TcpStream) {
             };
             
         },
-        Err(err) => {}
+        Err(_) => {}
     }
 }
 
@@ -51,7 +51,7 @@ fn recv_qubic_response(peer: &Peer, stream: &TcpStream) -> Option<QubicApiPacket
                         }
                     }
                 },
-                Err(err) => {
+                Err(_) => {
                     eprintln!("Failed To Clone TCP Stream");
                     None
                 }

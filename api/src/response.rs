@@ -129,7 +129,7 @@ pub fn get_formatted_response(response: &mut QubicApiPacket) {
         },
         EntityType::BroadcastTransaction => {
             match BroadcastTransactionEntity::format_qubic_response_data_to_structure(response) {
-                Some(resp) => {
+                Some(_) => {
                     //TODO: Insert this tx into db and update status as succeeded
                 },
                 None => {}
