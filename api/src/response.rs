@@ -9,11 +9,13 @@ use store::get_db_path;
 use store::sqlite::crud::{create_response_entity, peer::update_peer_last_responded, insert_latest_tick};
 use crate::response::broadcast_transaction::BroadcastTransactionEntity;
 use crate::response::request_tick_data::TickData;
+use crate::response::tick::Tick;
 
 pub mod exchange_peers;
 pub mod response_entity;
 pub mod broadcast_transaction;
 pub mod request_tick_data;
+mod tick;
 
 pub trait FormatQubicResponseDataToStructure {
     fn format_qubic_response_data_to_structure(response: & mut QubicApiPacket) -> Option<Self> where Self: Sized;
@@ -26,8 +28,24 @@ pub fn get_formatted_response_from_multiple(response: &mut Vec<QubicApiPacket>) 
     match api_type {
         EntityType::BroadcastTick => {
             println!("Broadcast Quorum Tick Data Response");
-            println!("Header: {:?}", response.first().unwrap().header);
-            println!("Some Data: {:?}, Length={}", &response.first().unwrap().data[0..32], response.first().unwrap().data.len());
+            let mut tick_data: Vec<Tick> = Vec::with_capacity(response.len());
+            for entry in response.iter_mut() {
+                match Tick::format_qubic_response_data_to_structure(entry) {
+                    Some(data) => {
+                        tick_data.push(data)
+                    },
+                    None => {
+                        println!("Failed to format Tick!");
+                    }
+                };
+            }
+            //println!("Tick Data: {:?}", &tick_data);
+            //println!("\tAfter Mapping: First Data: \n\t{:?}", &tick_data.first().unwrap().print());
+
+            //let _ = response.iter().map(|mut value|
+              //  tick_data.push(TickData::format_qubic_response_data_to_structure(&mut value).unwrap())
+            //);
+            
             /*
             match TickData::format_qubic_response_data_to_structure(response) {
                 Some(resp) => {

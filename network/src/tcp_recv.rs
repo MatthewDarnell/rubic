@@ -38,7 +38,7 @@ fn recv_qubic_response(peer: &Peer, stream: &TcpStream) -> Option<QubicApiPacket
             let peeked_header: RequestResponseHeader = RequestResponseHeader::from_vec(&peeked.to_vec());
             //println!("RESPONSE: {:?}  {:?}, {} bytes", &peeked_header, &peeked_header.get_type(), &peeked_header.get_size());
             let mut result_size: Vec<u8> = vec![0; peeked_header.get_size()];
-            match stream.try_clone() {
+            match stream.try_clone() {  //1 worker thread per tcp stream, should be fine to clone
                 Ok(mut stream) => {
                     match stream.read_exact(&mut result_size) {
                         Ok(_) => {
@@ -70,11 +70,14 @@ fn recv_qubic_responses_until_end_response(peer: &Peer, stream: &TcpStream, max_
     let mut data: Vec<QubicApiPacket> = Vec::new();
     let mut peeked: [u8; 8] = [0; 8];
     let mut peeked_header: RequestResponseHeader = RequestResponseHeader::from_vec(&peeked.to_vec());
-    while peeked_header.get_type().to_byte() != EntityType::ResponseEnd.to_byte() {
-        peeked_header = RequestResponseHeader::from_vec(&peeked.to_vec());
-        peeked = [0; 8];
+    loop {
         match stream.peek(&mut peeked) {
             Ok(_) => {
+                peeked_header = RequestResponseHeader::from_vec(&peeked.to_vec());
+                if peeked_header.get_type().to_byte() == EntityType::ResponseEnd.to_byte() {
+                    return data;
+                }
+                peeked = [0; 8];
                 match recv_qubic_response(peer, stream) {
                     Some(packet) => {
                         //println!("read multiple packet");

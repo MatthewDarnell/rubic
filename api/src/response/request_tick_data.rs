@@ -40,13 +40,14 @@ impl TickData {
     pub fn new(data: &Vec<u8>) -> TickData {
         let(_, right) = data.split_at(std::mem::size_of::<RequestResponseHeader>());
         let tick: u32 = u32::from_le_bytes([right[4], right[5], right[6], right[7]]);
+        //println!("Tick={}", tick);
         let mut tx_digests = Vec::<TransactionDigest>::with_capacity(32);
         let mut tx_digest_iter = right[48..32816].chunks_exact(1024);
         while let Some(value) = tx_digest_iter.next() {
             let temp: TransactionDigest = TransactionDigest(value[0..1024].try_into().unwrap());
             tx_digests.push(temp);
         }
-        println!("Formatted {} Tx Digests For Tick {}", tx_digests.len(), tick);
+        //println!("Formatted {} Tx Digests For Tick {}", tx_digests.len(), tick);
 
         let mut contract_fees = Vec::<i64>::with_capacity(1024);
         let mut contract_fee_iter = right[32817..32817 + (1024 * 8)].chunks_exact(8);
