@@ -9,7 +9,7 @@ use store::get_db_path;
 use store::sqlite::crud::{create_response_entity, peer::update_peer_last_responded, insert_latest_tick};
 use crate::response::broadcast_transaction::BroadcastTransactionEntity;
 use crate::response::request_tick_data::TickData;
-use crate::response::tick::Tick;
+use consensus::tick::Tick;
 
 pub mod exchange_peers;
 pub mod response_entity;
@@ -23,7 +23,6 @@ pub trait FormatQubicResponseDataToStructure {
 
 
 pub fn get_formatted_response_from_multiple(response: &mut Vec<QubicApiPacket>) {
-    let path = store::get_db_path();
     let api_type = response.first().unwrap().api_type;
     match api_type {
         EntityType::BroadcastTick => {

@@ -3,6 +3,7 @@ use crate::QubicApiPacket;
 use crate::response::FormatQubicResponseDataToStructure;
 
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 pub struct TransactionDigest([u8; 1024]);
 
 #[derive(Debug, Clone)]
@@ -39,7 +40,6 @@ impl TickData {
     }
     pub fn new(data: &Vec<u8>) -> TickData {
         let(_, right) = data.split_at(std::mem::size_of::<RequestResponseHeader>());
-        let tick: u32 = u32::from_le_bytes([right[4], right[5], right[6], right[7]]);
         //println!("Tick={}", tick);
         let mut tx_digests = Vec::<TransactionDigest>::with_capacity(32);
         let mut tx_digest_iter = right[48..32816].chunks_exact(1024);
