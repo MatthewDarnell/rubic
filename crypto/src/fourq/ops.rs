@@ -1,4 +1,3 @@
-#![allow(dead_code)]
 #![allow(unused_assignments)]
 #[cfg(target_arch = "x86_64")]
 use core::arch::x86_64::{_subborrow_u64, _addcarry_u64};
@@ -45,7 +44,7 @@ pub fn addcarry_u64(c_in: u8, a: u64, b: u64, out: &mut u64) -> u8  {
     {
         let c_out = a.overflowing_add(b);
         let c_out1 = c_out.0.overflowing_add(if c_in != 0 { 1 } else { 0 });
-        
+
         *out = c_out1.0;
 
         (c_out.1 || c_out1.1) as u8
@@ -234,7 +233,7 @@ pub fn fp2neg1271(a: &mut F2elmT) {
 #[inline(always)]
 pub fn fp2sqr1271(a: F2elmT, c: &mut F2elmT) {
     let (mut t1, mut t2, mut t3) = ([0u64; 2], [0u64; 2], [0u64; 2]);
-    
+
     fpadd1271(a[0], a[1], &mut t1);           // t1 = a0+a1 
     fpsub1271(a[0], a[1], &mut t2);           // t2 = a0-a1
     fpmul1271(a[0], a[1], &mut t3);           // t3 = a0*a1
@@ -410,7 +409,7 @@ pub fn r1_to_r3(p: &PointExtproj, q: &mut PointExtprojPrecomp) {
 
     unsafe {
         copy_nonoverlapping(p.z.as_ptr() as *mut u64, q.z2.as_mut_ptr() as *mut u64, 4) // ZQ = Z1 
-    }         
+    }
 }
 
 /// Conversion from representation (X+Y,Y-X,2Z,2dT) to (2X,2Y,2Z,2dT) 
@@ -421,7 +420,7 @@ pub fn r2_to_r4(p: &PointExtprojPrecomp, q: &mut PointExtproj) {
 
     unsafe {
         copy_nonoverlapping(p.z2.as_ptr() as *mut u64, q.z.as_mut_ptr() as *mut u64, 4) // ZQ = Z1 
-    }  
+    }
 }
 
 // Point doubling 2P
@@ -482,7 +481,7 @@ pub fn point_setup(p: &PointAffine, q: &mut PointExtproj) {
         copy_nonoverlapping(p.y.as_ptr(), q.y.as_mut_ptr(), 2);
         copy_nonoverlapping(p.x.as_ptr(), q.ta.as_mut_ptr(), 2);
         copy_nonoverlapping(p.y.as_ptr(), q.tb.as_mut_ptr(), 2);
-        
+
         q.z[0][0] = 1;
         q.z[0][1] = 0;
         q.z[1][0] = 0;
@@ -1240,7 +1239,6 @@ pub fn encode(p: &mut PointAffine, pencoded: &mut [u8]) {
 }
 
 
-#[inline]
 pub fn decode(pencoded: &[u8], p: &mut PointAffine) -> bool {
     let (mut r, mut t, mut t0, mut t1, mut t2, mut t3, mut t4) = ([0u64; 2], [0u64; 2], [0u64; 2], [0u64; 2], [0u64; 2], [0u64; 2], [0u64; 2]);
     let (mut u, mut v) = ([[0u64; 2]; 2], [[0u64; 2]; 2]);
@@ -1330,6 +1328,6 @@ pub fn decode(pencoded: &[u8], p: &mut PointAffine) -> bool {
             }
         }
     }
-    
+
     true
 }

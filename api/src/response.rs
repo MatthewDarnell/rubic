@@ -1,3 +1,4 @@
+use consensus::computor::BroadcastComputors;
 use std::time::SystemTime;
 use crate::QubicApiPacket;
 use crate::header::EntityType;
@@ -38,23 +39,27 @@ pub fn get_formatted_response_from_multiple(response: &mut Vec<QubicApiPacket>) 
                     }
                 };
             }
-            //println!("Tick Data: {:?}", &tick_data);
-            //println!("\tAfter Mapping: First Data: \n\t{:?}", &tick_data.first().unwrap().print());
-
-            //let _ = response.iter().map(|mut value|
-              //  tick_data.push(TickData::format_qubic_response_data_to_structure(&mut value).unwrap())
-            //);
-            
-            /*
-            match TickData::format_qubic_response_data_to_structure(response) {
-                Some(resp) => {
-                    println!("{:?}", resp);
+            println!("Got {} Ticks.", tick_data.len());
+            let epoch = tick_data.first().unwrap().epoch;
+            let tick = tick_data.first().unwrap().tick;
+            match store::sqlite::crud::computors::fetch_computors_by_epoch(get_db_path().as_str(), epoch) {
+                Ok(bytes) => {
+                    println!("Fetched BroadcastComputors For Epoch {}", epoch);
+                    let bc: BroadcastComputors = BroadcastComputors::new(&bytes);
+                    match consensus::quorum_votes::get_quorum_votes(&bc, &tick_data) {
+                        Ok(votes) => {
+                            println!("Quorum Votes For Epoch {} Validated - {}", epoch, votes);
+                        },
+                        Err(err) => {
+                            println!("Error Validating Quorum Votes for Tick {}! <{}>", tick, err);
+                        }
+                    }
                 },
-                None => {
-                    println!("Error Formatting Tick Data Response");
+                Err(err) => {
+                    println!("Failed to fetch computor by epoch: {}", err);
                 }
+
             }
-            */
         },
         _ => {}
     }
@@ -63,6 +68,10 @@ pub fn get_formatted_response_from_multiple(response: &mut Vec<QubicApiPacket>) 
 pub fn get_formatted_response(response: &mut QubicApiPacket) {
     let path = store::get_db_path();
     match response.api_type {
+        EntityType::BroadcastComputors => {
+            let peer = response.peer.clone().unwrap();
+            store::sqlite::crud::computors::insert_computors_from_bytes(get_db_path().as_str(), peer.as_str(), &response.data).unwrap();
+        },
         EntityType::RespondCurrentTickInfo => {
             if let Some(peer_id) = &response.peer {
                 if response.data.len() < 12 {

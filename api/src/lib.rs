@@ -37,6 +37,20 @@ impl QubicApiPacket {
         }
     }
 
+    pub fn get_computors() -> Self {
+        let mut header = RequestResponseHeader::new();
+        header.set_type(EntityType::RequestComputors);
+        let size = std::mem::size_of::<RequestResponseHeader>();
+        header.set_size(size);
+        QubicApiPacket {
+            api_type: EntityType::RequestComputors,
+            peer: None,
+            header: header,
+            data: vec![],
+            response_data: None
+        }
+    }
+
     pub fn get_identity_balance(id: &str) -> Self {
         //let entity: EntityType = EntityType::RequestEntity;
         let mut header = RequestResponseHeader::new();
@@ -104,7 +118,10 @@ impl QubicApiPacket {
     pub fn request_quorum_tick(tick: u32) -> Self {
         let mut header = RequestResponseHeader::new();
         header.set_type(EntityType::RequestedQuorumTick);
-        let mut data: Vec<u8> = tick.to_le_bytes().to_vec();
+        let mut data: Vec<u8> = (tick+1).to_le_bytes().to_vec();    //Come-from-Beyond — 3:01 PM
+                                                                    // if you have got 451 votes for tick 42 then it only tells that tick 41 is confirmed
+                                                                    // it's always minus 1
+        
         data.append(&mut vec![0u8; 86]);    //Vote Flags (676+7) / 8, round up
         let size = std::mem::size_of::<RequestResponseHeader>() + data.len();
         header.set_size(size);

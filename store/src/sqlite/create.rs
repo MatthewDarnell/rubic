@@ -13,8 +13,9 @@ pub fn open_database(path: &str, create: bool) -> Result<sqlite::Connection, Str
       connected BOOLEAN DEFAULT false
     );
     CREATE TABLE IF NOT EXISTS latest_tick (
-      tick INTEGER,
+      tick INTEGER UNIQUE,
       peer TEXT NOT NULL,
+      quorum_votes_validated BOOLEAN DEFAULT NULL,
       created DATETIME DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY(peer) REFERENCES peer(id)
     );
@@ -63,6 +64,13 @@ pub fn open_database(path: &str, create: bool) -> Result<sqlite::Connection, Str
         status INTEGER DEFAULT -1,
         created DATETIME DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY(source_identity) REFERENCES identities(identity)
+    );
+    CREATE TABLE IF NOT EXISTS computors (
+        epoch INTEGER NOT NULL UNIQUE,
+        pub_keys TEXT NOT NULL,
+        signature TEXT NOT NULL,
+        created DATETIME DEFAULT CURRENT_TIMESTAMP,
+        peer TEXT
     );
 ";
     //        FOREIGN KEY(identity) REFERENCES identities(identity)
