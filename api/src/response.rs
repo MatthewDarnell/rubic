@@ -27,6 +27,11 @@ pub trait FormatQubicResponseDataToStructure {
 
 
 pub fn get_formatted_response_from_multiple(response: &mut Vec<QubicApiPacket>) {
+    let packet = response.first().unwrap();
+    let peer = match &packet.peer {
+        Some(peer) => peer.clone(),
+        None => "".to_string(),
+    };
     let api_type = response.first().unwrap().api_type;
     match api_type {
         EntityType::BroadcastTick => {
@@ -57,6 +62,14 @@ pub fn get_formatted_response_from_multiple(response: &mut Vec<QubicApiPacket>) 
                         Ok(votes) => {
                             println!("Quorum Votes For Epoch {} Validated - {}", epoch, votes);
                             if votes {
+                                
+                                //In case we missed this tick, perhaps we weren't running when it executed
+                                match store::sqlite::tick::insert_tick(get_db_path().as_str(), peer.as_str(), tick) {
+                                    Ok(_) => {},
+                                    Err(_) => {}
+                                }
+                                
+                                
                                 match store::sqlite::tick::set_tick_validated(get_db_path().as_str(), tick) {
                                     Ok(_) =>  println!("Setting Tick.({}) Valid", tick),
                                     Err(err) => println!("Failed to set Tick.({}) Validated: {}", tick, err)
@@ -147,28 +160,25 @@ pub fn get_formatted_response(response: &mut QubicApiPacket) {
                     //TODO: VERIFY
                     match store::sqlite::transfer::fetch_expired_and_broadcasted_transfers_with_unknown_status_and_specific_tick(get_db_path().as_str(), resp.tick) {
                         Ok(transfers) => {
-                            for transfer in transfers {
-                                let txid: &String = transfer.get(&"txid".to_string()).unwrap();
-                                println!("Checking If Txid.({}) is In Tick.({})", txid, resp.tick);
+                            if transfers.len() > 0 {    //We have made at least 1 transfer that executes on this tick!
+                                                        //Let's store the tx digests
+                                let digests: &[TransactionDigest] = resp.transaction_digests.as_slice();
+                                let mut dg: [u8; 32*1024] = [0u8; 32*1024];
+                                for (index, digest) in digests.iter().enumerate() {
+                                    dg[index*32..index*32 + 1024].copy_from_slice(digest);
+                                }
+                                match store::sqlite::tick::set_tick_transaction_digests(get_db_path().as_str(), resp.tick, &dg) {
+                                    Ok(_) => {
+                                        println!("Set Tx Digests For Tick {}", resp.tick);
+                                    },
+                                    Err(_err) => {
+                                        println!("Failed to set Tick Transaction Digests for Tick {}!", resp.tick);
+                                    }
+                                }
                             }
                         },
                         Err(err) => {
                             println!("Failed to fetch expired/broadcast/unknown_status transfers for Tick {}! <{}>", resp.tick, err);
-                        }
-                    }
-                    
-                    
-                    let digests: &[TransactionDigest] = resp.transaction_digests.as_slice();
-                    let mut dg: [u8; 32*1024] = [0u8; 32*1024];
-                    for (index, digest) in digests.iter().enumerate() {
-                        dg[index*32..index*32 + 1024].copy_from_slice(digest);
-                    }
-                    match store::sqlite::tick::set_tick_transaction_digests(get_db_path().as_str(), resp.tick, &dg) {
-                        Ok(_) => {
-                            println!("Set Tx Digests For Tick {}", resp.tick);
-                        },
-                        Err(_err) => {  
-                            println!("Failed to set Tick Transaction Digests for Tick {}!", resp.tick);
                         }
                     }
                 },

@@ -16,7 +16,7 @@ pub fn open_database(path: &str, create: bool) -> Result<sqlite::Connection, Str
       tick INTEGER UNIQUE,
       peer TEXT NOT NULL,
       valid BOOLEAN DEFAULT false,
-      transaction_digests TEXT DEFAULT NULL,
+      transaction_digests TEXT NOT NULL DEFAULT '',
       created DATETIME DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY(peer) REFERENCES peer(id)
     );
