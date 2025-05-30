@@ -4,7 +4,7 @@ use std::time::Duration;
 use crate::peer::Peer;
 use api::QubicApiPacket;
 use store::get_db_path;
-use store::sqlite::crud::peer::set_peer_disconnected;
+use store::sqlite::peer::set_peer_disconnected;
 use crate::tcp_recv::qubic_tcp_receive_data;
 
 pub fn handle_new_peer(_id: String, peer: Peer, rx: spmc::Receiver<QubicApiPacket>) {

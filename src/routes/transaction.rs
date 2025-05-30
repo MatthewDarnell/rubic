@@ -1,7 +1,6 @@
 use rocket::get;
 use logger::{debug, error, info};
-use store::get_db_path;
-use store::sqlite::crud;
+use store::{get_db_path, sqlite};
 
 //transfer/${sourceIdentity}/${destinationIdentity}/${amountToSend}/${expirationTick}/${password}
 #[get("/transfer/<source>/<dest>/<amount>/<expiration>/<password>")]
@@ -18,7 +17,7 @@ pub fn transfer(source: &str, dest: &str, amount: &str, expiration: &str, passwo
     }
 
 
-    let mut source_identity = match crud::fetch_identity(get_db_path().as_str(), source) {
+    let mut source_identity = match sqlite::identity::fetch_identity(get_db_path().as_str(), source) {
         Ok(identity) => identity,
         Err(_) => {
             error!("Failed To Make Transfer, Unknown Identity {}", source);
@@ -28,7 +27,7 @@ pub fn transfer(source: &str, dest: &str, amount: &str, expiration: &str, passwo
 
     if source_identity.encrypted {
         if password.len() > 1 {
-            source_identity = match crud::master_password::get_master_password(get_db_path().as_str()) {
+            source_identity = match sqlite::master_password::get_master_password(get_db_path().as_str()) {
                 Ok(master_password) => {
                     match crypto::passwords::verify_password(password, master_password[1].as_str()) {
                         Ok(verified) => {
@@ -73,7 +72,7 @@ pub fn transfer(source: &str, dest: &str, amount: &str, expiration: &str, passwo
     let sig = transfer_tx._signature;
     let sig_str = hex::encode(sig);
 
-    match crud::create_transfer(
+    match sqlite::transfer::create_transfer(
         get_db_path().as_str(),
         source_identity.identity.as_str(),
         dest_identity.as_str(),

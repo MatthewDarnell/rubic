@@ -3,7 +3,7 @@ use store;
 
 #[get("/tick")]
 pub fn latest_tick() -> String {
-    match store::sqlite::crud::fetch_latest_tick(store::get_db_path().as_str()) {
+    match store::sqlite::tick::fetch_latest_tick(store::get_db_path().as_str()) {
         Ok(tick) => format!("{}", tick),
         Err(err) => format!("{}", err.to_string())
     }
@@ -11,7 +11,7 @@ pub fn latest_tick() -> String {
 
 #[get("/info")]
 pub fn info() -> String {
-    match store::sqlite::crud::peer::fetch_connected_peers(store::get_db_path().as_str()) {
+    match store::sqlite::peer::fetch_connected_peers(store::get_db_path().as_str()) {
         Ok(value) => {
             format!("{}", value.len())
         }, Err(err) => {

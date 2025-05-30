@@ -7,10 +7,13 @@ use crate::response::response_entity::ResponseEntity;
 //use crate::response::broadcast_transaction::BroadcastTransactionEntity;
 
 use store::get_db_path;
-use store::sqlite::crud::{create_response_entity, peer::update_peer_last_responded, insert_latest_tick};
+use store::sqlite::response_entity::create_response_entity;
+use store::sqlite::peer::update_peer_last_responded;
+use store::sqlite::tick::insert_tick;
 use crate::response::broadcast_transaction::BroadcastTransactionEntity;
-use crate::response::request_tick_data::TickData;
 use consensus::tick::Tick;
+use consensus::tick_data::{TickData, TransactionDigest};
+use store::sqlite::get_db_lock;
 
 pub mod exchange_peers;
 pub mod response_entity;
@@ -27,8 +30,12 @@ pub fn get_formatted_response_from_multiple(response: &mut Vec<QubicApiPacket>) 
     let api_type = response.first().unwrap().api_type;
     match api_type {
         EntityType::BroadcastTick => {
-            println!("Broadcast Quorum Tick Data Response");
             let mut tick_data: Vec<Tick> = Vec::with_capacity(response.len());
+            if tick_data.len() > 0 {
+                println!("Received Quorum Tick {}", &tick_data[0].tick);
+            } else {
+                println!("Got 0 Length Quorum Tick...");
+            }
             for entry in response.iter_mut() {
                 match Tick::format_qubic_response_data_to_structure(entry) {
                     Some(data) => {
@@ -39,16 +46,22 @@ pub fn get_formatted_response_from_multiple(response: &mut Vec<QubicApiPacket>) 
                     }
                 };
             }
-            println!("Got {} Ticks.", tick_data.len());
-            let epoch = tick_data.first().unwrap().epoch;
-            let tick = tick_data.first().unwrap().tick;
-            match store::sqlite::crud::computors::fetch_computors_by_epoch(get_db_path().as_str(), epoch) {
+            
+            let first_tick = tick_data.first().unwrap();
+            let epoch = first_tick.epoch;
+            let tick = first_tick.tick - 1;
+            match store::sqlite::computors::fetch_computors_by_epoch(get_db_path().as_str(), epoch) {
                 Ok(bytes) => {
-                    println!("Fetched BroadcastComputors For Epoch {}", epoch);
                     let bc: BroadcastComputors = BroadcastComputors::new(&bytes);
                     match consensus::quorum_votes::get_quorum_votes(&bc, &tick_data) {
                         Ok(votes) => {
                             println!("Quorum Votes For Epoch {} Validated - {}", epoch, votes);
+                            if votes {
+                                match store::sqlite::tick::set_tick_validated(get_db_path().as_str(), tick) {
+                                    Ok(_) =>  println!("Setting Tick.({}) Valid", tick),
+                                    Err(err) => println!("Failed to set Tick.({}) Validated: {}", tick, err)
+                                }
+                            }
                         },
                         Err(err) => {
                             println!("Error Validating Quorum Votes for Tick {}! <{}>", tick, err);
@@ -69,8 +82,25 @@ pub fn get_formatted_response(response: &mut QubicApiPacket) {
     let path = store::get_db_path();
     match response.api_type {
         EntityType::BroadcastComputors => {
-            let peer = response.peer.clone().unwrap();
-            store::sqlite::crud::computors::insert_computors_from_bytes(get_db_path().as_str(), peer.as_str(), &response.data).unwrap();
+            match response.peer.clone() {
+                Some(peer) => {
+                    if response.data.len() == std::mem::size_of::<BroadcastComputors>() {
+                        let data: [u8; size_of::<BroadcastComputors>()] = response.data.as_slice().try_into().unwrap();
+                        let bc: BroadcastComputors = BroadcastComputors::new(&data);  
+                        if bc.validate() {
+                            match store::sqlite::computors::insert_computors_from_bytes(get_db_path().as_str(), peer.as_str(), &response.data) {
+                                Ok(_) => {
+                                    println!("Updating Computor List for Epoch {}.", bc.epoch);
+                                },
+                                Err(err) => {}
+                            }
+                        } else {
+                            println!("Failed to Validate Computor List for Epoch {}!", bc.epoch);
+                        }
+                    }
+                },
+                None => {}
+            }
         },
         EntityType::RespondCurrentTickInfo => {
             if let Some(peer_id) = &response.peer {
@@ -83,7 +113,7 @@ pub fn get_formatted_response(response: &mut QubicApiPacket) {
                     data[2] = response.data[6];
                     data[3] = response.data[7];
                     let value = u32::from_le_bytes(data);
-                    match insert_latest_tick(get_db_path().as_str(), peer_id.as_str(), value) {
+                    match insert_tick(get_db_path().as_str(), peer_id.as_str(), value) {
                         Ok(_) => {},
                         Err(_err) => {}
                     }
@@ -105,10 +135,42 @@ pub fn get_formatted_response(response: &mut QubicApiPacket) {
             }
         },
         EntityType::BroadcastFutureTickData => {
-            println!("Requesting Tick Data Response");
+            println!("Received Tick Data Response");
+            //println!("{:?}", response);
             match TickData::format_qubic_response_data_to_structure(response) {
                 Some(resp) => {
                     resp.print();
+                    let _bc = store::sqlite::computors::fetch_computors_by_epoch(get_db_path().as_str(), resp.epoch).unwrap();
+                    let bc = BroadcastComputors::new(&_bc);
+
+                    
+                    //TODO: VERIFY
+                    match store::sqlite::transfer::fetch_expired_and_broadcasted_transfers_with_unknown_status_and_specific_tick(get_db_path().as_str(), resp.tick) {
+                        Ok(transfers) => {
+                            for transfer in transfers {
+                                let txid: &String = transfer.get(&"txid".to_string()).unwrap();
+                                println!("Checking If Txid.({}) is In Tick.({})", txid, resp.tick);
+                            }
+                        },
+                        Err(err) => {
+                            println!("Failed to fetch expired/broadcast/unknown_status transfers for Tick {}! <{}>", resp.tick, err);
+                        }
+                    }
+                    
+                    
+                    let digests: &[TransactionDigest] = resp.transaction_digests.as_slice();
+                    let mut dg: [u8; 32*1024] = [0u8; 32*1024];
+                    for (index, digest) in digests.iter().enumerate() {
+                        dg[index*32..index*32 + 1024].copy_from_slice(digest);
+                    }
+                    match store::sqlite::tick::set_tick_transaction_digests(get_db_path().as_str(), resp.tick, &dg) {
+                        Ok(_) => {
+                            println!("Set Tx Digests For Tick {}", resp.tick);
+                        },
+                        Err(_err) => {  
+                            println!("Failed to set Tick Transaction Digests for Tick {}!", resp.tick);
+                        }
+                    }
                 },
                 None => {  
                     println!("Error Formatting Tick Data Response");
@@ -146,7 +208,7 @@ pub fn get_formatted_response(response: &mut QubicApiPacket) {
         EntityType::ERROR => {
             let _error_type = String::from_utf8(response.data.clone()).unwrap();
             if let Some(id) = &response.peer {
-                store::sqlite::crud::peer::set_peer_disconnected(store::get_db_path().as_str(), id.as_str()).ok();
+                store::sqlite::peer::set_peer_disconnected(store::get_db_path().as_str(), id.as_str()).ok();
             }
             //panic!("exiting");
         },

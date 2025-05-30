@@ -3,7 +3,7 @@ use std::net::TcpStream;
 use api::header::{EntityType, RequestResponseHeader};
 use api::{response, QubicApiPacket};
 use store::get_db_path;
-use store::sqlite::crud::peer::set_peer_disconnected;
+use store::sqlite::peer::set_peer_disconnected;
 use crate::peer::Peer;
 
 pub fn qubic_tcp_receive_data (peer: &Peer, stream: &TcpStream) {

@@ -4,6 +4,9 @@ use std::net::{SocketAddr, TcpStream};
 use api::QubicApiPacket;
 use logger::{ debug, error };
 use std::time::{Duration};
+use rand::seq::IteratorRandom;
+use rand::thread_rng;
+use api::header::EntityType;
 use store;
 
 use crate::worker;
@@ -66,7 +69,7 @@ impl PeerSet {
                     self.threads.insert(copied_id, t);
                 }
                 self.peers.push(new_peer);
-                match store::sqlite::crud::peer::set_peer_connected(
+                match store::sqlite::peer::set_peer_connected(
                     store::get_db_path().as_str(),
                     id.as_str()
                 ) {
@@ -109,7 +112,7 @@ impl PeerSet {
                         Err(_) => {}
                     }
                 }
-                match store::sqlite::crud::peer::set_peer_disconnected(
+                match store::sqlite::peer::set_peer_disconnected(
                     store::get_db_path().as_str(),
                     id
                 ) {
@@ -154,8 +157,26 @@ impl PeerSet {
             return Err("Cannot send request, 0 peers! Add some!".to_string())
         }
         let mut ids_to_delete: Vec<String> = vec![];
+        
+        
+        let spam_all: bool = match request.api_type {
+            EntityType::RequestedQuorumTick => false,
+            _ => true
+        };
+        
+        let mut rand_id: String = "".to_string();
+        //if !spam_all {
+            let p = self.peers.iter().choose(&mut thread_rng()).unwrap();
+            rand_id = p.get_id().clone();
+       // }
+        
         for (_index, peer) in self.peers.iter().enumerate() {
-            match store::sqlite::crud::peer::fetch_peer_by_id(store::get_db_path().as_str(), peer.get_id().as_str()) {
+           // if !spam_all {
+                if peer.get_id() != &rand_id {
+                    continue;
+                }
+           // }
+            match store::sqlite::peer::fetch_peer_by_id(store::get_db_path().as_str(), peer.get_id().as_str()) {
                 Ok(p) => {
                     let connected = p.get("connected").unwrap() == "1";
                     if !connected {
@@ -170,7 +191,11 @@ impl PeerSet {
             request.peer = Some(peer.get_id().to_owned());
 
             match self.req_channel.0.send(request.clone()) {
-                Ok(_) => { },
+                Ok(_) => { 
+                    if !spam_all {
+                        break;
+                    }
+                },
                 Err(err) => {
                     println!("Failed To Send Request Data To Threads! : {}", err.to_string());
                 }

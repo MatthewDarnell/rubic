@@ -12,10 +12,11 @@ pub fn open_database(path: &str, create: bool) -> Result<sqlite::Connection, Str
       created DATETIME DEFAULT CURRENT_TIMESTAMP,
       connected BOOLEAN DEFAULT false
     );
-    CREATE TABLE IF NOT EXISTS latest_tick (
+    CREATE TABLE IF NOT EXISTS tick (
       tick INTEGER UNIQUE,
       peer TEXT NOT NULL,
-      quorum_votes_validated BOOLEAN DEFAULT NULL,
+      valid BOOLEAN DEFAULT false,
+      transaction_digests TEXT DEFAULT NULL,
       created DATETIME DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY(peer) REFERENCES peer(id)
     );

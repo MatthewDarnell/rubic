@@ -1,12 +1,12 @@
 use rocket::get;
 use store::get_db_path;
-use store::sqlite::crud::insert_new_identity;
-use store::sqlite::crud::master_password::get_master_password;
+use store::sqlite::identity::insert_new_identity;
+use store::sqlite::master_password::get_master_password;
 use crypto::passwords::verify_password;
 
 #[get("/balance/<address>")]
 pub fn balance(address: &str) -> String {
-    match store::sqlite::crud::fetch_balance_by_identity(store::get_db_path().as_str(), address) {
+    match store::sqlite::identity::fetch_balance_by_identity(store::get_db_path().as_str(), address) {
         Ok(value) => { format!("{:?}", value) },
         Err(error) => format!("{}", error)
     }
@@ -14,7 +14,7 @@ pub fn balance(address: &str) -> String {
 
 #[get("/identities")]
 pub fn get_identities() -> String {
-    match store::sqlite::crud::fetch_all_identities_full(store::get_db_path().as_str()) {
+    match store::sqlite::identity::fetch_all_identities_full(store::get_db_path().as_str()) {
         Ok(v) => {
             let mut response: Vec<String> = vec![];
             for identity in &v {
