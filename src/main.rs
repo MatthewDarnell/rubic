@@ -12,6 +12,7 @@ use rocket::http::Header;
 use rocket::{Request, Response};
 use rocket::fairing::{Fairing, Info, Kind};
 use store::sqlite;
+use crate::env::get_version;
 use crate::peer_set_thread::start_peer_set_thread;
 
 #[rocket::main]
@@ -28,12 +29,12 @@ async fn main() {
    ....................
      ";
 
-  const VERSION: &str = env!("CARGO_PKG_VERSION");
-
+  let version: String = get_version();
+    
   setup_logger().expect("Failed To Set Up Logging!");
-  info!("Starting Rubic v{} - A Qubic Wallet", VERSION);
+  info!("Starting Rubic v{} - A Qubic Wallet", version);
   println!("{}", qubic_ascii_art_logo);
-  println!("Starting Rubic v{} - A Qubic Wallet", VERSION);
+  println!("Starting Rubic v{} - A Qubic Wallet", version);
   println!("Warning! This software comes with no warranty, real or implied. Secure storage of seeds and passwords is paramount; total loss of funds may ensue otherwise.");
   info!("Warning! This software comes with no warranty, real or implied. Secure storage of seeds and passwords is paramount; total loss of funds may ensue otherwise.");
   let path = store::get_db_path();

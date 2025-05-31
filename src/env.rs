@@ -27,6 +27,26 @@ pub fn get_port() -> String {
     }
 }
 
+pub fn get_version() -> String {
+    dotenv().ok();
+    return match std::env::var("RUBIC_VERSION") {
+        Ok(v) => {
+            match v.parse::<String>() {
+                Ok(value) => value,
+                Err(err) => {
+                    println!("Invalid VERSION in env vars. ({}) -> {:?} Defaulting...", v.as_str(), err);
+                    return "0.1.0".to_string();
+                }
+            }
+        },
+        Err(_) => {
+            debug!("RUBIC_VERSION not found in env vars! Defaulting...");
+            let default_version: String = "0.1.0".to_string();
+            debug!("Using RUBIC_VERSION: <0.1.0>");
+            return default_version;
+        }
+    }
+}
 pub fn get_min_peers() -> usize {
     dotenv().ok();
     return match std::env::var("RUBIC_MIN_PEERS") {
