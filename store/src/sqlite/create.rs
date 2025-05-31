@@ -13,9 +13,12 @@ pub fn open_database(path: &str, create: bool) -> Result<sqlite::Connection, Str
       created DATETIME DEFAULT CURRENT_TIMESTAMP,
       connected BOOLEAN DEFAULT false
     );
-    CREATE TABLE IF NOT EXISTS latest_tick (
-      tick INTEGER,
+    CREATE TABLE IF NOT EXISTS tick (
+      tick INTEGER UNIQUE,
       peer TEXT NOT NULL,
+      valid BOOLEAN DEFAULT false,
+      transaction_digests_hash TEXT NOT NULL DEFAULT '',
+      transaction_digests TEXT NOT NULL DEFAULT '',
       created DATETIME DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY(peer) REFERENCES peer(id)
     );
@@ -65,6 +68,13 @@ pub fn open_database(path: &str, create: bool) -> Result<sqlite::Connection, Str
         created DATETIME DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY(source_identity) REFERENCES identities(identity)
     );
+    CREATE TABLE IF NOT EXISTS computors (
+        epoch INTEGER NOT NULL UNIQUE,
+        pub_keys TEXT NOT NULL,
+        signature TEXT NOT NULL,
+        created DATETIME DEFAULT CURRENT_TIMESTAMP,
+        peer TEXT
+    );
 ";
     //        FOREIGN KEY(identity) REFERENCES identities(identity)
     match sqlite::open(path) {
@@ -95,7 +105,9 @@ mod store_tests {
     # [serial]
     fn create_new_db_in_memory() {
         match open_database(":memory:", true) {
-            Ok(_) =>{ println!("db created in memory"); },
+            Ok(_) =>{ 
+                //println!("db created in memory"); 
+            },
             Err(err) => {
                 println!("{}", err);
                 assert_eq!(1, 2);

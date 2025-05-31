@@ -1,15 +1,20 @@
 use rocket::get;
 use logger::{debug, error, info};
-use store::get_db_path;
-use store::sqlite::crud;
+use store::{get_db_path, sqlite};
 
 #[get("/transfer/<asc>/<limit>/<offset>")]
 pub fn fetch_transfers(asc: u8, limit: u32, offset: u32) -> String {
-    let _asc: bool = match asc {
-        1 => true,
-        _ => false
+    let order: String = match asc {
+        1 => "ASC".to_string(),
+        _ => "DESC".to_string()
     };
-    match crud::fetch_transfers(get_db_path().as_str(), _asc, limit, offset) {
+    
+    let _limit: i32 = match limit {
+        0 => -1,
+        _ => limit as i32
+    };
+    
+    match sqlite::transfer::fetch_all_transfers(get_db_path().as_str(), &order, _limit, offset) {
         Ok(txs) => format!("{:?}", txs),
         Err(e) => {
             println!("Error Fetching Transfers: {}", e);
@@ -34,7 +39,7 @@ pub fn transfer(source: &str, dest: &str, amount: &str, expiration: &str, passwo
     }
 
 
-    let mut source_identity = match crud::fetch_identity(get_db_path().as_str(), source) {
+    let mut source_identity = match sqlite::identity::fetch_identity(get_db_path().as_str(), source) {
         Ok(identity) => identity,
         Err(_) => {
             error!("Failed To Make Transfer, Unknown Identity {}", source);
@@ -44,7 +49,7 @@ pub fn transfer(source: &str, dest: &str, amount: &str, expiration: &str, passwo
 
     if source_identity.encrypted {
         if password.len() > 1 {
-            source_identity = match crud::master_password::get_master_password(get_db_path().as_str()) {
+            source_identity = match sqlite::master_password::get_master_password(get_db_path().as_str()) {
                 Ok(master_password) => {
                     match crypto::passwords::verify_password(password, master_password[1].as_str()) {
                         Ok(verified) => {
@@ -89,7 +94,7 @@ pub fn transfer(source: &str, dest: &str, amount: &str, expiration: &str, passwo
     let sig = transfer_tx._signature;
     let sig_str = hex::encode(sig);
 
-    match crud::create_transfer(
+    match sqlite::transfer::create_transfer(
         get_db_path().as_str(),
         source_identity.identity.as_str(),
         dest_identity.as_str(),

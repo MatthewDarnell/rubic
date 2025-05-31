@@ -1,7 +1,7 @@
 
 
 const TIMEOUT_MS = 10000;
-const TICK_OFFSET = 30;
+const TICK_OFFSET = 0;
 const MAX_AMOUNT = 1000000000000000;
 let globalLatestTick = 0;
 let expirationPendingTick = -1;

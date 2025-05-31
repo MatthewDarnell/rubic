@@ -4,7 +4,7 @@ use store;
 
 #[get("/wallet/is_encrypted")]
 pub fn is_wallet_encrypted() -> String {
-    match store::sqlite::crud::master_password::get_master_password(store::get_db_path().as_str()) {
+    match store::sqlite::master_password::get_master_password(store::get_db_path().as_str()) {
         Ok(pass) => {
             if pass.len() > 0 {
                 format!("true")
@@ -21,12 +21,12 @@ pub fn set_master_password(password: &str) -> String {
     if password.len() < 4 {
         return format!("Password Too Short!");
     }
-    match store::sqlite::crud::master_password::get_master_password(store::get_db_path().as_str()) {
+    match store::sqlite::master_password::get_master_password(store::get_db_path().as_str()) {
         Ok(_) => { return format!("Wallet Password Already Set!"); },
         Err(_) => {
             match crypto::passwords::hash_password(password) {
                 Ok(hashed) => {
-                    match store::sqlite::crud::master_password::set_master_password(store::get_db_path().as_str(), hashed.as_str()) {
+                    match store::sqlite::master_password::set_master_password(store::get_db_path().as_str(), hashed.as_str()) {
                         Ok(_) => {
                             return format!("Master Password Set!");
                         },
@@ -45,7 +45,7 @@ pub fn set_master_password(password: &str) -> String {
 
 #[get("/wallet/encrypt/<password>")]
 pub fn encrypt_wallet(password: &str) -> String {
-    match store::sqlite::crud::master_password::get_master_password(store::get_db_path().as_str()) {
+    match store::sqlite::master_password::get_master_password(store::get_db_path().as_str()) {
         Ok(pass) => {
             if pass.len() == 0 {
                 return format!("You Must Set A Master Password First!");
@@ -55,13 +55,13 @@ pub fn encrypt_wallet(password: &str) -> String {
                         if !verified {
                             return format!("Invalid Password!");
                         }
-                        match store::sqlite::crud::fetch_all_identities_full(store::get_db_path().as_str()) {
+                        match store::sqlite::identity::fetch_all_identities_full(store::get_db_path().as_str()) {
                             Ok(identities) => {
                                 for mut id in identities {
                                     if !(&id.encrypted) {
                                         match id.encrypt_identity(password) {
                                             Ok(encrypted) => {
-                                                match store::sqlite::crud::update_identity_encrypted(store::get_db_path().as_str(), &encrypted) {
+                                                match store::sqlite::identity::update_identity_encrypted(store::get_db_path().as_str(), &encrypted) {
                                                     Ok(_) => println!("Updating Database, Identity.({}) Encrypted.", &encrypted.identity),
                                                     Err(err) => error!("Failed To Encrypt Identity.({}) : <{}>", &encrypted.identity, err)
                                                 }
@@ -92,7 +92,7 @@ pub fn encrypt_wallet(password: &str) -> String {
 #[get("/wallet/download/<password>")]
 pub fn download_wallet(password: &str) -> String {
     let mut ret_val: String = String::from("");
-    match store::sqlite::crud::fetch_all_identities_full(store::get_db_path().as_str()) {
+    match store::sqlite::identity::fetch_all_identities_full(store::get_db_path().as_str()) {
         Ok(mut identities) => {
             if password.len() < 4 {
                 //invalid master password, don't decrypt wallet

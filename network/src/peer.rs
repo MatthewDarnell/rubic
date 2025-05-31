@@ -4,7 +4,7 @@ use std::io::prelude::*;
 
 use uuid::Uuid;
 use store::get_db_path;
-use store::sqlite::crud::peer::{create_peer, fetch_peer_by_ip};
+use store::sqlite::peer::{create_peer, fetch_peer_by_ip};
 
 #[derive(Debug)]
 pub struct Peer {

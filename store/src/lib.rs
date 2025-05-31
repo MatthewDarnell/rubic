@@ -1,3 +1,4 @@
+#![allow(dead_code, unused)]
 extern crate dotenv_codegen;
 
 use dotenv::dotenv;

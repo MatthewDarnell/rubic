@@ -3,7 +3,6 @@ use rocket::routes;
 
 extern crate dotenv_codegen;
 use logger::{setup_logger, info};
-use store::sqlite::crud;
 use std::sync::mpsc;
 mod env;
 mod routes;
@@ -12,6 +11,7 @@ mod peer_set_thread;
 use rocket::http::Header;
 use rocket::{Request, Response};
 use rocket::fairing::{Fairing, Info, Kind};
+use store::sqlite;
 use crate::peer_set_thread::start_peer_set_thread;
 
 #[rocket::main]
@@ -37,7 +37,7 @@ async fn main() {
   println!("Warning! This software comes with no warranty, real or implied. Secure storage of seeds and passwords is paramount; total loss of funds may ensue otherwise.");
   info!("Warning! This software comes with no warranty, real or implied. Secure storage of seeds and passwords is paramount; total loss of funds may ensue otherwise.");
   let path = store::get_db_path();
-  crud::peer::set_all_peers_disconnected(path.as_str()).unwrap();
+  sqlite::peer::set_all_peers_disconnected(path.as_str()).unwrap();
 
   let (tx, rx) = mpsc::channel::<std::collections::HashMap<String, String>>();
   let (_, rx_server_route_responses_from_thread) = spmc::channel::<std::collections::HashMap<String, String>>();
@@ -117,6 +117,7 @@ async fn main() {
 
         routes::peer::peers,
         routes::peer::add_peer,
+        routes::peer::delete_peer,
 
         routes::transaction::fetch_transfers,
         routes::transaction::transfer,

@@ -53,7 +53,7 @@ impl ResponseEntity {
 }
 
 impl FormatQubicResponseDataToStructure for ResponseEntity {
-    fn format_qubic_response_data_to_structure(response: &mut QubicApiPacket) -> Self {handle_response_entity(response).unwrap() /* check it's valid before calling! */ }
+    fn format_qubic_response_data_to_structure(response: &mut QubicApiPacket) -> Option<Self> {handle_response_entity(response) /* check it's valid before calling! */ }
 }
 
 

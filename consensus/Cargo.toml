@@ -1,0 +1,10 @@
+[package]
+name = "consensus"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+crypto = { path = "../crypto" }
+identity = { path = "../identity" }
+lazy_static = "1.5.0"
+base64 = "0.21.7"
