@@ -5,7 +5,7 @@ use crate::ARBITRATOR;
 use crate::computor::BroadcastComputors;
 use crate::consensus_tests::epoch_163_computors;
 
-pub type TransactionDigest = [u8; 1024];
+pub type TransactionDigest = [u8; 32];
 
 #[derive(Debug, Clone)]
 pub struct TickData {
@@ -22,7 +22,7 @@ pub struct TickData {
     pub year: u8,
 
     pub time_lock: [u8; 32],
-    pub transaction_digests: [TransactionDigest; 32],
+    pub transaction_digests: [TransactionDigest; 1024],
     pub contract_fees: [i64; 1024],
 
     pub signature: [u8; 64]
@@ -46,11 +46,11 @@ impl TickData {
         bytes[16..48].copy_from_slice(&self.time_lock);
 
         for (index, digest) in self.transaction_digests.iter().enumerate() {
-            bytes[48 + (index*1024)..48 + (index*1024) + 1024].copy_from_slice(digest);
+            bytes[48 + (index*size_of::<TransactionDigest>())..48 + (index*size_of::<TransactionDigest>()) + size_of::<TransactionDigest>()].copy_from_slice(digest);
         }
         for (index, fee) in self.contract_fees.iter().enumerate() {
             let _fee: [u8; 8] = fee.to_le_bytes();
-            bytes[48 + size_of::<[TransactionDigest; 32]>() + (index*8)..48 + size_of::<[TransactionDigest; 32]>() + (index*8) + 8].copy_from_slice(&_fee);
+            bytes[48 + size_of::<[TransactionDigest; 1024]>() + (index*8)..48 + size_of::<[TransactionDigest; 1024]>() + (index*8) + 8].copy_from_slice(&_fee);
         }
         bytes
     }
@@ -64,14 +64,13 @@ impl TickData {
     }
     pub fn new(data: &Vec<u8>) -> TickData {
         // println!("Tick={}", tick);
-        let tx_digests : [TransactionDigest; 32] =
+        let tx_digests : [TransactionDigest; 1024] =
             <Vec<TransactionDigest>>::try_from(
-                data[48..32816].chunks_exact(1024)
+                data[48..32816].chunks_exact(size_of::<TransactionDigest>())
                 .map(|chunk| <TransactionDigest>::try_from(chunk).unwrap())
                 .collect::<Vec<_>>()
             ).unwrap()
                 .try_into().unwrap();
-        //println!("Formatted {} Tx Digests For Tick {}", tx_digests.len(), tick);
 
         let contract_fees : [i64; 1024] =
                 <Vec<i64>>::try_from(
@@ -132,11 +131,11 @@ mod tests_tick_data {
         let bytes: [u8; size_of::<TickData>() - 64] = tick_data.as_bytes_without_signature();
         let correct_bytes: bool = tick_bytes.as_slice().iter().zip(bytes.iter()).all(|(a,b)| a == b);
         assert_eq!(correct_bytes, true);
-        
+
         let bc: BroadcastComputors = BroadcastComputors::new(epoch_163_computors());
         let validated = bc.validate();
         assert_eq!(validated, true);
-        
+
         let verified = tick_data.validate(&bc);
         assert_eq!(verified, true);
     }

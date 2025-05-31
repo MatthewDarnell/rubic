@@ -7,7 +7,7 @@ use base64::engine::general_purpose;
 use crate::sqlite::get_db_lock;
 
 pub fn insert_tick(path: &str, peer_id: &str, tick: u32) -> Result<(), String> {
-    let prep_query = "INSERT INTO tick (tick, peer) VALUES(:tick, :peer) ON CONFLICT DO NOTHING";
+    let prep_query = "INSERT INTO tick (tick, peer) VALUES(:tick, :peer) ON CONFLICT(tick) DO NOTHING";
     let _lock = get_db_lock().lock().unwrap();
     match open_database(path, true) {
         Ok(connection) => {

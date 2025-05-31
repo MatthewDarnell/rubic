@@ -4,9 +4,8 @@ use std::net::{SocketAddr, TcpStream};
 use api::QubicApiPacket;
 use logger::{ debug, error };
 use std::time::{Duration};
-use rand::seq::IteratorRandom;
+use rand::prelude::IteratorRandom;
 use rand::thread_rng;
-use api::header::EntityType;
 use store;
 
 use crate::worker;
@@ -160,22 +159,24 @@ impl PeerSet {
         
         
         let spam_all: bool = match request.api_type {
-            //EntityType::RequestedQuorumTick => false,
+            api::header::EntityType::RequestedQuorumTick => false,
+            //api::header::EntityType::RequestTickData => false,
             _ => true
         };
-        
+
         let mut rand_id: String = "".to_string();
-        //if !spam_all {
-            let p = self.peers.iter().choose(&mut thread_rng()).unwrap();
-            rand_id = p.get_id().clone();
-       // }
+        let p = self.peers.iter().choose(&mut thread_rng()).unwrap();
+        rand_id = p.get_id().clone();
         
         for (_index, peer) in self.peers.iter().enumerate() {
-           // if !spam_all {
+            if !spam_all {
                 if peer.get_id() != &rand_id {
                     continue;
-                }
-           // }
+                } else {
+                    //println!("Choosing Random Peer {}!", peer.get_id());
+                }    
+            }
+            
             match store::sqlite::peer::fetch_peer_by_id(store::get_db_path().as_str(), peer.get_id().as_str()) {
                 Ok(p) => {
                     let connected = p.get("connected").unwrap() == "1";

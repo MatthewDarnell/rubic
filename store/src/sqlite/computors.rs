@@ -23,8 +23,8 @@ pub fn insert_computors_from_bytes(path: &str, peer: &str, bytes: &Vec<u8>) -> R
     let mut signature: [u8; 64] = [0u8; 64];
     signature.copy_from_slice(&bytes[2 + 32*676..]);
 
-    let mut keys: String = general_purpose::STANDARD_NO_PAD.encode::<&[u8]>(&pub_key_bytes);
-    let mut sig: String = general_purpose::STANDARD_NO_PAD.encode::<&[u8]>(&signature);
+    let keys: String = general_purpose::STANDARD_NO_PAD.encode::<&[u8]>(&pub_key_bytes);
+    let sig: String = general_purpose::STANDARD_NO_PAD.encode::<&[u8]>(&signature);
 
 
     let prep_query = "INSERT INTO computors (peer, epoch, pub_keys, signature) VALUES(:peer, :epoch, :keys, :sig) ON CONFLICT(epoch) DO NOTHING;";
@@ -77,8 +77,8 @@ pub fn insert_computors_from_parts(path: &str, epoch: u16, pub_keys: &Vec<Vec<u8
         pub_key_bytes[index*32..index*32 + 32].copy_from_slice(el);
     }
 
-    let mut keys: String = general_purpose::STANDARD_NO_PAD.encode::<&[u8]>(&pub_key_bytes);
-    let mut sig: String = general_purpose::STANDARD_NO_PAD.encode::<&[u8]>(&signature);
+    let keys: String = general_purpose::STANDARD_NO_PAD.encode::<&[u8]>(&pub_key_bytes);
+    let sig: String = general_purpose::STANDARD_NO_PAD.encode::<&[u8]>(&signature);
 
 
     let prep_query = "INSERT INTO computors (epoch, pub_keys, signature) VALUES(:epoch, :keys, :sig) ON CONFLICT(epoch) DO NOTHING;";

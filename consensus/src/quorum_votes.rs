@@ -12,7 +12,7 @@ pub fn get_quorum_votes(bc: &BroadcastComputors, ticks: &Vec<Tick>) -> Result<bo
     if ticks.len() == 0 as usize {
         return Ok(false);
     }
-    println!("Getting Quorum Votes For Tick {}", ticks.first().unwrap().tick);
+    //println!("Getting Quorum Votes For Tick {}", ticks.first().unwrap().tick);
     for (idx, vote) in ticks.iter().enumerate() {
         let mut tick = vote.clone();
         tick.computor_index = tick.computor_index ^ TICK_TYPE as u16;
@@ -36,7 +36,7 @@ pub fn get_quorum_votes(bc: &BroadcastComputors, ticks: &Vec<Tick>) -> Result<bo
             } else {
                 passed = false;
             }
-            println!("Vote #{} (voted by {} computors ID) ", index, vote_indices[index].len());
+            //println!("Vote #{} (voted by {} computors ID) ", index, vote_indices[index].len());
         }
     Ok(passed)
 }

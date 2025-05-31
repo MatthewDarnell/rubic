@@ -10,7 +10,7 @@ impl FormatQubicResponseDataToStructure for Tick {
 pub fn handle_tick(response: &mut QubicApiPacket) -> Option<Tick> {
     let data_len =  std::mem::size_of::<RequestResponseHeader>() + response.data.len();
     if data_len != (std::mem::size_of::<RequestResponseHeader>() + std::mem::size_of::<Tick>()) {
-        println!("Wrong Size! {}, {:?}", data_len, &response.data[0..8]);
+        //println!("Wrong Size! {}, {:?}", data_len, &response.data[0..8]);
         return None;
     }
     Some(Tick::new(&response.data))

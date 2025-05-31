@@ -1,7 +1,5 @@
 use lazy_static::lazy_static;
 
-use std::collections::{HashMap, LinkedList};
-use identity::Identity;
 use base64::{engine::general_purpose, Engine as _};
 use crate::sqlite::create::open_database;
 use sqlite::State;

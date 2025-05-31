@@ -22,7 +22,6 @@ pub enum EntityType {
     RequestTickData = 16,
     
     BroadcastTransaction = 24,
-    RequestTransactionInfo = 26,
     RequestCurrentTickInfo = 27,
     RespondCurrentTickInfo = 28,
     RequestEntity = 31,
@@ -43,7 +42,6 @@ impl EntityType {
             EntityType::BroadcastFutureTickData => 8,
             EntityType::RequestTickData => 16,
             EntityType::BroadcastTransaction => 24,
-            EntityType::RequestTransactionInfo => 26,
             EntityType::RequestCurrentTickInfo => 27,
             EntityType::RespondCurrentTickInfo => 28,
             EntityType::RequestEntity => 31,
@@ -119,7 +117,6 @@ impl RequestResponseHeader {
             16 => EntityType::RequestTickData,
             8 => EntityType::BroadcastFutureTickData,
             24 => EntityType::BroadcastTransaction,
-            26 => EntityType::RequestTransactionInfo,
             27 => EntityType::RequestCurrentTickInfo,
             28 => EntityType::RespondCurrentTickInfo,
             31 => EntityType::RequestEntity,

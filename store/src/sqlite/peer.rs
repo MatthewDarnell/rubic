@@ -380,7 +380,6 @@ pub fn fetch_disconnected_peers(path: &str) -> Result<Vec<Vec<String>>, String> 
 
 
 pub mod test_peers {
-    use std::alloc::System;
     use serial_test::serial;
     use std::fs;
     use std::time::{Duration, SystemTime, UNIX_EPOCH};

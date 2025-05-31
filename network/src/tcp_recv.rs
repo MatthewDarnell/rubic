@@ -46,7 +46,7 @@ fn recv_qubic_response(peer: &Peer, stream: &TcpStream) -> Option<QubicApiPacket
                             api_response
                         },
                         Err(err) => {
-                            eprintln!("Failed To Read Response! : {}", err.to_string());
+                            //eprintln!("Failed To Read Response! : {}", err.to_string());
                             None
                         }
                     }
@@ -90,7 +90,7 @@ fn recv_qubic_responses_until_end_response(peer: &Peer, stream: &TcpStream, max_
                         }
                     },
                     None => {
-                        eprintln!("Failed To Read Multiple Data");
+                        //eprintln!("Failed To Read Multiple Data");
                     }
                 }
                 return data;
