@@ -18,6 +18,7 @@ logger = { path = './logger' }
 network = { path = './network' }
 store = { path = './store' }
 hex = "0.4.3"
+base64 = "0.21.7"
 
 [profile.test]  # Disable Overflow Checks For FourQ Operations
 overflow-checks = false

@@ -31,7 +31,7 @@ impl QubicApiPacket {
         QubicApiPacket {
             api_type: EntityType::RequestCurrentTickInfo,
             peer: None,
-            header: header,
+            header,
             data: vec![],
             response_data: None
         }
@@ -45,7 +45,7 @@ impl QubicApiPacket {
         QubicApiPacket {
             api_type: EntityType::RequestComputors,
             peer: None,
-            header: header,
+            header,
             data: vec![],
             response_data: None
         }
@@ -62,7 +62,7 @@ impl QubicApiPacket {
         QubicApiPacket {
             api_type: EntityType::RequestEntity,
             peer: None,
-            header: header,
+            header,
             data: data,
             response_data: None
         }
@@ -75,11 +75,12 @@ impl QubicApiPacket {
         QubicApiPacket {
             api_type: EntityType::RequestTransactionInfo,
             peer: None,
-            header: header,
+            header,
             data: digest.clone(),
             response_data: None
         }
     }
+    
     pub fn broadcast_transaction(transaction: &TransferTransaction) -> Self {
         //let entity: EntityType = EntityType::RequestEntity;
         let mut header = RequestResponseHeader::new();
@@ -92,7 +93,7 @@ impl QubicApiPacket {
         QubicApiPacket {
             api_type: EntityType::BroadcastTransaction,
             peer: None,
-            header: header,
+            header,
             data: data,
             response_data: None
         }
@@ -108,7 +109,7 @@ impl QubicApiPacket {
         QubicApiPacket {
             api_type: EntityType::RequestTickData,
             peer: None,
-            header: header,
+            header,
             data: data,
             response_data: None
         }
@@ -128,7 +129,7 @@ impl QubicApiPacket {
         QubicApiPacket {
             api_type: EntityType::RequestedQuorumTick,
             peer: None,
-            header: header,
+            header,
             data: data,
             response_data: None
         }

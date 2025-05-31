@@ -11,7 +11,6 @@ pub mod tick;
 pub mod quorum_votes;
 pub mod computor;
 pub mod tick_data;
-
 pub mod consensus_tests {
     use lazy_static::lazy_static;
     use crypto::qubic_identities::{get_identity, get_public_key_from_identity, verify};

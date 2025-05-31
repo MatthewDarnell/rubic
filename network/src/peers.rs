@@ -160,7 +160,7 @@ impl PeerSet {
         
         
         let spam_all: bool = match request.api_type {
-            EntityType::RequestedQuorumTick => false,
+            //EntityType::RequestedQuorumTick => false,
             _ => true
         };
         
