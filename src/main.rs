@@ -12,7 +12,6 @@ use rocket::http::Header;
 use rocket::{Request, Response};
 use rocket::fairing::{Fairing, Info, Kind};
 use store::sqlite;
-use crate::env::get_version;
 use crate::peer_set_thread::start_peer_set_thread;
 
 #[rocket::main]
@@ -29,7 +28,7 @@ async fn main() {
    ....................
      ";
 
-  let version: String = get_version();
+  let version: String = env!("CARGO_PKG_VERSION").to_string();
     
   setup_logger().expect("Failed To Set Up Logging!");
   info!("Starting Rubic v{} - A Qubic Wallet", version);
