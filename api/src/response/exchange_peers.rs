@@ -15,7 +15,7 @@ impl ExchangePeersEntity {
 }
 
 impl FormatQubicResponseDataToStructure for ExchangePeersEntity {
-    fn format_qubic_response_data_to_structure(response: &mut QubicApiPacket) -> Self {handle_exchange_peers(response).unwrap() /* check it's valid before calling! */ }
+    fn format_qubic_response_data_to_structure(response: &mut QubicApiPacket) -> Option<Self> {handle_exchange_peers(response) /* check it's valid before calling! */ }
 }
 
 pub fn handle_exchange_peers(data: &mut QubicApiPacket) -> Option<ExchangePeersEntity> {

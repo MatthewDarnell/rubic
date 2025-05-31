@@ -1,3 +1,4 @@
+#![allow(dead_code, unused)]
 mod fourq;
 
 const A_LOWERCASE_ASCII: u8 = 97u8;
@@ -6,7 +7,7 @@ const A_LOWERCASE_ASCII: u8 = 97u8;
 //#[cfg(feature = "hash")]
 pub mod hash {
     use sodiumoxide::hex::encode;
-    use tiny_keccak::{Hasher, KangarooTwelve};
+    use tiny_keccak::{Hasher, IntoXof, KangarooTwelve, Xof};
 
     pub fn k12(input: &str) -> String {
         let ret_val = k12_bytes(&input.as_bytes().to_vec());
@@ -21,13 +22,39 @@ pub mod hash {
         kangaroo.finalize(&mut digest);
         return Vec::from(digest);
     }
+    
+    pub fn k12_64(input: &Vec<u8>) -> Vec<u8> {
+        let mut output = [0u8; 64];
+        let mut hasher = KangarooTwelve::new(b"");
+        hasher.update(input);
+        let mut xof = hasher.into_xof();
+        xof.squeeze(&mut output[..32]);
+        xof.squeeze(&mut output[32..]);
+        output.to_vec()
+    }
+    
     #[cfg(test)]
     pub mod kangaroo12_tests {
-        use crate::hash::k12;
+        use crate::hash::{k12, k12_64};
         #[test]
         fn hash_a_value() {
             let value = k12("inputText");
             assert_eq!(value, "2459b095c4d5b1759a14f5e4924f26a813c020979fab5ef2cad7321af37808d3".to_string())
+        }
+        
+        #[test]
+        fn hash_64_length() {
+            let input: [u8; 4] = [0x01, 0x01, 0x01, 0x01];
+            let hashed = k12_64(&input.to_vec());
+            let expected: [u8; 64] = [
+                100, 235, 75, 154, 91, 247, 195, 9, 136,
+                147, 220, 63, 23, 226, 96, 132, 155, 107,
+                59, 67, 118, 117, 162, 17, 227, 251, 205,
+                254, 76, 238, 111, 21, 192, 78, 194, 235,
+                42, 157, 3, 130, 70, 32, 213, 124, 202,
+                89, 29, 227, 15, 207, 172, 130, 201, 118,
+                62, 69, 247, 170, 185, 2, 1, 148, 177, 160];
+            assert_eq!(hashed.as_slice(), &expected)
         }
     }
 }
@@ -39,12 +66,8 @@ pub mod qubic_identities {
     use crate::{A_LOWERCASE_ASCII, hash};
     use hash::k12_bytes;
     use crate::fourq::consts::{CURVE_ORDER_0, CURVE_ORDER_1, CURVE_ORDER_2, CURVE_ORDER_3, MONTGOMERY_R_PRIME, ONE};
-    use crate::fourq::ops::{addcarry_u64, ecc_mul_fixed, encode, montgomery_multiply_mod_order, subborrow_u64};
+    use crate::fourq::ops::{addcarry_u64, decode, ecc_mul_double, ecc_mul_fixed, encode, montgomery_multiply_mod_order, subborrow_u64};
     use crate::fourq::types::{PointAffine};
-
-    //     fn getPublicKey(privateKey: *const u8, publicKey: *mut u8);
-    //     fn getIdentity(publicKey: *const u8, identity: *const u8, isLowerCase: bool);
-
     pub fn get_subseed(seed: &str) -> Result<Vec<u8>, String> {
         let mut seed_bytes: [u8; 55] = [0; 55];
         if seed.len() != 55 {
@@ -142,6 +165,54 @@ pub mod qubic_identities {
         Ok(public_key)
     }
 
+    #[inline]   //Thanks Mineco!
+    pub fn verify(public_key: &[u8; 32], message_digest: &[u8; 32], signature: &[u8; 64]) -> bool {
+        let mut a = PointAffine::default();
+        let mut temp: [u8; 96] = [0; 96];
+        let mut h: [u8; 64] = [0; 64];
+        if (public_key[15] & 0x80 == 1) || (signature[15] & 0x80 == 1) || (signature[62] & 0xC0 == 1) || (signature[63] == 1) {
+            return false;  
+        }
+        if !decode(public_key, &mut a) {  // Also verifies that A is on the curve, if it is not it fails
+            return false;
+        }
+
+        unsafe {
+            copy_nonoverlapping(signature.as_ptr(), temp.as_mut_ptr(), 32);
+            copy_nonoverlapping(public_key.as_ptr(), temp.as_mut_ptr().offset(32), 32);
+            copy_nonoverlapping(message_digest.as_ptr(), temp.as_mut_ptr().offset(64), 32);
+        }
+
+        let mut ull_sig: [u64; 8] = signature
+            .chunks_exact(8)
+            .map(|c| u64::from_le_bytes(c.try_into().unwrap()))
+            .collect::<Vec<_>>()
+            .try_into()
+            .unwrap();
+
+
+        let mut kg = KangarooTwelve::new(b"");
+        kg.update(&temp);
+        kg.into_xof().squeeze(&mut h);
+        
+        let mut ull_h: [u64; 8] = h
+            .chunks_exact(8)
+            .map(|c| u64::from_le_bytes(c.try_into().unwrap()))
+            .collect::<Vec<_>>()
+            .try_into()
+            .unwrap();
+        
+        if !ecc_mul_double(&mut ull_sig[4..], &mut ull_h, &mut a) {
+            return false;
+        }
+        
+        let mut a_bytes: [u8; 64] = [0; 64];
+        encode(&mut a, &mut a_bytes);
+        
+        a_bytes[..32].iter().zip(signature[..32].iter()).all(|(a,b)| a == b)
+    }
+    
+    
     pub fn sign_raw(subseed: &Vec<u8>, public_key: &[u8; 32], message_digest: [u8; 32]) -> [u8; 64] {
         let mut r_a = PointAffine::default();
         let (mut k, mut h, mut temp) = ([0u8; 64], [0u8; 64], [0u8; 96]);
@@ -268,7 +339,6 @@ pub mod qubic_identities {
             let identity = get_identity(&public_key);
             let pub_key_from_id = get_public_key_from_identity(&identity).unwrap();
             let result = sign_raw(&subseed, &public_key, <[u8; 32]>::try_from(digest.as_slice()).expect("Failed!"));
-            println!("{:?}", result);
             assert_eq!(public_key, pub_key_from_id)
         }
 

@@ -3,6 +3,34 @@ use crypto::hash::k12_bytes;
 use crypto::qubic_identities::{get_subseed, get_public_key_from_identity, sign_raw, get_identity};
 use logger::info;
 
+
+/*
+    Helper Functions
+*/
+fn read_le_u64(input: &mut &[u8]) -> u64 {
+    let (int_bytes, rest) = input.split_at(std::mem::size_of::<u64>());
+    *input = rest;
+    u64::from_le_bytes(int_bytes.try_into().unwrap())
+}
+
+fn read_le_u32(input: &mut &[u8]) -> u32 {
+    let (int_bytes, rest) = input.split_at(std::mem::size_of::<u32>());
+    *input = rest;
+    u32::from_le_bytes(int_bytes.try_into().unwrap())
+}
+
+fn read_le_u16(input: &mut &[u8]) -> u16 {
+    let (int_bytes, rest) = input.split_at(std::mem::size_of::<u16>());
+    *input = rest;
+    u16::from_le_bytes(int_bytes.try_into().unwrap())
+}
+
+/*
+    End Helper Functions
+*/
+
+
+
 #[derive(Debug, Clone)]
 pub struct TransferTransaction {
     pub _source_public_key: Vec<u8>,
@@ -14,7 +42,7 @@ pub struct TransferTransaction {
     pub _signature: Vec<u8>
 }
 
-static TICK_OFFSET: u32 = 25;
+static TICK_OFFSET: u32 = 15;
 
 impl TransferTransaction {
 
@@ -70,6 +98,26 @@ impl TransferTransaction {
         sig = sign_raw(&sub_seed, &pub_key_src, digest.as_slice().try_into().unwrap());
         t._signature = sig.to_vec();
         t
+    }
+    
+    pub fn digest(&self) -> Vec<u8> {
+        k12_bytes(&self.as_bytes())
+    }
+    pub fn from_bytes(bytes: &[u8]) -> Self {
+        let _signature = match bytes.len() > 80 {
+            true => { bytes[80..].to_vec() },
+            false => { Vec::<u8>::with_capacity(64) }
+        };
+        
+        TransferTransaction {
+            _source_public_key: bytes[0..32].to_vec(),
+            _source_destination_public_key: bytes[32..64].to_vec(),
+            _amount: read_le_u64(&mut &bytes[64..]),
+            _tick: read_le_u32(&mut &bytes[72..]),
+            _input_size: read_le_u16(&mut &bytes[76..]),
+            _input_type: read_le_u16(&mut &bytes[78..]),
+            _signature
+        }
     }
 
     pub fn as_bytes(&self) -> Vec<u8> {
@@ -149,18 +197,19 @@ fn create_transfer_and_check_txid() {
        //amount: u64
        100, 0, 0, 0, 0, 0, 0, 0,
        //tick: u32
-       110, 0, 0, 0,
+       95, 0, 0, 0,
        //input type: u16
        0, 0,
        //input size: u16
        0, 0,
        //signature: u64
-       179, 108, 100, 1, 209, 21, 45, 198, 110, 190, 137, 194, 107, 157, 36, 76, 124, 94, 142, 45, 125, 220, 238, 70, 17, 253, 181, 125, 147, 192, 126,
-       93, 7, 155, 196, 186, 185, 143, 220, 131, 215, 170, 241, 92, 83, 71, 181, 143, 107, 62, 90, 232, 10, 164, 55, 202, 24, 189, 84, 156, 203, 51, 27, 0
+       255, 164, 192, 74, 223, 72, 39, 62, 63, 24, 180, 239, 143, 222, 170, 19, 69, 213, 145, 118, 196, 171, 146, 
+       114, 58, 72, 68, 143, 240, 121, 232, 54, 6, 35, 130, 134, 111, 160, 239, 39, 223,
+       191, 101, 105, 20, 7, 191, 238, 235, 70, 155, 184, 142, 34, 27, 41, 150, 34, 233, 198, 15, 93, 16, 0
     ];
 
     assert_eq!(t.as_bytes().as_slice(), expected.as_slice());
-    assert_eq!(t.txid().as_str(), "ncpeapoygdnmibkoxrvydquuifobdotzzjtjjdeacddymugdazstafqbvnug");
+    assert_eq!(t.txid().as_str(), "rifeyehuvbytdhumybpflzqvtaugvpykvpmuvhagcfhwhcnnpbarbbfhgvze");
 }
 
 
@@ -176,14 +225,24 @@ fn create_another_transfer() {
       148, 135, 210,  91,  26,  54, 242,  75,  66, 181,  44, 135,
         8,  85,  12, 212,
         10,   0,   0,   0,   0,   0,   0,   0,
-      238, 237, 170,   0,
+      223, 237, 170,   0,
         0,   0,   0,   0,
-        /*begin signature */ 250, 222, 115, 210,
-       15,  11,  22,  11, 210, 206, 106, 144, 254, 178,   6,  38,
-      170,  40, 192, 122, 224, 242, 77,  35, 200,  90, 125,  75,
-        3,  86, 132, 160,  73,  63,  40, 119, 116, 227,  46, 249,
-       27,  40,   3, 234, 99, 187,  24, 212, 147,  79, 197,  92,
-       31, 156, 134, 46, 127,  72,  48, 237, 142, 193,  32,   0];
+
+        /*begin signature */
+        124, 178, 91, 84, 107, 43, 5, 18, 30, 225, 35, 62, 156, 63, 119, 88, 144, 58, 57, 
+        194, 106, 119, 49, 32, 179, 83, 215, 232, 5, 90, 201, 137, 243, 69, 191, 6, 28,
+        178, 160, 182, 146, 254, 189, 53, 99, 173, 221, 87, 58, 247, 250, 71, 232, 43, 213,
+        2, 35, 73, 38, 42, 50, 102, 10, 0
+
+    /*
+   250, 222, 115, 210,
+   15,  11,  22,  11, 210, 206, 106, 144, 254, 178,   6,  38,
+  170,  40, 192, 122, 224, 242, 77,  35, 200,  90, 125,  75,
+    3,  86, 132, 160,  73,  63,  40, 119, 116, 227,  46, 249,
+   27,  40,   3, 234, 99, 187,  24, 212, 147,  79, 197,  92,
+   31, 156, 134, 46, 127,  72,  48, 237, 142, 193,  32,   0
+*/
+    ];
     
     assert_eq!(t.as_bytes().as_slice(), expected.as_slice());
 }
@@ -205,14 +264,38 @@ fn create_transfer_from_signed_vars() {
         148, 135, 210,  91,  26,  54, 242,  75,  66, 181,  44, 135,
         8,  85,  12, 212,
         10,   0,   0,   0,   0,   0,   0,   0,
-        238, 237, 170,   0,
+        223, 237, 170,   0,
         0,   0,   0,   0,
-        /*begin signature */ 250, 222, 115, 210,
-        15,  11,  22,  11, 210, 206, 106, 144, 254, 178,   6,  38,
-        170,  40, 192, 122, 224, 242, 77,  35, 200,  90, 125,  75,
-        3,  86, 132, 160,  73,  63,  40, 119, 116, 227,  46, 249,
-        27,  40,   3, 234, 99, 187,  24, 212, 147,  79, 197,  92,
-        31, 156, 134, 46, 127,  72,  48, 237, 142, 193,  32,   0];
+        /*begin signature */ 124, 178, 91, 84, 107, 43, 5, 18, 30, 
+        225, 35, 62, 156, 63, 119, 88, 144, 58, 57, 194, 106, 119, 
+        49, 32, 179, 83, 215, 232, 5, 90, 201, 137, 243, 69, 191,
+        6, 28, 178, 160, 182, 146, 254, 189, 53, 99, 173, 221, 87,
+        58, 247, 250, 71, 232, 43, 213, 2, 35, 73, 38, 42, 50, 102,
+        10, 0];
 
     assert_eq!(t2.as_bytes().as_slice(), expected.as_slice());
+}
+
+#[test]
+fn decode_transfer_from_bytes() {
+    let bytes: [u8; 144] = [
+        166, 41, 241, 226, 116, 35, 157, 108, 212, 167, 113, 153, 176, 79, 33, 74, 13, 230, 165, 250, 7, 
+        252, 247, 41, 6, 184, 109, 194, 112, 39, 244, 142, 106, 235, 5, 192, 171, 45, 199, 46, 175, 10,
+        157, 100, 205, 136, 236, 111, 160, 220, 202, 77, 251, 59, 207, 90, 198, 106, 15, 178, 17, 231, 29, 
+        90, 123, 0, 0, 0, 0, 0, 0, 0, 255, 122, 142, 1, 0, 0, 0, 0, 58, 232, 176, 8, 64, 18, 193, 54, 82, 
+        219, 127, 162, 148, 121, 0, 113, 194, 214, 214, 243, 158, 31, 91, 59, 157, 250, 193, 57, 255, 155, 
+        217, 22, 107, 108, 109, 78, 118, 169, 147, 157, 120, 45, 121, 222, 216, 241, 234, 60, 243, 68, 227, 
+        159, 233, 16, 148, 118, 145, 104, 59, 100, 83, 192, 27, 0
+    ];
+    let tx = TransferTransaction::from_bytes(&bytes);
+    let source_id = get_identity(<&[u8; 32]>::try_from(tx._source_public_key.as_slice()).unwrap());
+    let dest_id = get_identity(<&[u8; 32]>::try_from(tx._source_destination_public_key.as_slice()).unwrap());
+    assert_eq!(source_id, "SKMWVDLPBBJAEDIWAWWAXCBDJZDCZOSAQMQDZOYRFBUBYFHYTESONYDEXBFA".to_string());
+    assert_eq!(dest_id, "WGGASSAPFMJIJBVPFQELBGORINGDKJVBPFMNIZUOQCSEBRWBGSDKFBQCNFZJ".to_string());
+    assert_eq!(tx._amount, 123);
+    assert_eq!(tx._tick, 26114815);
+    assert_eq!(tx._input_size, 0);
+    assert_eq!(tx._input_type, 0);
+    assert_eq!(tx._signature.len(), 64);
+    assert_eq!(tx._signature[0], 58);
 }
