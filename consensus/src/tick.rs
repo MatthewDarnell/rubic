@@ -95,7 +95,7 @@ impl Tick {
     }
     
     pub fn new(data: &Vec<u8>) -> Tick {
-        let mut arrs: Vec<[u8; 32]> = data[32..data.len()-64].chunks_exact(32).map(|chunk| <[u8; 32]>::try_from(chunk).unwrap()).collect();
+        let arrs: Vec<[u8; 32]> = data[32..data.len()-64].chunks_exact(32).map(|chunk| <[u8; 32]>::try_from(chunk).unwrap()).collect();
         
         let mut sig: [u8; 64] = [0u8; 64];
         sig.copy_from_slice(&data[data.len()-64..]);
@@ -158,7 +158,6 @@ fn create_tick_verify_bytes() {
             118, 96, 203, 34, 9, 207, 253, 230, 127, 25, 0
     ];
     let t: Tick = Tick::new(&data);
-    println!("{:?}", t.as_bytes());
     assert_eq!(t.computor_index, 435);
     let bytes = t.as_bytes();
     let matching = data.iter().zip(&bytes).filter(|&(a, b)| a == b).count();

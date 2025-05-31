@@ -159,18 +159,19 @@ impl PeerSet {
         
         
         let spam_all: bool = match request.api_type {
+            api::header::EntityType::RequestCurrentTickInfo => false,
             api::header::EntityType::RequestedQuorumTick => false,
-            //api::header::EntityType::RequestTickData => false,
+            api::header::EntityType::RequestTickData => false,
             _ => true
         };
 
-        let mut rand_id: String = "".to_string();
+        let mut _rand_id: String = "".to_string();
         let p = self.peers.iter().choose(&mut thread_rng()).unwrap();
-        rand_id = p.get_id().clone();
+        _rand_id = p.get_id().clone();
         
         for (_index, peer) in self.peers.iter().enumerate() {
             if !spam_all {
-                if peer.get_id() != &rand_id {
+                if peer.get_id() != &_rand_id {
                     continue;
                 } else {
                     //println!("Choosing Random Peer {}!", peer.get_id());

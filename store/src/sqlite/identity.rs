@@ -252,7 +252,7 @@ pub fn fetch_identity(path: &str, identity: &str) -> Result<Identity, String> {
                                     Ok(id)
                                 },
                                 Ok(State::Done) => {
-                                    println!("Finished Reading. Failed To Fetch Identity.");
+                                    //println!("Finished Reading. Failed To Fetch Identity.");
                                     Err("Identity Not Found!".to_string())
                                 },
                                 Err(err) => {
@@ -327,10 +327,9 @@ pub mod test_identities {
     fn create_identity_and_insert() {
         {
             let id: Identity = Identity::new("lcehvbvddggkjfnokduyjuiyvkklrvrmsaozwbvjlzvgvfipqpnkkuf");
-            println!("{:?}", &id);
             match insert_new_identity("test.sqlite", &id) {
                 Ok(_) => {
-                    println!("Identity Inserted Ok!");
+                    //println!("Identity Inserted Ok!");
                 },
                 Err(err) => {
                     println!("{}", err);
@@ -346,7 +345,6 @@ pub mod test_identities {
     fn create_identity_and_delete() {
         {
             let id: Identity = Identity::new("lcehvbvddggkjfnokduyjuiyvkklrvrmsaozwbvjlzvgvfipqpnkkuf");
-            println!("{:?}", &id);
             match insert_new_identity("test.sqlite", &id) {
                 Ok(_) => {
                     match delete_identity("test.sqlite", &id.identity.as_str()) {
@@ -355,8 +353,8 @@ pub mod test_identities {
                                 Ok(identity) => {
                                     assert_eq!(1, 2);
                                 },
-                                Err(err) => {
-                                    println!("Identity Deleted Ok!");
+                                Err(_err) => {
+                                    //println!("Identity Deleted Ok!");
                                 }
                             }
                         },
@@ -381,10 +379,10 @@ pub mod test_identities {
     fn create_identity_and_insert_and_fetch() {
         {
             let id: Identity = Identity::new("lcehvbvddggkjfnokduyjuiyvkklrvrmsaozwbvjlzvgvfipqpnkkuf");
-            println!("{:?}", &id);
+            //println!("{:?}", &id);
             match insert_new_identity("test.sqlite", &id) {
                 Ok(_) => {
-                    println!("Identity Inserted Ok!");
+                    //println!("Identity Inserted Ok!");
                     match fetch_identity("test.sqlite", "EPYWDREDNLHXOFYVGQUKPHJGOMPBSLDDGZDPKVQUMFXAIQYMZGEHPZTAAWON") {
                         Ok(identity) => {
                             assert_eq!(identity.identity.as_str(), "EPYWDREDNLHXOFYVGQUKPHJGOMPBSLDDGZDPKVQUMFXAIQYMZGEHPZTAAWON");
@@ -412,7 +410,7 @@ pub mod test_identities {
             id =  id.encrypt_identity("password").unwrap();
             match insert_new_identity("test.sqlite", &id) {
                 Ok(_) => {
-                    println!("Identity Inserted Ok!");
+                    //println!("Identity Inserted Ok!");
                     match fetch_identity("test.sqlite", "EPYWDREDNLHXOFYVGQUKPHJGOMPBSLDDGZDPKVQUMFXAIQYMZGEHPZTAAWON") {
                         Ok(identity) => {
                             assert_eq!(identity.identity.as_str(), "EPYWDREDNLHXOFYVGQUKPHJGOMPBSLDDGZDPKVQUMFXAIQYMZGEHPZTAAWON");

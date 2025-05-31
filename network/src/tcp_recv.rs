@@ -45,8 +45,8 @@ fn recv_qubic_response(peer: &Peer, stream: &TcpStream) -> Option<QubicApiPacket
                             let api_response: Option<QubicApiPacket> = QubicApiPacket::format_response_from_bytes(peer.get_id(), result_size.to_vec());
                             api_response
                         },
-                        Err(err) => {
-                            //eprintln!("Failed To Read Response! : {}", err.to_string());
+                        Err(_err) => {
+                            //eprintln!("Failed To Read Response! : {}", _err.to_string());
                             None
                         }
                     }

@@ -48,6 +48,48 @@ pub fn insert_tick(path: &str, peer_id: &str, tick: u32) -> Result<(), String> {
     }
 }
 
+pub fn set_tick_tx_digest_hash(path: &str, tx_digests_hash: &String, tick: u32) -> Result<(), String> {
+    let prep_query = "UPDATE tick SET transaction_digests_hash = :hash WHERE tick = :tick AND transaction_digests_hash = ''";
+    let _lock = get_db_lock().lock().unwrap();
+    match open_database(path, true) {
+        Ok(connection) => {
+            match crate::sqlite::crud::prepare_crud_statement(&connection, prep_query) {
+                Ok(mut statement) => {
+                    match statement.bind::<&[(&str, &str)]>(&[
+                        (":tick", tick.to_string().as_str()),
+                        (":hash", tx_digests_hash.as_str())
+                    ][..]) {
+                        Ok(_) => {
+                            match statement.next() {
+                                Ok(State::Done) => {
+                                    Ok(())
+                                },
+                                Err(error) => {
+                                    Err(error.to_string())
+                                },
+                                _ => {
+                                    Err("Weird!".to_string())
+                                }
+                            }
+                        },
+                        Err(err) => {
+                            Err(err.to_string())
+                        }
+                    }
+                },
+                Err(err) => {
+                    error!("Error in set_tick_tx_digest_hash! : {}", &err);
+                    Err(err)
+                }
+            }
+        },
+        Err(err) => {
+            error!("Error in set_tick_tx_digest_hash! : {}", &err);
+            Err(err)
+        }
+    }
+}
+
 pub fn fetch_tick(path: &str, tick: u32) -> Result<std::collections::HashMap<String, String>, String> {
     let prep_query = "SELECT * FROM tick WHERE tick = :tick LIMIT 1;";
     let _lock = get_db_lock().lock().unwrap();
@@ -66,8 +108,10 @@ pub fn fetch_tick(path: &str, tick: u32) -> Result<std::collections::HashMap<Str
                                     let valid: String = statement.read::<String, _>("valid").unwrap();
                                     let transaction_digests: String = statement.read::<String, _>("transaction_digests").unwrap();
                                     let found_tick: String = statement.read::<String, _>("tick").unwrap();
+                                    let transaction_digests_hash: String = statement.read::<String, _>("transaction_digests_hash").unwrap();
                                     let created: String = statement.read::<String, _>("created").unwrap();
                                     let mut result: HashMap<String, String> = HashMap::new();
+                                    result.insert("transaction_digests_hash".to_string(), transaction_digests_hash);
                                     result.insert("peer".to_string(), peer);
                                     result.insert("valid".to_string(), valid);
                                     result.insert("transaction_digests".to_string(), transaction_digests);

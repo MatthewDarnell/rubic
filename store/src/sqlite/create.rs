@@ -16,6 +16,7 @@ pub fn open_database(path: &str, create: bool) -> Result<sqlite::Connection, Str
       tick INTEGER UNIQUE,
       peer TEXT NOT NULL,
       valid BOOLEAN DEFAULT false,
+      transaction_digests_hash TEXT NOT NULL DEFAULT '',
       transaction_digests TEXT NOT NULL DEFAULT '',
       created DATETIME DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY(peer) REFERENCES peer(id)
@@ -105,7 +106,9 @@ mod store_tests {
     # [serial]
     fn create_new_db_in_memory() {
         match open_database(":memory:", true) {
-            Ok(_) =>{ println!("db created in memory"); },
+            Ok(_) =>{ 
+                //println!("db created in memory"); 
+            },
             Err(err) => {
                 println!("{}", err);
                 assert_eq!(1, 2);

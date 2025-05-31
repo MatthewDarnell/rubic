@@ -13,6 +13,7 @@ use store::sqlite::tick::insert_tick;
 use crate::response::broadcast_transaction::BroadcastTransactionEntity;
 use consensus::tick::Tick;
 use consensus::tick_data::{TickData, TransactionDigest};
+use crypto::qubic_identities::get_identity;
 
 pub mod exchange_peers;
 pub mod response_entity;
@@ -53,7 +54,10 @@ pub fn get_formatted_response_from_multiple(response: &mut Vec<QubicApiPacket>) 
             
             let first_tick = tick_data.first().unwrap();
             let epoch = first_tick.epoch;
-            let tick = first_tick.tick - 1;
+            let tick = first_tick.tick;
+            let tx_digest = &first_tick.transaction_digest;
+            
+            let tx_digest_hash = get_identity(tx_digest);
             match store::sqlite::computors::fetch_computors_by_epoch(get_db_path().as_str(), epoch) {
                 Ok(bytes) => {
                     let bc: BroadcastComputors = BroadcastComputors::new(&bytes);
@@ -63,8 +67,17 @@ pub fn get_formatted_response_from_multiple(response: &mut Vec<QubicApiPacket>) 
                             if votes {
                                 //In case we missed this tick, perhaps we weren't running when it executed
                                 match store::sqlite::tick::insert_tick(get_db_path().as_str(), peer.as_str(), tick) {
-                                    Ok(_) => {},
-                                    Err(_) => {}
+                                    Ok(_) => {
+                                        match store::sqlite::tick::set_tick_tx_digest_hash(get_db_path().as_str(), &tx_digest_hash, tick) {
+                                            Ok(_) => {},
+                                            Err(_err) => {
+                                                eprintln!("Failed To Set Transaction Digest For Tick.({})\n\t({})\n", tick, _err);
+                                            }
+                                        }
+                                    },
+                                    Err(_) => {
+                                        eprintln!("Failed To Insert Tick.({})\n", tick);
+                                    }
                                 }
                                 match store::sqlite::tick::set_tick_validated(get_db_path().as_str(), tick) {
                                     Ok(_) => { 
@@ -151,7 +164,6 @@ pub fn get_formatted_response(response: &mut QubicApiPacket) {
                 Some(mut resp) => {
                     let _bc = store::sqlite::computors::fetch_computors_by_epoch(get_db_path().as_str(), resp.epoch).unwrap();
                     let bc = BroadcastComputors::new(&_bc);
-
                     let verified = resp.validate(&bc);
                     if verified {
                         match store::sqlite::transfer::fetch_expired_and_broadcasted_transfers_with_unknown_status_and_specific_tick(get_db_path().as_str(), resp.tick) {
@@ -163,18 +175,29 @@ pub fn get_formatted_response(response: &mut QubicApiPacket) {
                                     for (index, digest) in digests.iter().enumerate() {
                                         dg[index*size_of::<TransactionDigest>()..index*size_of::<TransactionDigest>() + size_of::<TransactionDigest>()].copy_from_slice(digest);
                                     }
-                                    match store::sqlite::tick::set_tick_transaction_digests(get_db_path().as_str(), resp.tick, &dg) {
-                                        Ok(_) => {
-                                            //println!("Set Tx Digests For Tick {}", resp.tick);
+                                    match store::sqlite::tick::fetch_tick(get_db_path().as_str(), resp.tick) {
+                                        Ok(tick) => {
+                                            let transaction_digests_hash = tick.get(&"transaction_digests_hash".to_string()).unwrap();
+                                            if resp.validate_vs_tick_tx_digests_hash(transaction_digests_hash) {
+                                                //This Tick Data tx hash Matches The Verified Tx Digests Hash From Tick. We are all good to go!
+                                                match store::sqlite::tick::set_tick_transaction_digests(get_db_path().as_str(), resp.tick, &dg) {
+                                                    Ok(_) => {
+                                                        //println!("Set Tx Digests For Tick {}", resp.tick);
+                                                    },
+                                                    Err(_err) => {
+                                                        println!("Failed to set Tick Transaction Digests for Tick {}!", resp.tick);
+                                                    }
+                                                }
+                                            }
                                         },
                                         Err(_err) => {
-                                            println!("Failed to set Tick Transaction Digests for Tick {}!", resp.tick);
+                                            //eprintln!("Failed To Fetch Tick For TickData.({})", resp.tick);
                                         }
                                     }
                                 }
                             },
-                            Err(err) => {
-                                println!("Failed to fetch expired/broadcast/unknown_status transfers for Tick {}! <{}>", resp.tick, err);
+                            Err(_err) => {
+                                //println!("Failed to fetch expired/broadcast/unknown_status transfers for Tick {}! <{}>", resp.tick, _err);
                             }
                         }
                     } else {

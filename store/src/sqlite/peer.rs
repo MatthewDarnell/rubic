@@ -380,6 +380,7 @@ pub fn fetch_disconnected_peers(path: &str) -> Result<Vec<Vec<String>>, String> 
 
 
 pub mod test_peers {
+    #![allow(dead_code, unused)]
     use serial_test::serial;
     use std::fs;
     use std::time::{Duration, SystemTime, UNIX_EPOCH};
@@ -472,7 +473,6 @@ pub mod test_peers {
             Ok(peers) => {
                 assert_eq!(peers.len(), 3);
                 let peer2: &Vec<String> = &peers[1];
-                println!("Peer2: {:?}", &peer2);
                 assert_eq!(peer2.len(), 8);
                 assert_eq!(peer2[2], "nickname2");
             },

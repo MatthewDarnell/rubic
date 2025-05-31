@@ -1,3 +1,4 @@
+#![allow(dead_code, unused)]
 mod fourq;
 
 const A_LOWERCASE_ASCII: u8 = 97u8;
@@ -338,7 +339,6 @@ pub mod qubic_identities {
             let identity = get_identity(&public_key);
             let pub_key_from_id = get_public_key_from_identity(&identity).unwrap();
             let result = sign_raw(&subseed, &public_key, <[u8; 32]>::try_from(digest.as_slice()).expect("Failed!"));
-            println!("{:?}", result);
             assert_eq!(public_key, pub_key_from_id)
         }
 

@@ -17,7 +17,7 @@ pub fn set_master_password(path: &str, ct: &str) -> Result<(), String> {
                         (":ct", ct)
                     ][..]) {
                         Ok(_) => {
-                            println!("Master Password Set!");
+                            //println!("Master Password Set!");
                             match statement.next() {
                                 Ok(State::Done) => Ok(()),
                                 Err(error) => Err(error.to_string()),

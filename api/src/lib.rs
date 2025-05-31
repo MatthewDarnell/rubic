@@ -106,9 +106,7 @@ impl QubicApiPacket {
     pub fn request_quorum_tick(tick: u32) -> Self {
         let mut header = RequestResponseHeader::new();
         header.set_type(EntityType::RequestedQuorumTick);
-        let mut data: Vec<u8> = (tick+1).to_le_bytes().to_vec();    //Come-from-Beyond — 3:01 PM
-                                                                    // if you have got 451 votes for tick 42 then it only tells that tick 41 is confirmed
-                                                                    // it's always minus 1
+        let mut data: Vec<u8> = (tick).to_le_bytes().to_vec();
         
         data.append(&mut vec![0u8; 86]);    //Vote Flags (676+7) / 8, round up
         let size = std::mem::size_of::<RequestResponseHeader>() + data.len();
@@ -174,7 +172,7 @@ pub mod api_formatting_tests {
     }
 
     #[test]
-    fn create_request_Tick_data_packet() {
+    fn create_request_tick_data_packet() {
         let req = QubicApiPacket::request_tick_data(1000);
         let tick = u32::from_le_bytes([req.data[0], req.data[1], req.data[2], req.data[3]]);
         assert_eq!(req.header._type, EntityType::RequestTickData as u8);

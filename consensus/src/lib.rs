@@ -1,5 +1,3 @@
-use lazy_static::lazy_static;
-
 pub const NUMBER_COMPUTORS: usize = 676;
 pub const QUORUM_MINIMUM_VOTES: u16 = 451;
 pub const TICK_TYPE: u8= 3;
@@ -11,10 +9,11 @@ pub mod quorum_votes;
 pub mod computor;
 pub mod tick_data;
 pub mod consensus_tests {
+    #![allow(dead_code, unused)]
     use lazy_static::lazy_static;
     use crypto::qubic_identities::{get_identity, get_public_key_from_identity, verify};
     use crate::ARBITRATOR;
-    use crate::computor::{BroadcastComputors, ComputorPubKey};
+    use crate::computor::BroadcastComputors;
     use crate::quorum_votes::get_quorum_votes;
     use crate::tick::Tick;
 
