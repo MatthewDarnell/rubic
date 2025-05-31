@@ -7,7 +7,7 @@ A Qubic Wallet Written in Rust
 This is a wallet software intended for storing seeds and addresses for the Qubic Cryptocurrency. It allows for encrypting your addresses as well as initiating transactions.
 
 ### What machines can build this?
-Rubic is currently working on Windows desktops as well as Mac M1 series laptops.
+Rubic is currently working on Windows desktops as well as Mac M series laptops.
 
 ### How to build?
 
@@ -21,14 +21,7 @@ First, install rust.
 Then build with the available scripts:
 
 ```agsl
-Windows:
-> build-win.bat
-> run-win.bat
-```
-```agsl
-Mac:
-$ ./build-mac-m1.sh
-$ cargo +nightly run
+cargo run
 ```
 
 Rubic will run a server at `localhost:3000`. You have the option to change this (as well as override several other options) in `.env`
@@ -56,7 +49,7 @@ This Directory is able to be changed in `.env`
 In the created directory it creates a log file as well as a SQLite database file used for storing Identities, Seeds, Transactions, Tick data and more.
 
 `Seeds` (when they are encrypted by storing a Master Password and Encrypting in Settings or at Import time)
-are encrypted using [xsalsa20poly1305](https://nacl.cr.yp.to/valid.html) and stored locally hashed using [bcrypt](https://en.wikipedia.org/wiki/Bcrypt) 
+are encrypted using [xsalsa20poly1305](https://nacl.cr.yp.to/valid.html) and stored locally hashed using [argon2](https://en.wikipedia.org/wiki/Argon2) 
 
 
 ### How can I get involved?

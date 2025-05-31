@@ -28,12 +28,12 @@ async fn main() {
    ....................
      ";
 
-  const VERSION: &str = env!("CARGO_PKG_VERSION");
-
+  let version: String = env!("CARGO_PKG_VERSION").to_string();
+    
   setup_logger().expect("Failed To Set Up Logging!");
-  info!("Starting Rubic v{} - A Qubic Wallet", VERSION);
+  info!("Starting Rubic v{} - A Qubic Wallet", version);
   println!("{}", qubic_ascii_art_logo);
-  println!("Starting Rubic v{} - A Qubic Wallet", VERSION);
+  println!("Starting Rubic v{} - A Qubic Wallet", version);
   println!("Warning! This software comes with no warranty, real or implied. Secure storage of seeds and passwords is paramount; total loss of funds may ensue otherwise.");
   info!("Warning! This software comes with no warranty, real or implied. Secure storage of seeds and passwords is paramount; total loss of funds may ensue otherwise.");
   let path = store::get_db_path();
