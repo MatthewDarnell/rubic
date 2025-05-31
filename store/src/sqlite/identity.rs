@@ -170,6 +170,48 @@ pub fn fetch_all_identities_full(path: &str) -> Result<LinkedList<Identity>, Str
         }
     }
 }
+pub fn delete_all_response_entities_before_tick(path: &str, tick: u32) -> Result<(), String> {
+    let prep_query = "DELETE FROM response_entity WHERE tick < :tick;";
+    let _lock = get_db_lock().lock().unwrap();
+    //let _lock =SQLITE_IDENTITY_MUTEX.lock().unwrap();
+    match open_database(path, true) {
+        Ok(connection) => {
+            match prepare_crud_statement(&connection, prep_query) {
+                Ok(mut statement) => {
+                    match statement.bind::<&[(&str, &str)]>(&[
+                        (":tick", tick.to_string().as_str()),
+                    ][..]) {
+                        Ok(_) => {
+                            match statement.next() {
+                                Ok(State::Row) => {
+                                    println!("Read a Row While Trying To Delete Response Entities?");
+                                    Ok(())
+                                },
+                                Ok(State::Done) => {
+                                    Ok(())
+                                },
+                                Err(err) => {
+                                    Err(err.to_string())
+                                }
+                            }
+                        },
+                        Err(err) => Err(err.to_string())
+                    }
+                },
+                Err(err) => {
+                    error!("Error in delete_identity! : {}", &err);
+                    Err(err)
+                }
+            }
+        },
+        Err(err) => {
+            error!("Error in delete_identity! : {}", &err);
+            Err(err)
+        }
+    }
+}
+
+
 pub fn fetch_balance_by_identity(path: &str, identity: &str) -> Result<Vec<String>, String> {
     //let prep_query = "SELECT * FROM (SELECT * FROM response_entity WHERE identity = :identity ORDER BY tick DESC) GROUP BY peer LIMIT 3;";
     let _lock = get_db_lock().lock().unwrap();

@@ -55,10 +55,12 @@ pub fn start_peer_set_thread(_: &mpsc::Sender<std::collections::HashMap<String, 
 
 
             let mut delete_all_peers: u32 = 0;
-            const NUM_LOOPS_DELETE_ALL_PEERS: u32 = 60;
+            const NUM_LOOPS_DELETE_ALL_PEERS: u32 = 30;
 
 
             const NUM_TICKS_UPDATED_CHECK_BALANCES: u32 = 15;
+            
+            const OLD_ENTITIES_DELETE_TICK: u32 = NUM_TICKS_UPDATED_CHECK_BALANCES * 100;
 
             //Main Thread Loop
             loop {
@@ -153,6 +155,13 @@ pub fn start_peer_set_thread(_: &mpsc::Sender<std::collections::HashMap<String, 
                         },
                         Err(err) => {
                             error!("Error: {:?}", err);
+                        }
+                    }
+                    match sqlite::identity::delete_all_response_entities_before_tick(get_db_path().as_str(), latest_tick-OLD_ENTITIES_DELETE_TICK) {
+                        Ok(_) => {},
+                        Err(_err) => {
+                            println!("Failed To Delete Old Entities {}", _err);
+                            
                         }
                     }
                 } else {
