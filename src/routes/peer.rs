@@ -31,3 +31,14 @@ pub fn add_peer(address: &str) -> String {
     
 }
 
+#[get("/peers/delete/<peer_id>")]
+pub fn delete_peer(peer_id: &str) -> String {
+    match store::sqlite::peer::blacklist(store::get_db_path().as_str(), peer_id) {
+        Ok(_) => { "Peer Deleted".to_string() },
+        Err(err) => { 
+            println!("Error! : {}", err.to_string());
+            "Failed To Deleted Peer".to_string()
+        }
+    }
+}
+

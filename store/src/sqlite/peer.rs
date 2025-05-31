@@ -55,6 +55,41 @@ pub fn create_peer(path: &str, id: &str, ip: &str, nick: &str, ping_time: u32, w
         }
     }
 }
+
+pub fn blacklist(path: &str, id: &str) -> Result<(), String> {
+    let prep_query = "UPDATE peer SET whitelisted = -1 WHERE id = :id";
+    let _lock = get_db_lock().lock().unwrap();
+    //let _lock =SQLITE_PEER_MUTEX.lock().unwrap();
+    match open_database(path, true) {
+        Ok(connection) => {
+            match prepare_crud_statement(&connection, prep_query) {
+                Ok(mut statement) => {
+                    match statement.bind::<&[(&str, &str)]>(&[
+                        (":id", id),
+                    ][..]) {
+                        Ok(_) => {
+                            match statement.next() {
+                                Ok(State::Done) => Ok(()),
+                                Err(error) => Err(error.to_string()),
+                                _ => Err("Weird!".to_string())
+                            }
+                        },
+                        Err(err) => Err(err.to_string())
+                    }
+                },
+                Err(err) => {
+                    error!("Error in delete_peer_by_ip! : {}", &err);
+                    Err(err)
+                }
+            }
+        },
+        Err(err) => {
+            error!("Error in delete_peer_by_ip! : {}", &err);
+            Err(err)
+        }
+    }
+}
+
 pub fn update_peer_last_responded(path: &str, id: &str, last_responded: SystemTime) -> Result<(), String> {
     let prep_query = "UPDATE peer SET last_responded=:last_responded WHERE id=:id;";
     let _lock = get_db_lock().lock().unwrap();
@@ -278,7 +313,7 @@ pub fn fetch_peer_by_id(path: &str, id: &str) -> Result<HashMap<String, String>,
     }
 }
 pub fn fetch_all_peers(path: &str) -> Result<Vec<Vec<String>>, String> {
-    let prep_query = "SELECT * FROM peer;";
+    let prep_query = "SELECT * FROM peer WHERE whitelisted > -1;";
     let _lock = get_db_lock().lock().unwrap();
     //let _lock =SQLITE_PEER_MUTEX.lock().unwrap();
     match open_database(path, true) {
@@ -345,7 +380,7 @@ pub fn fetch_connected_peers(path: &str) -> Result<Vec<Vec<String>>, String> {
 }
 
 pub fn fetch_disconnected_peers(path: &str) -> Result<Vec<Vec<String>>, String> {
-    let prep_query = "SELECT * FROM peer WHERE connected = false ORDER BY last_responded DESC;";
+    let prep_query = "SELECT * FROM peer WHERE connected = false AND whitelisted > -1 ORDER BY last_responded DESC;";
     let _lock = get_db_lock().lock().unwrap();
     //let _lock =SQLITE_PEER_MUTEX.lock().unwrap();
     match open_database(path, true) {
@@ -384,7 +419,7 @@ pub mod test_peers {
     use serial_test::serial;
     use std::fs;
     use std::time::{Duration, SystemTime, UNIX_EPOCH};
-    use crate::sqlite::peer::{create_peer, fetch_peer_by_id, fetch_peer_by_ip, fetch_all_peers, update_peer_last_responded};
+    use crate::sqlite::peer::{create_peer, fetch_peer_by_id, fetch_peer_by_ip, fetch_all_peers, update_peer_last_responded, blacklist};
     #[test]
     #[serial]
     fn create_peer_and_insert() {
@@ -483,4 +518,28 @@ pub mod test_peers {
         }
         fs::remove_file("test.sqlite").unwrap();
     }
+
+    #[test]
+    #[serial]
+    fn create_peers_and_insert_and_delete_and_fetch_all() {
+        create_peer("test.sqlite", "id", "ip", "nickname", 3000, false, SystemTime::now()).expect("Test Failed To Create Peer");
+        create_peer("test.sqlite", "id2", "ip2", "nickname2", 3000, false, SystemTime::now()).expect("Test Failed To Create Peer");
+        create_peer("test.sqlite", "id3", "ip3", "nickname3", 3000, true, SystemTime::now()).expect("Test Failed To Create Peer");
+        blacklist("test.sqlite", "id").expect("Test Failed To Delete Peer");
+        match fetch_all_peers("test.sqlite") {
+            Ok(peers) => {
+                assert_eq!(peers.len(), 2);
+                let peer2: &Vec<String> = &peers[1];
+                assert_eq!(peer2.len(), 8);
+                assert_eq!(peer2[2], "nickname3");
+            },
+            Err(err) => {
+                println!("Peer Couldn't be Fetched!");
+                assert_eq!(1, 2);
+            }
+        }
+        fs::remove_file("test.sqlite").unwrap();
+    }
+    
+    
 }

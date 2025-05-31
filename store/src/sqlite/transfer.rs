@@ -45,6 +45,51 @@ pub fn create_transfer(path: &str, source: &str, destination: &str, amount: u64,
         }
     }
 }
+
+pub fn fetch_all_transfers(path: &str, asc: &String, limit: i32, offset: u32) -> Result<Vec<HashMap<String, String>>, String> {
+    let _prep_query = format!("SELECT * FROM transfer ORDER BY tick {} LIMIT {} OFFSET {};", asc, limit, offset);
+    let prep_query = _prep_query.as_str();
+    //let _lock =SQLITE_TRANSFER_MUTEX.lock().unwrap();
+    let _lock = get_db_lock().lock().unwrap();
+    match open_database(path, true) {
+        Ok(connection) => {
+            match prepare_crud_statement(&connection, prep_query) {
+                Ok(mut statement) => {
+                    match statement.bind::<&[(&str, &str)]>(&[
+                    ][..]) {
+                        Ok(_) => {
+                            let mut response: Vec<HashMap<String, String>> = vec![];
+                            while let Ok(State::Row) = statement.next() {
+                                let mut transfer: HashMap<String, String> = HashMap::new();
+                                transfer.insert("source".to_string(), statement.read::<String, _>("source_identity").unwrap());
+                                transfer.insert("destination".to_string(), statement.read::<String, _>("destination_identity").unwrap());
+                                transfer.insert("amount".to_string(), statement.read::<String, _>("amount").unwrap());
+                                transfer.insert("tick".to_string(), statement.read::<String, _>("tick").unwrap());
+                                transfer.insert("signature".to_string(), statement.read::<String, _>("signature").unwrap());
+                                transfer.insert("txid".to_string(), statement.read::<String, _>("txid").unwrap());
+                                transfer.insert("broadcast".to_string(), statement.read::<String, _>("broadcast").unwrap());
+                                transfer.insert("status".to_string(), statement.read::<String, _>("status").unwrap().to_string());
+                                transfer.insert("created".to_string(), statement.read::<String, _>("created").unwrap());
+                                response.push(transfer);
+                            }
+                            Ok(response)
+                        },
+                        Err(err) => Err(err.to_string())
+                    }
+                },
+                Err(err) => {
+                    error!("Error in fetch_all_transfers! : {}", &err);
+                    Err(err)
+                }
+            }
+        },
+        Err(err) => {
+            error!("Error in fetch_all_transfers! : {}", &err);
+            Err(err)
+        }
+    }
+}
+
 pub fn fetch_transfer_by_txid(path: &str, txid: &str) -> Result<Vec<HashMap<String, String>>, String> {
     let prep_query = "SELECT * FROM transfer WHERE txid = :txid ORDER BY created DESC;";
     let _lock = get_db_lock().lock().unwrap();

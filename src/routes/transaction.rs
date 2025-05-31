@@ -4,11 +4,17 @@ use store::{get_db_path, sqlite};
 
 #[get("/transfer/<asc>/<limit>/<offset>")]
 pub fn fetch_transfers(asc: u8, limit: u32, offset: u32) -> String {
-    let _asc: bool = match asc {
-        1 => true,
-        _ => false
+    let order: String = match asc {
+        1 => "ASC".to_string(),
+        _ => "DESC".to_string()
     };
-    match crud::fetch_transfers(get_db_path().as_str(), _asc, limit, offset) {
+    
+    let _limit: i32 = match limit {
+        0 => -1,
+        _ => limit as i32
+    };
+    
+    match sqlite::transfer::fetch_all_transfers(get_db_path().as_str(), &order, _limit, offset) {
         Ok(txs) => format!("{:?}", txs),
         Err(e) => {
             println!("Error Fetching Transfers: {}", e);
