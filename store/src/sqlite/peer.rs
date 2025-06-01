@@ -78,17 +78,52 @@ pub fn blacklist(path: &str, id: &str) -> Result<(), String> {
                     }
                 },
                 Err(err) => {
-                    error!("Error in delete_peer_by_ip! : {}", &err);
+                    error!("Error in blacklist! : {}", &err);
                     Err(err)
                 }
             }
         },
         Err(err) => {
-            error!("Error in delete_peer_by_ip! : {}", &err);
+            error!("Error in blacklist! : {}", &err);
             Err(err)
         }
     }
 }
+
+pub fn remove_blacklist(path: &str, id: &str) -> Result<(), String> {
+    let prep_query = "UPDATE peer SET whitelisted = 0 WHERE id = :id";
+    let _lock = get_db_lock().lock().unwrap();
+    //let _lock =SQLITE_PEER_MUTEX.lock().unwrap();
+    match open_database(path, true) {
+        Ok(connection) => {
+            match prepare_crud_statement(&connection, prep_query) {
+                Ok(mut statement) => {
+                    match statement.bind::<&[(&str, &str)]>(&[
+                        (":id", id),
+                    ][..]) {
+                        Ok(_) => {
+                            match statement.next() {
+                                Ok(State::Done) => Ok(()),
+                                Err(error) => Err(error.to_string()),
+                                _ => Err("Weird!".to_string())
+                            }
+                        },
+                        Err(err) => Err(err.to_string())
+                    }
+                },
+                Err(err) => {
+                    error!("Error in remove_blacklist! : {}", &err);
+                    Err(err)
+                }
+            }
+        },
+        Err(err) => {
+            error!("Error in remove_blacklist! : {}", &err);
+            Err(err)
+        }
+    }
+}
+
 
 pub fn update_peer_last_responded(path: &str, id: &str, last_responded: SystemTime) -> Result<(), String> {
     let prep_query = "UPDATE peer SET last_responded=:last_responded WHERE id=:id;";

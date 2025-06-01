@@ -4,7 +4,7 @@ use std::io::prelude::*;
 
 use uuid::Uuid;
 use store::get_db_path;
-use store::sqlite::peer::{create_peer, fetch_peer_by_ip};
+use store::sqlite::peer::{create_peer, fetch_peer_by_ip, remove_blacklist};
 
 #[derive(Debug)]
 pub struct Peer {
@@ -55,6 +55,10 @@ impl Peer {
             UNIX_EPOCH
         ) {
             Ok(_) => {
+                match remove_blacklist(get_db_path().as_str(), ip) {  //If this peer was previously
+                    Ok(_) => {},                                      //blacklisted, undo that  
+                    Err(_) => {},
+                };
                 match fetch_peer_by_ip(get_db_path().as_str(), ip) {
                     Ok(result) => {
                         peer.ip_addr = result.get("ip").unwrap().to_string();
