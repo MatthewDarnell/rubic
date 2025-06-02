@@ -77,7 +77,6 @@ pub fn start_peer_set_thread(_: &mpsc::Sender<std::collections::HashMap<String, 
                 let max_peers: usize = env::get_max_peers();
                 let num_peers: usize = peer_set.get_peers().len();
                 if num_peers < min_peers {
-                    //println!("Have {} Peers. Connecting To More.", num_peers);
                     debug!("Number Of Peers.({}) Less Than Min Peers.({}). Adding More... (Max of {})", num_peers, min_peers, max_peers);
                     match sqlite::peer::fetch_disconnected_peers(get_db_path().as_str()) {
                         Ok(disconnected_peers) => {
@@ -91,7 +90,7 @@ pub fn start_peer_set_thread(_: &mpsc::Sender<std::collections::HashMap<String, 
                                     Ok(_) => {
                                         debug!("Peer.({}) Added {} ({} left)", peer_ip.as_str(), peer_id.as_str(), num_to_add - count);
                                         count = count + 1;
-                                        if count >= num_to_add {
+                                        if count > num_to_add {
                                             break;
                                         }
                                     },
