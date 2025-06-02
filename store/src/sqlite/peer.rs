@@ -347,8 +347,42 @@ pub fn fetch_peer_by_id(path: &str, id: &str) -> Result<HashMap<String, String>,
         }
     }
 }
-pub fn fetch_all_peers(path: &str) -> Result<Vec<Vec<String>>, String> {
+pub fn fetch_non_blacklisted_peers(path: &str) -> Result<Vec<Vec<String>>, String> {
     let prep_query = "SELECT * FROM peer WHERE whitelisted > -1;";
+    let _lock = get_db_lock().lock().unwrap();
+    //let _lock =SQLITE_PEER_MUTEX.lock().unwrap();
+    match open_database(path, true) {
+        Ok(connection) => {
+            match prepare_crud_statement(&connection, prep_query) {
+                Ok(_) => {
+                    let mut ret_val: Vec<Vec<String>> = Vec::new();
+                    connection
+                        .iterate(prep_query, |peers| {
+                            let mut each_peer: Vec<String> = Vec::new();
+                            for &(_, value) in peers.iter() {
+                                each_peer.push(value.unwrap().to_string());
+                            }
+                            ret_val.push(each_peer);
+                            true
+                        })
+                        .unwrap();
+                    Ok(ret_val)
+                },
+                Err(err) => {
+                    error!("Error in fetch_non_blacklisted_peers! : {}", &err);
+                    Err(err)
+                }
+            }
+        },
+        Err(err) => {
+            error!("Error in fetch_non_blacklisted_peers! : {}", &err);
+            Err(err)
+        }
+    }
+}
+
+pub fn fetch_all_peers(path: &str) -> Result<Vec<Vec<String>>, String> {
+    let prep_query = "SELECT * FROM peer;";
     let _lock = get_db_lock().lock().unwrap();
     //let _lock =SQLITE_PEER_MUTEX.lock().unwrap();
     match open_database(path, true) {
@@ -380,6 +414,7 @@ pub fn fetch_all_peers(path: &str) -> Result<Vec<Vec<String>>, String> {
         }
     }
 }
+
 pub fn fetch_connected_peers(path: &str) -> Result<Vec<Vec<String>>, String> {
     let prep_query = "SELECT * FROM peer WHERE connected = true;";
     let _lock = get_db_lock().lock().unwrap();

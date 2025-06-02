@@ -5,7 +5,7 @@ use store;
 
 #[get("/peers")]
 pub fn peers() -> String {
-    match store::sqlite::peer::fetch_connected_peers(store::get_db_path().as_str()) {
+    match store::sqlite::peer::fetch_all_peers(store::get_db_path().as_str()) {
         Ok(value) => {
             format!("{:?}", value)
         }, Err(err) => {
