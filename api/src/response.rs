@@ -1,5 +1,6 @@
+use std::str::FromStr;
 use consensus::computor::BroadcastComputors;
-use std::time::SystemTime;
+use std::time::{SystemTime, UNIX_EPOCH};
 use crate::QubicApiPacket;
 use crate::header::EntityType;
 use crate::response::exchange_peers::ExchangePeersEntity;
@@ -14,6 +15,7 @@ use crate::response::broadcast_transaction::BroadcastTransactionEntity;
 use consensus::tick::Tick;
 use consensus::tick_data::{TickData, TransactionDigest};
 use crypto::qubic_identities::get_identity;
+use uuid::Uuid;
 
 pub mod exchange_peers;
 pub mod response_entity;
@@ -149,7 +151,31 @@ pub fn get_formatted_response(response: &mut QubicApiPacket) {
                 Some(resp) => {
                     //println!("ExchangePeersEntity: {:?}", resp);
                     match update_peer_last_responded(path.as_str(), resp.peer.as_str(), SystemTime::now()) {
-                        Ok(_) => {},
+                        Ok(_) => {
+                            for i in resp.ip_addresses {
+                                let address: String = format!("{}.{}.{}.{}:21841", i[0], i[1], i[2], i[3]);
+                                //println!("Adding Peer to db {}", address.as_str());
+                                match std::net::SocketAddrV4::from_str(address.as_str()) {
+                                    Ok(_) => {
+                                        match store::sqlite::peer::create_peer(
+                                            get_db_path().as_str(),
+                                            Uuid::new_v4().to_string().as_str(),
+                                            address.as_str(),
+                                            "",
+                                            9999,
+                                            false,
+                                            UNIX_EPOCH
+                                        ) {
+                                            Ok(_) => {},
+                                            Err(_err) => {
+                                                println!("Failed To Create Peer From ExchangePublicPeers: {}", _err);
+                                            }
+                                        }
+                                    },
+                                    Err(_) => {}
+                                }
+                            }
+                        },
                         Err(_err) => { /* println!("Error Updating Peer {} Last Responded: {}", resp.peer.as_str(), err.as_str())*/ }
                     }
                 },
