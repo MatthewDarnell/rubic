@@ -47,3 +47,24 @@ pub fn get_min_peers() -> usize {
         }
     }
 }
+
+pub fn get_max_peers() -> usize {
+    dotenv().ok();
+    return match std::env::var("RUBIC_MAX_PEERS") {
+        Ok(v) => {
+            match v.parse::<usize>() {
+                Ok(value) => value,
+                Err(err) => {
+                    println!("Invalid RUBIC_MAX_PEERS in env vars. ({}) -> {:?} Defaulting...", v.as_str(), err);
+                    return 3;
+                }
+            }
+        },
+        Err(_) => {
+            debug!("RUBIC_MAX_PEERS not found in env vars! Defaulting...");
+            let default_max_peers: usize = 8;
+            debug!("Using RUBIC_MAX_PEERS: <8>");
+            return default_max_peers;
+        }
+    }
+}

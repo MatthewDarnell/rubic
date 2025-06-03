@@ -74,19 +74,25 @@ pub fn start_peer_set_thread(_: &mpsc::Sender<std::collections::HashMap<String, 
 
                 //Try To Spin up New Peers Until We Reach The Min Number
                 let min_peers: usize = env::get_min_peers();
+                let max_peers: usize = env::get_max_peers();
                 let num_peers: usize = peer_set.get_peers().len();
                 if num_peers < min_peers {
-                    //println!("Have {} Peers. Connecting To More.", num_peers);
-                    debug!("Number Of Peers.({}) Less Than Min Peers.({}). Adding More...", num_peers, min_peers);
+                    debug!("Number Of Peers.({}) Less Than Min Peers.({}). Adding More... (Max of {})", num_peers, min_peers, max_peers);
                     match sqlite::peer::fetch_disconnected_peers(get_db_path().as_str()) {
                         Ok(disconnected_peers) => {
+                            let mut num_to_add = max_peers - min_peers;
+                            let mut count = 0;
                             debug!("Fetched {} Disconnected Peers", disconnected_peers.len());
                             for p in disconnected_peers {
                                 let peer_id = &p[0];
                                 let peer_ip = &p[1];
                                 match peer_set.add_peer(peer_ip.as_str()) {
                                     Ok(_) => {
-                                        debug!("Peer.({}) Added {}", peer_ip.as_str(), peer_id.as_str());
+                                        debug!("Peer.({}) Added {} ({} left)", peer_ip.as_str(), peer_id.as_str(), num_to_add - count);
+                                        count = count + 1;
+                                        if count > num_to_add {
+                                            break;
+                                        }
                                     },
                                     Err(err) => {
                                         debug!("Failed To Add Peer.({}) : ({:?})", peer_ip.as_str(), err);

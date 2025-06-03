@@ -11,3 +11,4 @@ crypto = { path = '../crypto' }
 identity = { path = '../identity' }
 logger = { path = '../logger' }
 store = { path = '../store'}
+uuid = { version = "1.17.0", features = ["v4"] }
