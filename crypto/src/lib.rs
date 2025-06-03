@@ -3,6 +3,7 @@ mod fourq;
 
 const A_LOWERCASE_ASCII: u8 = 97u8;
 
+pub fn initialize() { sodiumoxide::init().expect("Failed To Initialize SodiumOxide!"); }
 
 //#[cfg(feature = "hash")]
 pub mod hash {
@@ -379,72 +380,89 @@ pub mod random {
 pub mod encryption {
     use base64::{Engine as _, engine::general_purpose};
     use crate::hash;
-    use sodiumoxide::crypto::secretbox::{ Key, Nonce };
-    use sodiumoxide::crypto::secretbox;
+    use sodiumoxide::crypto::secretbox::{Key, Nonce, NONCEBYTES};
+    use sodiumoxide::crypto::{pwhash, secretbox};
+    use sodiumoxide::crypto::pwhash::SALTBYTES;
     use logger::error;
-
-    pub fn encrypt(plaintext: &str, password: &str) -> Option<(String, String)> {
-        let hashed_password: String = hash::k12(password);
-        let p_key: [u8; 32] = match hashed_password.as_bytes()[..32].try_into() {
-            Ok(v) => v,
-            Err(_) => { return None; }
-        };
-        let key: Key = Key(p_key);
+    
+    pub fn encrypt(plaintext: &str, password: &str) -> Option<([u8; SALTBYTES + NONCEBYTES], Vec<u8>)> {
+        let salt = pwhash::gen_salt();
         let nonce = secretbox::gen_nonce();
-        let ciphertext = secretbox::seal(plaintext.as_bytes(), &nonce, &key);
-        let nonce_string: String = general_purpose::STANDARD_NO_PAD.encode::<&[u8]>(nonce.as_ref());
-        let ciphertext_string: String = general_purpose::STANDARD_NO_PAD.encode::<&[u8]>(ciphertext.as_ref());
-        return Some((nonce_string, ciphertext_string));
+        let mut key = Key([0; secretbox::KEYBYTES]);
+        let mut ciphertext: Vec<u8> = Vec::new();
+        {
+            let Key(ref mut kb) = key;
+            match pwhash::derive_key(kb, password.as_bytes(), &salt,
+                               pwhash::OPSLIMIT_INTERACTIVE,
+                               pwhash::MEMLIMIT_INTERACTIVE) {
+                Ok(_) => {
+                    ciphertext = secretbox::seal(plaintext.as_bytes(), &nonce, &key);
+                },
+                Err(_) => { return None; }
+            }
+        }
+        let s: [u8; SALTBYTES] = <[u8; SALTBYTES]>::try_from(salt.as_ref()).unwrap();
+        let n: [u8; NONCEBYTES] = <[u8; NONCEBYTES]>::try_from(nonce.as_ref()).unwrap();
+        
+        let mut s_n: [u8; SALTBYTES + NONCEBYTES] = [0u8; SALTBYTES + NONCEBYTES];
+        s_n[0..SALTBYTES].copy_from_slice(&s);
+        s_n[SALTBYTES..(SALTBYTES + NONCEBYTES)].copy_from_slice(&n);
+        
+        let mut ret_val: Vec<u8> = Vec::with_capacity(ciphertext.len());
+        ret_val.resize(ciphertext.len(), 0);
+        ret_val.copy_from_slice(ciphertext.as_slice());
+        Some((s_n, ret_val))
     }
-
-    pub fn decrypt(nonce: &str, ciphertext: &str, password: &str) -> Result<String, ()> {
-        let hashed_password: String = hash::k12(password);
-        let p_key: [u8; 32] = match hashed_password.as_bytes()[..32].try_into() {
-            Ok(v) => v,
-            Err(_) => { return Err(()); }
-        };
-        let key: Key = Key(p_key);
-        let p_n: Vec<u8> = match general_purpose::STANDARD_NO_PAD.decode::<&str>(nonce) {
-            Ok(value) => value,
-            Err(err) => {
-                error!("Error Decoding Nonce From Base64! : {}", err);
-                return Err(());
-            }
-        };
-        let p_nonce: [u8; 24] = p_n.as_slice().try_into().unwrap();
-        let nonce_to_use: Nonce = Nonce(p_nonce);
-        let c_t: Vec<u8> = match general_purpose::STANDARD_NO_PAD.decode::<&str>(ciphertext) {
-            Ok(value) => value,
-            Err(err) => {
-                error!("Error Decoding CipherText From Base64! : {}", err.to_string());
-                return Err(());
-            }
-        };
-        match secretbox::open(c_t.as_slice(), &nonce_to_use, &key) {
-            Ok(decrypted) => {
-                let plaintext: String = std::str::from_utf8(decrypted.as_slice()).unwrap().to_string();
-                return Ok(plaintext);
-            },
-            Err(_) => {
-                error!("Error Decrypting!");
-                Err(())
+    
+    
+    pub fn decrypt(salt_bytes: &[u8; SALTBYTES + NONCEBYTES], encrypted: &Vec<u8>, password: &str) -> Result<String, ()> {
+        if encrypted.len() < 1 {
+            return Err(());
+        }
+        let salt: pwhash::Salt = pwhash::Salt::from_slice(&salt_bytes[0..SALTBYTES]).unwrap();
+        let nonce: Nonce = Nonce::from_slice(&salt_bytes[SALTBYTES..SALTBYTES + NONCEBYTES]).unwrap();
+        let ct: &[u8] = &encrypted;
+        let mut key = Key([0; secretbox::KEYBYTES]);
+        {
+            let Key(ref mut kb) = key;
+            match pwhash::derive_key(kb, password.as_bytes(), &salt,
+                                     pwhash::OPSLIMIT_INTERACTIVE,
+                                     pwhash::MEMLIMIT_INTERACTIVE) {
+                Ok(_) => {
+                    match secretbox::open(ct, &nonce, &key) {
+                        Ok(decrypted) => {
+                            match std::str::from_utf8(decrypted.as_slice()) {
+                                Ok(decrypted_text) => Ok(decrypted_text.to_string()),
+                                Err(_) => Err(()),
+                            }
+                        },
+                        Err(_) => {
+                            error!("Error Decrypting!");
+                            Err(())
+                        }
+                    }
+                },
+                Err(_) => Err(())
             }
         }
     }
 
     #[cfg(test)]
     pub mod encryption_tests {
+        use sodiumoxide::hex;
         use crate::encryption::{decrypt, encrypt};
 
         #[test]
         fn encrypt_a_plaintext() {
-            encrypt("hello", "thisisalongenoughkeytoencryptavalue").unwrap();
+            let (salt, encrypted) = encrypt("hello", "thisisalongenoughkeytoencryptavalue").unwrap();
+            assert_eq!(salt.len(), 56);
         }
 
+        
         #[test]
         fn encrypt_and_decrypt_a_text() {
-            let (nonce, ct) = encrypt("hello", "thisisalongenoughkeytoencryptavalue").unwrap();
-            match decrypt(nonce.as_str(), ct.as_str(), "thisisalongenoughkeytoencryptavalue") {
+            let (salt, encrypted) = encrypt("hello", "thisisalongenoughkeytoencryptavalue").unwrap();
+            match decrypt(&salt, &encrypted, "thisisalongenoughkeytoencryptavalue") {
                 Ok(v) => {
                     assert_eq!(v.as_str(), "hello");
                 },
@@ -459,6 +477,7 @@ pub mod encryption {
 
 
 pub mod passwords {
+    use sodiumoxide::crypto::{pwhash, secretbox};
     use random::random_bytes;
     use argon2::{
         password_hash::{
