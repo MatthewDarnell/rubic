@@ -5,8 +5,7 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-argon2 = "0.5.3"
-base64 = "0.21.2"
+base64 = "0.22.1"
 sodiumoxide = "0.2.7"
 logger = { path = '../logger' }
 tiny-keccak = { version = "2.0.2", default-features = false, features = ["k12"]}

@@ -36,9 +36,13 @@ async fn main() {
   println!("Starting Rubic v{} - A Qubic Wallet", version);
   println!("Warning! This software comes with no warranty, real or implied. Secure storage of seeds and passwords is paramount; total loss of funds may ensue otherwise.");
   info!("Warning! This software comes with no warranty, real or implied. Secure storage of seeds and passwords is paramount; total loss of funds may ensue otherwise.");
+  
+  crypto::initialize();  
+    
   let path = store::get_db_path();
   sqlite::peer::set_all_peers_disconnected(path.as_str()).unwrap();
 
+    
   let (tx, rx) = mpsc::channel::<std::collections::HashMap<String, String>>();
   let (_, rx_server_route_responses_from_thread) = spmc::channel::<std::collections::HashMap<String, String>>();
 

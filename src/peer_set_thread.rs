@@ -80,7 +80,7 @@ pub fn start_peer_set_thread(_: &mpsc::Sender<std::collections::HashMap<String, 
                     debug!("Number Of Peers.({}) Less Than Min Peers.({}). Adding More... (Max of {})", num_peers, min_peers, max_peers);
                     match sqlite::peer::fetch_disconnected_peers(get_db_path().as_str()) {
                         Ok(disconnected_peers) => {
-                            let mut num_to_add = max_peers - min_peers;
+                            let num_to_add = max_peers - min_peers;
                             let mut count = 0;
                             debug!("Fetched {} Disconnected Peers", disconnected_peers.len());
                             for p in disconnected_peers {
