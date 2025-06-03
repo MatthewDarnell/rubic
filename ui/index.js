@@ -125,9 +125,9 @@ const getConnectedPeers = async () => {
         table.innerHTML = "";
         const res = JSON.parse(result);
         for (const peer of res) {
-            const ip = peer[1];
-            const nick = peer[2].length > 1 ? peer[2] : "<NickName Not Set>";
-            const timeResponded = peer[5];
+            const ip = peer['ip'];
+            const nick = peer['nick'].length > 1 ? peer['nick'] : "<NickName Not Set>";
+            const timeResponded = peer['last_responded'];
             const tr = document.createElement("tr");
             const td = document.createElement("td");
             const td2 = document.createElement("td");

@@ -74,19 +74,25 @@ pub fn start_peer_set_thread(_: &mpsc::Sender<std::collections::HashMap<String, 
 
                 //Try To Spin up New Peers Until We Reach The Min Number
                 let min_peers: usize = env::get_min_peers();
+                let max_peers: usize = env::get_max_peers();
                 let num_peers: usize = peer_set.get_peers().len();
                 if num_peers < min_peers {
-                    //println!("Have {} Peers. Connecting To More.", num_peers);
-                    debug!("Number Of Peers.({}) Less Than Min Peers.({}). Adding More...", num_peers, min_peers);
+                    debug!("Number Of Peers.({}) Less Than Min Peers.({}). Adding More... (Max of {})", num_peers, min_peers, max_peers);
                     match sqlite::peer::fetch_disconnected_peers(get_db_path().as_str()) {
                         Ok(disconnected_peers) => {
+                            let num_to_add = max_peers - min_peers;
+                            let mut count = 0;
                             debug!("Fetched {} Disconnected Peers", disconnected_peers.len());
                             for p in disconnected_peers {
                                 let peer_id = &p[0];
                                 let peer_ip = &p[1];
                                 match peer_set.add_peer(peer_ip.as_str()) {
                                     Ok(_) => {
-                                        debug!("Peer.({}) Added {}", peer_ip.as_str(), peer_id.as_str());
+                                        debug!("Peer.({}) Added {} ({} left)", peer_ip.as_str(), peer_id.as_str(), num_to_add - count);
+                                        count = count + 1;
+                                        if count > num_to_add {
+                                            break;
+                                        }
                                     },
                                     Err(err) => {
                                         debug!("Failed To Add Peer.({}) : ({:?})", peer_ip.as_str(), err);
@@ -174,9 +180,6 @@ pub fn start_peer_set_thread(_: &mpsc::Sender<std::collections::HashMap<String, 
                 *
                 */
 
-                if delete_all_peers > NUM_LOOPS_DELETE_ALL_PEERS {
-                    //println!("Dis/Re-connecting From All Peers");
-                }
                 for peer in peer_set.get_peer_ids() {
                     match sqlite::peer::fetch_peer_by_id(get_db_path().as_str(), peer.as_str()) {
                         Ok(temp_peer) => {
@@ -189,7 +192,19 @@ pub fn start_peer_set_thread(_: &mpsc::Sender<std::collections::HashMap<String, 
                                         error!("Is Peer {} connected? {}", peer.as_str(), &connected);
                                         peer_set.delete_peer_by_id(peer.as_str());
                                     }
-                                }   
+                                }
+                                if let Some(_whitelisted) = temp_peer.get(&"whitelisted".to_string()) {
+                                    match i32::from_str(_whitelisted.as_str()) {
+                                        Ok(whitelisted) => {
+                                            if whitelisted < 0i32 {
+                                                //println!("Removing Peer {}", peer.as_str());
+                                                //User has blacklisted this peer, remove him
+                                                peer_set.delete_peer_by_id(peer.as_str());
+                                            }
+                                        },
+                                        Err(_) => {}
+                                    }
+                                }
                             }
                         },
                         Err(err) => {

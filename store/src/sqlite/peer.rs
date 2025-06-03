@@ -78,17 +78,52 @@ pub fn blacklist(path: &str, id: &str) -> Result<(), String> {
                     }
                 },
                 Err(err) => {
-                    error!("Error in delete_peer_by_ip! : {}", &err);
+                    error!("Error in blacklist! : {}", &err);
                     Err(err)
                 }
             }
         },
         Err(err) => {
-            error!("Error in delete_peer_by_ip! : {}", &err);
+            error!("Error in blacklist! : {}", &err);
             Err(err)
         }
     }
 }
+
+pub fn remove_blacklist(path: &str, id: &str) -> Result<(), String> {
+    let prep_query = "UPDATE peer SET whitelisted = 0 WHERE id = :id";
+    let _lock = get_db_lock().lock().unwrap();
+    //let _lock =SQLITE_PEER_MUTEX.lock().unwrap();
+    match open_database(path, true) {
+        Ok(connection) => {
+            match prepare_crud_statement(&connection, prep_query) {
+                Ok(mut statement) => {
+                    match statement.bind::<&[(&str, &str)]>(&[
+                        (":id", id),
+                    ][..]) {
+                        Ok(_) => {
+                            match statement.next() {
+                                Ok(State::Done) => Ok(()),
+                                Err(error) => Err(error.to_string()),
+                                _ => Err("Weird!".to_string())
+                            }
+                        },
+                        Err(err) => Err(err.to_string())
+                    }
+                },
+                Err(err) => {
+                    error!("Error in remove_blacklist! : {}", &err);
+                    Err(err)
+                }
+            }
+        },
+        Err(err) => {
+            error!("Error in remove_blacklist! : {}", &err);
+            Err(err)
+        }
+    }
+}
+
 
 pub fn update_peer_last_responded(path: &str, id: &str, last_responded: SystemTime) -> Result<(), String> {
     let prep_query = "UPDATE peer SET last_responded=:last_responded WHERE id=:id;";
@@ -312,7 +347,7 @@ pub fn fetch_peer_by_id(path: &str, id: &str) -> Result<HashMap<String, String>,
         }
     }
 }
-pub fn fetch_all_peers(path: &str) -> Result<Vec<Vec<String>>, String> {
+pub fn fetch_non_blacklisted_peers(path: &str) -> Result<Vec<Vec<String>>, String> {
     let prep_query = "SELECT * FROM peer WHERE whitelisted > -1;";
     let _lock = get_db_lock().lock().unwrap();
     //let _lock =SQLITE_PEER_MUTEX.lock().unwrap();
@@ -334,6 +369,60 @@ pub fn fetch_all_peers(path: &str) -> Result<Vec<Vec<String>>, String> {
                     Ok(ret_val)
                 },
                 Err(err) => {
+                    error!("Error in fetch_non_blacklisted_peers! : {}", &err);
+                    Err(err)
+                }
+            }
+        },
+        Err(err) => {
+            error!("Error in fetch_non_blacklisted_peers! : {}", &err);
+            Err(err)
+        }
+    }
+}
+
+pub fn fetch_all_peers(path: &str) -> Result<Vec<HashMap<String, String>>, String> {
+    let prep_query = "SELECT * FROM peer;";
+    let _lock = get_db_lock().lock().unwrap();
+    //let _lock =SQLITE_PEER_MUTEX.lock().unwrap();
+    match open_database(path, true) {
+        Ok(connection) => {
+            match prepare_crud_statement(&connection, prep_query) {
+                Ok(mut statement) => {
+                    let mut ret_val: Vec<HashMap<String, String>> = Vec::new();
+                    loop {
+                        match statement.next() {
+                            Ok(State::Row) => {
+                                let mut peer: HashMap<String, String> = HashMap::new();
+                                let id: String = statement.read::<String, _>("id").unwrap();
+                                let ip: String = statement.read::<String, _>("ip").unwrap();
+                                let nick: String = statement.read::<String, _>("nick").unwrap();
+                                let whitelisted: String = statement.read::<String, _>("whitelisted").unwrap();
+                                let ping: String = statement.read::<String, _>("ping").unwrap();
+                                let last_responded: String = statement.read::<String, _>("last_responded").unwrap();
+                                let created: String = statement.read::<String, _>("created").unwrap();
+                                let connected: String = statement.read::<String, _>("connected").unwrap();
+                                peer.insert("id".to_string(), id);
+                                peer.insert("ip".to_string(), ip);
+                                peer.insert("nick".to_string(), nick);
+                                peer.insert("whitelisted".to_string(), whitelisted);
+                                peer.insert("ping".to_string(), ping);
+                                peer.insert("last_responded".to_string(), last_responded);
+                                peer.insert("created".to_string(), created);
+                                peer.insert("connected".to_string(), connected);
+                                ret_val.push(peer);                                
+                            },
+                            Ok(State::Done) => {
+                                return Ok(ret_val);
+                            },
+                            Err(err) => {
+                                println!("{}", err);
+                                return Err(err.to_string());
+                            },
+                        }
+                    }
+                },
+                Err(err) => {
                     error!("Error in fetch_all_peers! : {}", &err);
                     Err(err)
                 }
@@ -345,6 +434,7 @@ pub fn fetch_all_peers(path: &str) -> Result<Vec<Vec<String>>, String> {
         }
     }
 }
+
 pub fn fetch_connected_peers(path: &str) -> Result<Vec<Vec<String>>, String> {
     let prep_query = "SELECT * FROM peer WHERE connected = true;";
     let _lock = get_db_lock().lock().unwrap();
@@ -507,9 +597,9 @@ pub mod test_peers {
         match fetch_all_peers("test.sqlite") {
             Ok(peers) => {
                 assert_eq!(peers.len(), 3);
-                let peer2: &Vec<String> = &peers[1];
-                assert_eq!(peer2.len(), 8);
-                assert_eq!(peer2[2], "nickname2");
+                let peer2: &std::collections::HashMap<String, String> = &peers[1];
+                assert_eq!(peer2.keys().len(), 8);
+                assert_eq!(peer2.get(&"nick".to_string()).unwrap(), "nickname2");
             },
             Err(err) => {
                 println!("Peer Couldn't be Fetched!");
@@ -528,10 +618,12 @@ pub mod test_peers {
         blacklist("test.sqlite", "id").expect("Test Failed To Delete Peer");
         match fetch_all_peers("test.sqlite") {
             Ok(peers) => {
-                assert_eq!(peers.len(), 2);
-                let peer2: &Vec<String> = &peers[1];
-                assert_eq!(peer2.len(), 8);
-                assert_eq!(peer2[2], "nickname3");
+                assert_eq!(peers.len(), 3);
+                let peer2: &std::collections::HashMap<String, String> = &peers[2];
+                assert_eq!(peer2.keys().len(), 8);
+                assert_eq!(peer2.get(&"nick".to_string()).unwrap(), "nickname3");
+                
+                
             },
             Err(err) => {
                 println!("Peer Couldn't be Fetched!");

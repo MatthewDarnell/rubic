@@ -5,7 +5,7 @@ use store;
 
 #[get("/peers")]
 pub fn peers() -> String {
-    match store::sqlite::peer::fetch_connected_peers(store::get_db_path().as_str()) {
+    match store::sqlite::peer::fetch_all_peers(store::get_db_path().as_str()) {
         Ok(value) => {
             format!("{:?}", value)
         }, Err(err) => {
@@ -20,7 +20,7 @@ pub fn add_peer(address: &str) -> String {
         Ok(_) => {
             Peer::new(address, None, "");
             match store::sqlite::peer::fetch_peer_by_ip(store::get_db_path().as_str(), address) {
-                Ok(_) => { "Peer Added".to_string() },
+                Ok(peer_map) => { peer_map.get(&"id".to_string()).unwrap().clone() },
                 Err(_) => { "Failed To Add Peer".to_string() }
             }
         },

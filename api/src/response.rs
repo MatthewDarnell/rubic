@@ -1,5 +1,6 @@
+use std::str::FromStr;
 use consensus::computor::BroadcastComputors;
-use std::time::SystemTime;
+use std::time::{SystemTime, UNIX_EPOCH};
 use crate::QubicApiPacket;
 use crate::header::EntityType;
 use crate::response::exchange_peers::ExchangePeersEntity;
@@ -14,6 +15,7 @@ use crate::response::broadcast_transaction::BroadcastTransactionEntity;
 use consensus::tick::Tick;
 use consensus::tick_data::{TickData, TransactionDigest};
 use crypto::qubic_identities::get_identity;
+use uuid::Uuid;
 
 pub mod exchange_peers;
 pub mod response_entity;
@@ -149,7 +151,31 @@ pub fn get_formatted_response(response: &mut QubicApiPacket) {
                 Some(resp) => {
                     //println!("ExchangePeersEntity: {:?}", resp);
                     match update_peer_last_responded(path.as_str(), resp.peer.as_str(), SystemTime::now()) {
-                        Ok(_) => {},
+                        Ok(_) => {
+                            for i in resp.ip_addresses {
+                                let address: String = format!("{}.{}.{}.{}:21841", i[0], i[1], i[2], i[3]);
+                                //println!("Adding Peer to db {}", address.as_str());
+                                match std::net::SocketAddrV4::from_str(address.as_str()) {
+                                    Ok(_) => {
+                                        match store::sqlite::peer::create_peer(
+                                            get_db_path().as_str(),
+                                            Uuid::new_v4().to_string().as_str(),
+                                            address.as_str(),
+                                            "",
+                                            9999,
+                                            false,
+                                            UNIX_EPOCH
+                                        ) {
+                                            Ok(_) => {},
+                                            Err(_err) => {
+                                                println!("Failed To Create Peer From ExchangePublicPeers: {}", _err);
+                                            }
+                                        }
+                                    },
+                                    Err(_) => {}
+                                }
+                            }
+                        },
                         Err(_err) => { /* println!("Error Updating Peer {} Last Responded: {}", resp.peer.as_str(), err.as_str())*/ }
                     }
                 },
@@ -162,47 +188,53 @@ pub fn get_formatted_response(response: &mut QubicApiPacket) {
             //println!("{:?}", response);
             match TickData::format_qubic_response_data_to_structure(response) {
                 Some(mut resp) => {
-                    let _bc = store::sqlite::computors::fetch_computors_by_epoch(get_db_path().as_str(), resp.epoch).unwrap();
-                    let bc = BroadcastComputors::new(&_bc);
-                    let verified = resp.validate(&bc);
-                    if verified {
-                        match store::sqlite::transfer::fetch_expired_and_broadcasted_transfers_with_unknown_status_and_specific_tick(get_db_path().as_str(), resp.tick) {
-                            Ok(transfers) => {
-                                if transfers.len() > 0 {    //We have made at least 1 transfer that executes on this tick!
-                                    //Let's store the tx digests
-                                    let digests: &[TransactionDigest] = resp.transaction_digests.as_slice();
-                                    let mut dg: [u8; size_of::<TransactionDigest>()*1024] = [0u8; size_of::<TransactionDigest>()*1024];
-                                    for (index, digest) in digests.iter().enumerate() {
-                                        dg[index*size_of::<TransactionDigest>()..index*size_of::<TransactionDigest>() + size_of::<TransactionDigest>()].copy_from_slice(digest);
-                                    }
-                                    match store::sqlite::tick::fetch_tick(get_db_path().as_str(), resp.tick) {
-                                        Ok(tick) => {
-                                            let transaction_digests_hash = tick.get(&"transaction_digests_hash".to_string()).unwrap();
-                                            if resp.validate_vs_tick_tx_digests_hash(transaction_digests_hash) {
-                                                //This Tick Data tx hash Matches The Verified Tx Digests Hash From Tick. We are all good to go!
-                                                match store::sqlite::tick::set_tick_transaction_digests(get_db_path().as_str(), resp.tick, &dg) {
-                                                    Ok(_) => {
-                                                        //println!("Set Tx Digests For Tick {}", resp.tick);
-                                                    },
-                                                    Err(_err) => {
-                                                        println!("Failed to set Tick Transaction Digests for Tick {}!", resp.tick);
+                    match store::sqlite::computors::fetch_computors_by_epoch(get_db_path().as_str(), resp.epoch) {
+                        Ok(_bc) => {
+                            let bc = BroadcastComputors::new(&_bc);
+                            let verified = resp.validate(&bc);
+                            if verified {
+                                match store::sqlite::transfer::fetch_expired_and_broadcasted_transfers_with_unknown_status_and_specific_tick(get_db_path().as_str(), resp.tick) {
+                                    Ok(transfers) => {
+                                        if transfers.len() > 0 {    //We have made at least 1 transfer that executes on this tick!
+                                            //Let's store the tx digests
+                                            let digests: &[TransactionDigest] = resp.transaction_digests.as_slice();
+                                            let mut dg: [u8; size_of::<TransactionDigest>()*1024] = [0u8; size_of::<TransactionDigest>()*1024];
+                                            for (index, digest) in digests.iter().enumerate() {
+                                                dg[index*size_of::<TransactionDigest>()..index*size_of::<TransactionDigest>() + size_of::<TransactionDigest>()].copy_from_slice(digest);
+                                            }
+                                            match store::sqlite::tick::fetch_tick(get_db_path().as_str(), resp.tick) {
+                                                Ok(tick) => {
+                                                    let transaction_digests_hash = tick.get(&"transaction_digests_hash".to_string()).unwrap();
+                                                    if resp.validate_vs_tick_tx_digests_hash(transaction_digests_hash) {
+                                                        //This Tick Data tx hash Matches The Verified Tx Digests Hash From Tick. We are all good to go!
+                                                        match store::sqlite::tick::set_tick_transaction_digests(get_db_path().as_str(), resp.tick, &dg) {
+                                                            Ok(_) => {
+                                                                //println!("Set Tx Digests For Tick {}", resp.tick);
+                                                            },
+                                                            Err(_err) => {
+                                                                println!("Failed to set Tick Transaction Digests for Tick {}!", resp.tick);
+                                                            }
+                                                        }
                                                     }
+                                                },
+                                                Err(_err) => {
+                                                    //eprintln!("Failed To Fetch Tick For TickData.({})", resp.tick);
                                                 }
                                             }
-                                        },
-                                        Err(_err) => {
-                                            //eprintln!("Failed To Fetch Tick For TickData.({})", resp.tick);
                                         }
+                                    },
+                                    Err(_err) => {
+                                        //println!("Failed to fetch expired/broadcast/unknown_status transfers for Tick {}! <{}>", resp.tick, _err);
                                     }
                                 }
-                            },
-                            Err(_err) => {
-                                //println!("Failed to fetch expired/broadcast/unknown_status transfers for Tick {}! <{}>", resp.tick, _err);
+                            } else {
+                                //TODO: Blacklist peer? Why is he sending bogus data?
+                                println!("Failed to Verify Tick Data");
                             }
+                        },
+                        Err(_err) => {
+                            eprintln!("Failed To Fetch Computors From Db. ({})", _err);
                         }
-                    } else {
-                        //TODO: Blacklist peer? Why is he sending bogus data?
-                        println!("Failed to Verify Tick Data");
                     }
                 },
                 None => {  
