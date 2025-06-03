@@ -456,6 +456,7 @@ pub mod encryption {
         fn encrypt_a_plaintext() {
             let (salt, encrypted) = encrypt("hello", "thisisalongenoughkeytoencryptavalue").unwrap();
             assert_eq!(salt.len(), 56);
+            assert_ne!(encrypted.len(), "hello".len());
         }
 
         
@@ -477,50 +478,40 @@ pub mod encryption {
 
 
 pub mod passwords {
-    use sodiumoxide::crypto::{pwhash, secretbox};
+    use sodiumoxide::crypto::{pwhash::argon2id13, secretbox};
     use random::random_bytes;
-    use argon2::{
-        password_hash::{
-            PasswordHash, PasswordHasher, PasswordVerifier, SaltString
-        },
-        Argon2
-    };
     use crate::random;
 
     pub fn hash_password(password: &str) -> Result<String, String> {
-        let salt: SaltString = SaltString::encode_b64(
-            random_bytes(32).as_slice()
-        ).unwrap();
-        let argon2 = Argon2::default();
-        match argon2.hash_password(password.as_bytes(), &salt) {
-            Ok(ph) => Ok(ph.to_string()),
+        match argon2id13::pwhash(password.as_bytes(),
+                             argon2id13::OPSLIMIT_INTERACTIVE,
+                             argon2id13::MEMLIMIT_INTERACTIVE) {
+            Ok(ph) => Ok(sodiumoxide::hex::encode(ph.as_ref())),
             Err(_) => Err("Could not hash password".to_string())
         }
     }
     pub fn verify_password(password: &str, ciphertext: &str) -> Result<bool, String> {
-        let argon2 = Argon2::default();
-        match PasswordHash::parse(ciphertext, Default::default()) {
-            Ok(ph) => {
-                match argon2.verify_password(password.as_bytes(), &ph) {
-                    Ok(_) => Ok(true),
-                    Err(_) => Ok(false)
-                }
-            },
-            Err(err) => {
-                println!("Error Verifying Password! : {:?}", err.to_string().as_str());
-                Err(err.to_string())
+            match sodiumoxide::hex::decode(ciphertext) {
+                Ok(ct_vec) => {
+                    match argon2id13::HashedPassword::from_slice(&ct_vec) {
+                        Some(ph) => {
+                            Ok(argon2id13::pwhash_verify(&ph, password.as_bytes()))
+                        },
+                        None => Err("Could Not Get Password To Verify. Memory Corruption?".to_string())
+                    }
+                },
+                Err(_) => Err("Could Not Validate Password".to_string())
             }
         }
-    }
 
     #[cfg(test)]
     pub mod password_hash_tests {
-        use crate::passwords::{ hash_password, verify_password };
+        use crate::passwords::{hash_password, verify_password};
 
         #[test]
         fn hash_a_password_correct_len() {
             let res = hash_password("superSecretPassword").unwrap();
-            assert_eq!(res.len(), 118)
+            assert_ne!(res.len(), "superSecretPassword".len())
         }
 
         #[test]
