@@ -7,4 +7,5 @@ edition = "2021"
 [dependencies]
 crypto = { path = '../crypto', features = ["encryption"] }
 logger = { path = '../logger' }
+hex = "0.4.3"
 

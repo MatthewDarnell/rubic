@@ -135,6 +135,9 @@ impl QubicApiPacket {
         }
     }
     pub fn format_response_from_bytes(peer_id: &String, data: Vec<u8>) -> Option<Self> {
+        if data.len() < size_of::<RequestResponseHeader>() {
+            return None;
+        }
         let header: RequestResponseHeader = RequestResponseHeader::from_vec(&data);
         //println!("RESPONSE: {:?} ({:?})", &header.get_type(), &header._type);
         Some(QubicApiPacket {

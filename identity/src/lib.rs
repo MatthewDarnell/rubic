@@ -3,6 +3,7 @@
 use crypto;
 use core::str::Utf8Error;
 
+
 fn identity_to_address(identity: &Vec<u8>) -> Result<String, Utf8Error> {
     match  std::str::from_utf8(identity.as_slice()) {
         Ok(val) => Ok(val.to_string()),
@@ -62,13 +63,15 @@ impl Identity {
             return Err("Unable To Encrypt Identity With Missing Seed!".to_string());
         }
         match crypto::encryption::encrypt(self.seed.as_str(), password) {
-            Some((nonce, ciphertext)) => {
+            Some((salt, encrypted)) => {
                 match crypto::passwords::hash_password(password) {
                     Ok(hashed_password) => {
+                        let _salt: String = hex::encode(&salt);
+                        let _seed: String = hex::encode(&encrypted);
                         Ok(Identity {
-                            seed: ciphertext,
+                            seed: _seed,
                             hash: hashed_password,
-                            salt: nonce,
+                            salt: _salt,
                             identity: self.identity.to_owned(),
                             encrypted: true
                         })
@@ -88,19 +91,26 @@ impl Identity {
         }
         match crypto::passwords::verify_password(password, self.hash.as_str()) {
             Ok(_) => {
-                match crypto::encryption::decrypt(self.salt.as_str(), self.seed.as_str(), password) {
-                    Ok(seed) => {
-                        Ok(Identity {
-                            seed: seed,
-                            hash: self.hash.to_owned(),
-                            salt: self.salt.to_owned(),
-                            identity: self.identity.to_owned(),
-                            encrypted: false
-                        })
+                let salt: Vec<u8> = hex::decode(&self.salt).unwrap();
+                match <[u8; 56]>::try_from(salt.as_slice()) {
+                    Ok(salt_bytes) => {
+                        let seed_bytes: Vec<u8> = hex::decode(&self.seed).unwrap();
+                        match crypto::encryption::decrypt(&salt_bytes, &seed_bytes, password) {
+                            Ok(seed) => {
+                                Ok(Identity {
+                                    seed: seed,
+                                    hash: self.hash.to_owned(),
+                                    salt: self.salt.to_owned(),
+                                    identity: self.identity.to_owned(),
+                                    encrypted: false
+                                })
+                            },
+                            Err(_) => {
+                                Err("Failed To Decrypt Identity! (Memory Corruption?)".to_string())
+                            }
+                        }
                     },
-                    Err(_) => {
-                        Err("Failed To Decrypt Identity! (Memory Corruption?)".to_string())
-                    }
+                    Err(_) => Err("Error Decrypting Identity! (Db Corruption?)".to_string())
                 }
             },
             Err(_) => {
