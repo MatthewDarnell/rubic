@@ -102,6 +102,18 @@ pub fn start_peer_set_thread(_: &mpsc::Sender<std::collections::HashMap<String, 
                         },
                         Err(_) => error!("Db Error Fetching Disconnected Peers")
                     }
+                } else if num_peers > max_peers {
+                    let num_to_disconnect = num_peers - max_peers;
+                    let mut ids_to_delete: Vec<String>  = Vec::with_capacity(num_to_disconnect);
+                    for (index, peer) in peer_set.get_peers().iter().enumerate() {
+                        let id = peer.get_id().clone();
+                        if index < num_to_disconnect {
+                            ids_to_delete.push(id);
+                        }
+                    }
+                    for id in ids_to_delete {
+                        peer_set.delete_peer_by_id(id.as_str());
+                    }
                 }
 
 

@@ -122,6 +122,7 @@ async fn main() {
         routes::peer::peers,
         routes::peer::add_peer,
         routes::peer::delete_peer,
+        routes::peer::set_peer_limit,
 
         routes::transaction::fetch_transfers,
         routes::transaction::transfer,
