@@ -42,14 +42,17 @@ pub fn delete_peer(peer_id: &str) -> String {
     }
 }
 
-#[get("/peers/limit/<min_max>/<limit>")]
-pub fn set_peer_limit(min_max: &str, limit: u8) -> String {
-    
+#[get("/peers/limit")]
+pub fn get_peer_limit() -> String {
     let current_min = get_min_peers();
     let current_max = get_max_peers();
-    
-    
-    
+    format!(r####"{{"min": {}, "max": {}}}"####, current_min, current_max)
+}
+
+#[get("/peers/limit/<min_max>/<limit>")]
+pub fn set_peer_limit(min_max: &str, limit: u8) -> String {
+    let current_min = get_min_peers();
+    let current_max = get_max_peers();
     if limit < 1 {
         return "Invalid Min/Max Limit".to_string();
     }
