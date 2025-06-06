@@ -214,19 +214,20 @@ const getIdentities = async () => {
     }
 }
 
-const hideTxs = () => {
+const hideTxs = identity => {
     isShowingTxs = false;
     identityCurrentlyShowingTxs = null;
     document.getElementById('txsDiv').style.display = 'none';
     document.getElementById('txsIdentity').innerHTML = ``;
     document.getElementById('txsTableBody').innerHTML = "";
+    document.getElementById(`${identity}ShowTxsBtn`).innerHTML = `<button id="${identity}ShowTxsBtn" onclick="showTxs('${identity}')">V</button>`
 }
 const showTxs = identity => {
     isShowingTxs = true;
     identityCurrentlyShowingTxs = identity
     try {
         if(document.getElementById(`${identity}ShowTxsBtn`)) {
-            document.getElementById(`${identity}ShowTxsBtn`).innerText = "^"
+            document.getElementById(`${identity}ShowTxsBtn`).innerHTML = `<button onclick="hideTxs('${identity}')">^</button>`
         }
         document.getElementById('txsDiv').style.display = 'block';
         document.getElementById('txsIdentity').innerHTML = `<b>${identity}</b><br/>`;
@@ -328,7 +329,7 @@ const getTransactions = async () => {
                     if(identityCurrentlyShowingTxs !== identity) {
                         btnEl.innerHTML = `<button id="${identity}ShowTxsBtn" onclick="showTxs('${identity}')">V</button>`
                     } else {
-                        btnEl.innerHTML = `<button onclick="hideTxs()">^</button>`
+                        btnEl.innerHTML = `<button onclick="hideTxs('${identity}')">^</button>`
 
                     }
                 }
@@ -724,7 +725,7 @@ const intervalLoopFunction = () => {
         })
         .then(_ => {
             //Finished Update Loop
-            setTimeout(intervalLoopFunction, 1000);
+            setTimeout(intervalLoopFunction, 2000);
         })
         .then(_ => {
             //Finished Update Loop
