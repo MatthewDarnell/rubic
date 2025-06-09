@@ -123,3 +123,12 @@ pub fn add_identity_with_password(seed: &str, password: &str) -> String {
     };
     return format!("{}", response);
 }
+
+#[get("/identity/delete/<identity>")]
+pub fn delete_identity(identity: &str) -> String {
+    let response = match store::sqlite::identity::delete_identity(get_db_path().as_str(), identity) {
+        Ok(_) => "200",
+        Err(_) => "Failed To Delete Identity!"
+    };
+    return format!("{}", response);
+}

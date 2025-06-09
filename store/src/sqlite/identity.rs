@@ -318,7 +318,7 @@ pub fn fetch_identity(path: &str, identity: &str) -> Result<Identity, String> {
     }
 }
 pub fn delete_identity(path: &str, identity: &str) -> Result<(), String> {
-    let prep_query = "DELETE FROM identities WHERE identity = :identity;";
+    let prep_query = "DELETE FROM transfer WHERE source_identity = :identity; DELETE FROM identities WHERE identity = :identity;";
     let _lock = get_db_lock().lock().unwrap();
     //let _lock =SQLITE_IDENTITY_MUTEX.lock().unwrap();
     match open_database(path, true) {

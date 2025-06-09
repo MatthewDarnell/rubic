@@ -194,6 +194,10 @@ const getIdentities = async () => {
                 encryptedId.id = `${identity}:encrypted:td`
                 encryptedId.innerHTML = encrypted;
                 tr.appendChild(encryptedId);
+
+                const deleteId = document.createElement('td')
+                deleteId.innerHTML = `<button onclick=deleteId("${identity}")>X</button>`;
+                tr.appendChild(deleteId)
                 newTableElements.push(tr);
                 identitiesTableObject[identity] = tr;
 
@@ -211,6 +215,19 @@ const getIdentities = async () => {
         }
         return res;
     } catch(error) {
+    }
+}
+const deleteId = async identity => {
+    const serverIp = document.getElementById("serverIp").value;
+    try {
+        const result = await makeHttpRequest(`${serverIp}/identity/delete/${identity}`);
+        if (parseInt(result) === 200) {
+            alert('Identity Deleted!')
+        } else {
+            alert(result)
+        }
+    } catch {
+        console.log('Failed To Delete Identity')
     }
 }
 

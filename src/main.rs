@@ -111,8 +111,9 @@ async fn main() {
       .mount("/", routes![
         routes::identity::balance,
         routes::identity::add_identity,
-        routes::identity::create_random_identity,
         routes::identity::add_identity_with_password,
+        routes::identity::create_random_identity,
+        routes::identity::delete_identity,
         routes::identity::get_identities,
         routes::identity::get_identity_from_seed,
 
