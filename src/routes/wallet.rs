@@ -1,6 +1,7 @@
 use rocket::get;
 use logger::{debug, error};
 use store;
+use crate::routes::MINPASSWORDLEN;
 
 #[get("/wallet/is_encrypted")]
 pub fn is_wallet_encrypted() -> String {
@@ -18,7 +19,7 @@ pub fn is_wallet_encrypted() -> String {
 
 #[get("/wallet/set_master_password/<password>")]
 pub fn set_master_password(password: &str) -> String {
-    if password.len() < 4 {
+    if password.len() < MINPASSWORDLEN {
         return format!("Password Too Short!");
     }
     match store::sqlite::master_password::get_master_password(store::get_db_path().as_str()) {
@@ -94,7 +95,7 @@ pub fn download_wallet(password: &str) -> String {
     let mut ret_val: String = String::from("");
     match store::sqlite::identity::fetch_all_identities_full(store::get_db_path().as_str()) {
         Ok(mut identities) => {
-            if password.len() < 4 {
+            if password.len() < MINPASSWORDLEN {
                 //invalid master password, don't decrypt wallet
                 debug!("Dumping Wallet, Leaving Encrypted");
             }
@@ -106,7 +107,7 @@ pub fn download_wallet(password: &str) -> String {
                 ret_val += ",";
                 let encrypted: bool = identity.encrypted;
                 //ret_val +=
-                if password.len() < 4 {
+                if password.len() < MINPASSWORDLEN {
                     is_valid = true;
                     ret_val += &identity.seed.clone();
                     ret_val += ",";

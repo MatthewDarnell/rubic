@@ -3,6 +3,7 @@ use store::get_db_path;
 use store::sqlite::identity::insert_new_identity;
 use store::sqlite::master_password::get_master_password;
 use crypto::passwords::verify_password;
+use crate::routes::MINPASSWORDLEN;
 
 #[get("/balance/<address>")]
 pub fn balance(address: &str) -> String {
@@ -53,7 +54,7 @@ pub fn create_random_identity(password: &str) -> String {
         }
     }
     let mut id: identity::Identity = identity::Identity::new(seed_string.as_str());
-    if password.len() > 4 { //Minimum length
+    if password.len() >= MINPASSWORDLEN { //Minimum length
         let master_password = get_master_password(get_db_path().as_str())
                                             .expect("Failed To Fetch Master Password!");
         match verify_password(password, master_password[1].as_str()) {
@@ -103,7 +104,7 @@ pub fn add_identity_with_password(seed: &str, password: &str) -> String {
         }
     }
     let mut id: identity::Identity = identity::Identity::new(seed);
-    if password.len() > 4 { //Minimum length
+    if password.len() >= MINPASSWORDLEN { //Minimum length
         let master_password = get_master_password(get_db_path().as_str())
             .expect("Failed To Fetch Master Password!");
         match verify_password(password, master_password[1].as_str()) {
