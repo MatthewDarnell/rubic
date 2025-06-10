@@ -124,11 +124,29 @@ pub fn add_identity_with_password(seed: &str, password: &str) -> String {
     return format!("{}", response);
 }
 
-#[get("/identity/delete/<identity>")]
-pub fn delete_identity(identity: &str) -> String {
-    let response = match store::sqlite::identity::delete_identity(get_db_path().as_str(), identity) {
-        Ok(_) => "200",
-        Err(_) => "Failed To Delete Identity!"
-    };
-    return format!("{}", response);
+#[get("/identity/delete/<identity>/<password>")]
+pub fn delete_identity(identity: &str, password: &str) -> String {
+    match store::sqlite::identity::fetch_identity(get_db_path().as_str(), identity) {
+        Ok(mut id) => {
+            if id.encrypted && password.len() < MINPASSWORDLEN {
+                return "Must Supply Password To Delete Encrypted Identity".to_string();
+            }
+            if id.encrypted {
+                match id.decrypt_identity(password) {
+                    Ok(_) => {},
+                    Err(_) => {
+                        return "Invalid Password!".to_string()
+                    }
+                }
+            }
+            let response = match store::sqlite::identity::delete_identity(get_db_path().as_str(), identity) {
+                Ok(_) => "200",
+                Err(_) => "Failed To Delete Identity!"
+            };
+            format!("{}", response)
+        },
+        Err(_) => {
+            "Identity Not Found!".to_string()
+        }
+    }
 }

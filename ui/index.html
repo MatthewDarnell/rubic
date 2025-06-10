@@ -357,6 +357,21 @@
         </table>
     </div>
 
+    <div id="deleteIdModal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <span id="closeDeleteModal" class="close">&times;</span>
+            <b id="deleteIdIdentity"></b><br />
+            <label>
+                Password if Encrypted:
+                <input type="password" id="deleteIdPassword"/>
+            </label><br />
+            <button id="deleteIdBtn" onclick=deleteIdentity() >Delete This Identity</button>
+        </div>
+    </div>
+
+
+
+
     <div style="margin-top: 3%;">
         <table>
             <tr>

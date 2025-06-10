@@ -196,7 +196,7 @@ const getIdentities = async () => {
                 tr.appendChild(encryptedId);
 
                 const deleteId = document.createElement('td')
-                deleteId.innerHTML = `<button onclick=deleteId("${identity}")>X</button>`;
+                deleteId.innerHTML = `<button onclick=showDeleteModal("${identity}")>X</button>`;
                 tr.appendChild(deleteId)
                 newTableElements.push(tr);
                 identitiesTableObject[identity] = tr;
@@ -217,14 +217,35 @@ const getIdentities = async () => {
     } catch(error) {
     }
 }
-const deleteId = async identity => {
+
+const deleteIdentity = async () => {
     const serverIp = document.getElementById("serverIp").value;
     try {
-        const result = await makeHttpRequest(`${serverIp}/identity/delete/${identity}`);
+        const identity = document.getElementById('deleteIdIdentity').innerText;
+        const pass = document.getElementById('deleteIdPassword').value;
+        const result = await makeHttpRequest(`${serverIp}/identity/delete/${identity}/${pass}`);
         if (parseInt(result) === 200) {
             alert('Identity Deleted!')
+            document.getElementById('deleteIdModal').style.display = 'none';
         } else {
             alert(result)
+        }
+    } catch (error) {
+        console.log(error)
+        console.log('Failed To Delete Identity')
+    }
+}
+
+const showDeleteModal = async identity => {
+    const serverIp = document.getElementById("serverIp").value;
+    try {
+        document.getElementById('deleteIdPassword').value = "";
+        const modal = document.getElementById('deleteIdModal')
+        document.getElementById('deleteIdIdentity').innerText = identity;
+        modal.style.display = 'block';
+        const span = document.getElementById("closeDeleteModal");
+        span.onclick = function() {
+            modal.style.display = "none";
         }
     } catch {
         console.log('Failed To Delete Identity')
