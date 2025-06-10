@@ -134,6 +134,40 @@ pub fn fetch_transfer_by_txid(path: &str, txid: &str) -> Result<Vec<HashMap<Stri
     }
 }
 
+pub fn delete_transfers_by_source_identity(path: &str, source_identity: &str) -> Result<(), String> {
+    let prep_query = "DELETE FROM transfer WHERE source_identity = :source_identity;";
+    let _lock = get_db_lock().lock().unwrap();
+    //let _lock =SQLITE_TRANSFER_MUTEX.lock().unwrap();
+    match open_database(path, true) {
+        Ok(connection) => {
+            match prepare_crud_statement(&connection, prep_query) {
+                Ok(mut statement) => {
+                    match statement.bind::<&[(&str, &str)]>(&[
+                        (":source_identity", source_identity),
+                    ][..]) {
+                        Ok(_) => {
+                            match statement.next() {
+                                Ok(State::Done) => { Ok(()) },
+                                Err(error) => { Err(error.to_string()) },
+                                _ => { Err("Weird!".to_string()) }
+                            }
+                        },
+                        Err(err) => { Err(err.to_string()) }
+                    }
+                },
+                Err(err) => {
+                    error(format!("Failed To Prepare Statement! {}", err.to_string()).as_str());
+                    Err(err.to_string())
+                }
+            }
+        },
+        Err(err) => {
+            error(format!("Failed To Open Database! {}", err.to_string()).as_str());
+            Err(err.to_string())
+        }
+    }
+}
+
 
 pub fn fetch_transfers_to_broadcast(path: &str) -> Result<Vec<HashMap<String, String>>, String> {
     let prep_query = "SELECT * FROM transfer WHERE broadcast = false ORDER BY tick ASC;";

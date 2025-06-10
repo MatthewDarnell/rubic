@@ -222,7 +222,7 @@ const deleteIdentity = async () => {
     const serverIp = document.getElementById("serverIp").value;
     try {
         const identity = document.getElementById('deleteIdIdentity').innerText;
-        const pass = document.getElementById('deleteIdPassword').value;
+        const pass = document.getElementById('deleteIdPassword').value || '0';
         const result = await makeHttpRequest(`${serverIp}/identity/delete/${identity}/${pass}`);
         if (parseInt(result) === 200) {
             alert('Identity Deleted!')
