@@ -6,13 +6,13 @@ use logger::{setup_logger, info};
 use std::sync::mpsc;
 mod env;
 mod routes;
-mod peer_set_thread;
+mod peer_loop;
 
 use rocket::http::Header;
 use rocket::{Request, Response};
 use rocket::fairing::{Fairing, Info, Kind};
 use store::sqlite;
-use crate::peer_set_thread::start_peer_set_thread;
+use crate::peer_loop::start_peer_set_thread;
 
 #[rocket::main]
 async fn main() {
