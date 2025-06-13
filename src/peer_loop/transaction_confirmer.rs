@@ -105,7 +105,14 @@ pub fn confirm_transactions(peer_set: Arc<Mutex<PeerSet>>) {
                                     //println!("Requesting Tick To Validate: {}", tick);
                                     std::thread::sleep(std::time::Duration::from_millis(750));
                                     {
-                                        peer_set.lock().unwrap().make_request(api::QubicApiPacket::request_quorum_tick(tick)).expect("Failed To Request Tick!");
+                                        let mut _lock = peer_set.lock().unwrap();
+                                        match _lock.make_request(api::QubicApiPacket::request_quorum_tick(tick)) {
+                                            Ok(_) => {},
+                                            Err(_) => {
+                                                println!("TransactionConfirmer: Failed To Request Quorum Tick!");
+                                            }
+                                        }
+                                        drop(_lock);
                                     }
                                 }
                             },
@@ -124,7 +131,14 @@ pub fn confirm_transactions(peer_set: Arc<Mutex<PeerSet>>) {
                                 } else {
                                     //println!("Fetching tick {}", tick);
                                     {
-                                        peer_set.lock().unwrap().make_request(api::QubicApiPacket::request_quorum_tick(tick)).expect("Failed To Request Tick!");
+                                        let mut _lock = peer_set.lock().unwrap();
+                                        match _lock.make_request(api::QubicApiPacket::request_quorum_tick(tick)) {
+                                            Ok(_) => {},
+                                            Err(_) => {
+                                                println!("TransactionConfirmer: Failed To Request Quorum Tick!");
+                                            }
+                                        }
+                                        drop(_lock);
                                     }
                                 }
                             }
