@@ -119,6 +119,10 @@ pub fn setup_logger() -> Result<(), fern::InitError> {
         _ => LevelFilter::Info
     };
 
+    let mut options = std::fs::OpenOptions::new();
+    options.append(true);
+    
+    
     fern::Dispatch::new()
         .format(|out, message, record| {
             out.finish(format_args!(
@@ -131,11 +135,14 @@ pub fn setup_logger() -> Result<(), fern::InitError> {
         })
         .level(level)
         .filter(drop_rocket)
-        .chain(std::fs::File::create(get_log_file().as_str())?)
+        .chain(options.open(get_log_file().as_str())?)
         .apply()?;
     Ok(())
 }
 
+pub fn info(value: &str) {
+    info!("{}", value);
+}
 
 pub fn debug(value: &str) {
     debug!("{}", value);

@@ -1,5 +1,6 @@
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
+use logger::error;
 use network::peers::PeerSet;
 
 pub fn update_broadcast_computors(peer_set: Arc<Mutex<PeerSet>>) {
@@ -14,8 +15,8 @@ pub fn update_broadcast_computors(peer_set: Arc<Mutex<PeerSet>>) {
             {
                 match peer_set.lock().unwrap().make_request(request) {
                     Ok(_) => {},
-                    Err(err) => {
-                        println!("Failed To Request Computors - {}", err);
+                    Err(_err) => {
+                        error!("Failed To Request Computors");
                     }
                 }
             }
