@@ -28,10 +28,11 @@ pub fn maintain_peers(peer_set: Arc<Mutex<PeerSet>>) {
             //Try To Spin up New Peers Until We Reach The Min Number
             let min_peers: usize = env::get_min_peers();
             let max_peers: usize = env::get_max_peers();
-            let mut num_peers: usize = 0;
-            {
-                num_peers = peer_set.lock().unwrap().get_peers().len();
-            }
+
+            let _lock = peer_set.lock().unwrap();
+            let num_peers: usize = _lock.get_peers().len();
+            std::mem::drop(_lock);
+            
             if num_peers < min_peers {
                 debug!("Number Of Peers.({}) Less Than Min Peers.({}). Adding More... (Max of {})", num_peers, min_peers, max_peers);
                 match sqlite::peer::fetch_disconnected_peers(get_db_path().as_str()) {

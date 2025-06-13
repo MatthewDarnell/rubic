@@ -10,10 +10,10 @@ pub fn handle_disconnected_peers(peer_set: Arc<Mutex<PeerSet>>) {
     std::thread::spawn(move || {
         loop {
             std::thread::sleep(Duration::from_millis(DISCONNECT_PEER_TIMEOUT));
-            let mut ids: Vec<String> = Vec::new();
-            {
-                ids = peer_set.lock().unwrap().get_peer_ids();
-            }
+            let _lock = peer_set.lock().unwrap();
+            let ids: Vec<String> = _lock.get_peer_ids();
+            std::mem::drop(_lock);
+            
             
             for peer in ids {
                 match sqlite::peer::fetch_peer_by_id(get_db_path().as_str(), peer.as_str()) {

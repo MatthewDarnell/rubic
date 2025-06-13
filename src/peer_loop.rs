@@ -7,7 +7,6 @@ mod transaction_confirmer;
 mod broadcast_computors_updater;
 
 use std::sync::{mpsc, Arc, Mutex};
-use logger::debug;
 use network::peers::PeerSet;
 
 use crate::peer_loop::balance_updater::update_balances;
