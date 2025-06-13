@@ -45,13 +45,27 @@ pub fn confirm_transactions(peer_set: Arc<Mutex<PeerSet>>) {
                                     if tx_digests_hash.len() < 8 {  //We have the Tick but not the tx_digests hash. Fetch Tick
                                         //println!("We Have Tick But No Digest Hash. Fetching Tick {}!", tick);
                                         {
-                                            peer_set.lock().unwrap().make_request(api::QubicApiPacket::request_quorum_tick(tick)).expect("Failed To Request Tick Data!");
+                                            let mut _lock = peer_set.lock().unwrap();
+                                            match _lock.make_request(api::QubicApiPacket::request_quorum_tick(tick)) {
+                                                Ok(_) => {},
+                                                Err(_) => {
+                                                    println!("TransactionConfirmer: Failed To Request Quorum Tick!");
+                                                }
+                                            }
+                                            drop(_lock);
                                         }
                                     } else {    //We have the Tick and tx_digests hash but not the full tx_digests. Fetch TickData
                                         if tx_digests.len() < 8 {
                                             //println!("We Have Tick But No Digests. Fetching Tick {} Data!", tick);
                                             {
-                                                peer_set.lock().unwrap().make_request(api::QubicApiPacket::request_tick_data(tick)).expect("Failed To Request Tick Data!");
+                                                let mut _lock = peer_set.lock().unwrap();
+                                                match _lock.make_request(api::QubicApiPacket::request_tick_data(tick)) {
+                                                    Ok(_) => {},
+                                                    Err(_) => {
+                                                        println!("TransactionConfirmer: Failed To Request Tick Data!");
+                                                    }
+                                                }
+                                                drop(_lock);
                                             }
                                         }
                                         else {
