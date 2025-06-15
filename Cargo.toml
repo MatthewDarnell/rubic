@@ -4,6 +4,7 @@ name = "rubic"
 version = "0.2.0"
 edition = "2021"
 authors = ["Matthew Darnell"]
+repository = "https://github.com/MatthewDarnell/rubic"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
@@ -19,9 +20,17 @@ network = { path = './network' }
 store = { path = './store' }
 hex = "0.4.3"
 base64 = "0.21.7"
+tao = "0.33.0"
+winit = "0.30.11"
+wry = "0.51.2"
 
 [profile.test]  # Disable Overflow Checks For FourQ Operations
 overflow-checks = false
 
 [profile.dev]
 overflow-checks = false
+
+# The profile that 'dist' will build with
+[profile.dist]
+inherits = "release"
+lto = "thin"

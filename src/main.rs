@@ -1,9 +1,11 @@
 use std::collections::HashMap;
+use std::path::Path;
 use rocket::routes;
 
 extern crate dotenv_codegen;
 use logger::{setup_logger, info};
 use std::sync::mpsc;
+
 mod env;
 mod routes;
 mod peer_loop;
@@ -11,6 +13,14 @@ mod peer_loop;
 use rocket::http::Header;
 use rocket::{Request, Response};
 use rocket::fairing::{Fairing, Info, Kind};
+use rocket::fs::{relative, FileServer};
+use winit::event::WindowEvent;
+use winit::event_loop::{EventLoop};
+use winit::platform::windows::EventLoopBuilderExtWindows;
+use winit::window::{Window};
+use wry::dpi::LogicalSize;
+use wry::Error::WindowHandleError;
+use wry::WebViewBuilder;
 use store::sqlite;
 use crate::peer_loop::start_peer_set_thread;
 
@@ -74,8 +84,6 @@ async fn main() {
 
 
 
-
-
   let host = env::get_host();
   let port: u32 = match env::get_port().parse() {
     Ok(v) => v,
@@ -102,13 +110,56 @@ async fn main() {
     }
   }
 
+    let url = format!("http://{}:{}/ui/", host.clone(), port.clone());
+
+
+    std::thread::spawn(move || {
+        //sleep(Duration::from_secs(2));
+        let event_loop = EventLoop::builder().with_any_thread(true).build().unwrap();
+        let window_attributes = Window::default_attributes()
+            .with_title("Rubic")
+            .with_resizable(true)
+            .with_inner_size(LogicalSize::new(1280, 720));
+
+        #[allow(deprecated)]
+        let window = event_loop.create_window(window_attributes).unwrap();
+        let _webview = WebViewBuilder::new()
+            .with_url(url.as_str())
+            .build(&window)
+            .unwrap();
+
+        #[allow(deprecated)]
+        event_loop.run(move |event, _| {
+            match event {
+                winit::event::Event::WindowEvent {window_id, event} => {
+                    match event {
+                        WindowEvent::CloseRequested => {
+                            println!("Exiting");
+                            std::process::exit(0);
+                        },
+                        _ => {}
+                    }
+                },
+                _ => {}
+            }
+        }).unwrap();
+
+        loop {}
+    });
+
+
+
+    let path = Path::new(relative!("dist")).join("");
+
 
   let figment = rocket::Config::figment()
       .merge(("log_level", "critical"))
       .merge(("port", port))
       .merge(("address", host.as_str()));
   rocket::custom(figment)
+      .mount("/ui", FileServer::from(path))
       .mount("/", routes![
+
         routes::identity::balance,
         routes::identity::add_identity,
         routes::identity::add_identity_with_password,
