@@ -27,6 +27,14 @@ pub enum EntityType {
     RequestEntity = 31,
     ResponseEntity = 32,
     ResponseEnd = 35,
+    
+    //Assets
+    RequestIssuedAssets = 36,
+    RespondIssuedAssets = 37,
+    RequestOwnedAssets = 38,
+    RespondOwnedAssets = 39,
+    RequestPossessedAssets = 40,
+    RespondPossessedAssets = 41
 }
 
 impl EntityType {
@@ -46,7 +54,13 @@ impl EntityType {
             EntityType::RespondCurrentTickInfo => 28,
             EntityType::RequestEntity => 31,
             EntityType::ResponseEntity => 32,
-            EntityType::ResponseEnd => 35
+            EntityType::ResponseEnd => 35,
+            EntityType::RequestIssuedAssets => 36,
+            EntityType::RespondIssuedAssets => 37,
+            EntityType::RequestOwnedAssets => 38,
+            EntityType::RespondOwnedAssets => 39,
+            EntityType::RequestPossessedAssets => 40,
+            EntityType::RespondPossessedAssets => 41
         }
     }
 }
@@ -122,6 +136,12 @@ impl RequestResponseHeader {
             31 => EntityType::RequestEntity,
             32 => EntityType::ResponseEntity,
             35 => EntityType::ResponseEnd,
+            36 => EntityType::RequestIssuedAssets,
+            37 => EntityType::RespondIssuedAssets,
+            38 => EntityType::RequestOwnedAssets,
+            39 => EntityType::RespondOwnedAssets,
+            40 => EntityType::RequestPossessedAssets,
+            41 => EntityType::RespondPossessedAssets,
             55 => EntityType::ERROR,
             _ => EntityType::UNKNOWN
         }
@@ -129,6 +149,9 @@ impl RequestResponseHeader {
     pub fn recv_multiple_packets(&self) -> bool {   //Some Responses Send Multiple Data Packets Until End Response
         match self.get_type() {
             EntityType::BroadcastTick => true,
+            EntityType::RespondIssuedAssets => true,
+            EntityType::RespondOwnedAssets => true,
+            EntityType::RespondPossessedAssets => true,
             _ => false
         }
     }

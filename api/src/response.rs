@@ -1,3 +1,4 @@
+use std::ops::Index;
 use std::str::FromStr;
 use consensus::computor::BroadcastComputors;
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -16,12 +17,15 @@ use consensus::tick::Tick;
 use consensus::tick_data::{TickData, TransactionDigest};
 use crypto::qubic_identities::get_identity;
 use uuid::Uuid;
+use store::sqlite::asset::create_asset;
+use crate::response::asset::{OwnedAsset, PossessedAsset};
 
 pub mod exchange_peers;
 pub mod response_entity;
 pub mod broadcast_transaction;
 pub mod request_tick_data;
 mod tick;
+mod asset;
 
 pub trait FormatQubicResponseDataToStructure {
     fn format_qubic_response_data_to_structure(response: & mut QubicApiPacket) -> Option<Self> where Self: Sized;
@@ -36,6 +40,103 @@ pub fn get_formatted_response_from_multiple(response: &mut Vec<QubicApiPacket>) 
     };
     let api_type = response.first().unwrap().api_type;
     match api_type {
+        EntityType::RespondIssuedAssets => {},
+        EntityType::RespondOwnedAssets => {
+            let mut assets_data: Vec<OwnedAsset> = Vec::with_capacity(response.len());
+            if assets_data.len() > 0 {
+                unsafe {
+                    println!("Received Owned Assets {:?}", &assets_data[0].asset.ownership.issuance_index);
+                }
+            } else {
+                //println!("Got 0 Length Quorum Tick...");
+            }
+            for entry in response.iter_mut() {
+                println!("Peer Owned Asset: {:?}", entry.peer);
+                match OwnedAsset::format_qubic_response_data_to_structure(entry) {
+                    Some(data) => {
+                        assets_data.push(data)
+                    },
+                    None => {
+                        println!("Failed to format OwnedAsset!");
+                    }
+                };
+            }
+            println!("Got Owned Assets: {:?}", assets_data.len());
+            for (index, asset) in assets_data.iter().enumerate() {
+                unsafe {
+                    println!("Identity: {}",get_identity(& asset.asset.ownership.pub_key));
+                    println!("Issuance Index: {}", asset.asset.ownership.issuance_index);
+                    println!("Issuance Number of Shares: {}", asset.asset.ownership.number_of_shares);
+                    println!("Issuance Type: {}", asset.asset.ownership._type);
+                    //println!("{:?}", &asset.asset.ownership);
+                    //println!("{:?}", &asset.asset.ownership);
+                    
+                    let _issuance = crypto::encoding::bytes_to_hex(&asset.issuance.issuance.to_bytes());
+                    let _ownership = crypto::encoding::bytes_to_hex(&asset.asset.ownership.to_bytes());
+                    
+                    let _siblings = crypto::encoding::bytes_to_hex(&asset.siblings.as_flattened().to_vec());
+
+                    let _peer = &response.index(index).peer.clone().unwrap();
+                    
+                    match create_asset(
+                        get_db_path().as_str(),
+                        _peer.as_str(),
+                        get_identity(& asset.asset.ownership.pub_key).as_str(),
+                        _issuance.as_str(),
+                        Some(_ownership.as_str()),
+                        None,
+                        asset.tick,
+                        asset.universe_index,
+                        _siblings.as_str()
+                    ) {
+                        Ok(_) => {},
+                        Err(_err) => {
+                            eprintln!("Failed to create asset! {:?}", _err);
+                        }
+                    }
+                }
+            }
+        },
+        EntityType::RespondPossessedAssets => {
+            let mut assets_data: Vec<PossessedAsset> = Vec::with_capacity(response.len());
+            for entry in response.iter_mut() {
+                match PossessedAsset::format_qubic_response_data_to_structure(entry) {
+                    Some(data) => {
+                        assets_data.push(data)
+                    },
+                    None => {
+                        println!("Failed to format PossessedAsset!");
+                    }
+                };
+            }
+            for (index, asset) in assets_data.iter().enumerate() {
+                unsafe {
+                    let _issuance = crypto::encoding::bytes_to_hex(&asset.issuance.issuance.to_bytes());
+                    let _ownership = crypto::encoding::bytes_to_hex(&asset.asset.ownership.to_bytes());
+                    let _possession = crypto::encoding::bytes_to_hex(&asset.asset.possession.to_bytes());
+                    let _siblings = crypto::encoding::bytes_to_hex(&asset.siblings.as_flattened().to_vec());
+                    let _peer = &response.index(index).peer.clone().unwrap();
+                    match create_asset(
+                        get_db_path().as_str(),
+                        _peer.as_str(),
+                        get_identity(& asset.asset.ownership.pub_key).as_str(),
+                        _issuance.as_str(),
+                        Some(_ownership.as_str()),
+                        Some(_possession.as_str()),
+                        asset.tick,
+                        asset.universe_index,
+                        _siblings.as_str()
+                    ) {
+                        Ok(_) => {},
+                        Err(_err) => {
+                            eprintln!("Failed to create PossessedAsset! {:?}", _err);
+                        }
+                    }
+                }
+            }
+        },
+        
+        
         EntityType::BroadcastTick => {
             let mut tick_data: Vec<Tick> = Vec::with_capacity(response.len());
             if tick_data.len() > 0 {

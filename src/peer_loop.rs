@@ -5,7 +5,6 @@ mod disconnected_peer_handler;
 mod transaction_broadcaster;
 mod transaction_confirmer;
 mod broadcast_computors_updater;
-
 use std::sync::{mpsc, Arc, Mutex};
 use network::peers::PeerSet;
 

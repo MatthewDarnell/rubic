@@ -102,6 +102,54 @@ impl QubicApiPacket {
         }
     }
 
+    pub fn request_issued_assets(pub_key: &[u8; 32]) -> Self {
+        let mut header = RequestResponseHeader::new();
+        header.set_type(EntityType::RequestIssuedAssets);
+
+        let data: Vec<u8> = pub_key.to_vec();
+        let size = std::mem::size_of::<RequestResponseHeader>() + data.len();
+        header.set_size(size);
+        QubicApiPacket {
+            api_type: EntityType::RequestOwnedAssets,
+            peer: None,
+            header,
+            data,
+            response_data: None
+        }
+    }
+    
+    pub fn request_owned_assets(pub_key: &[u8; 32]) -> Self {
+        let mut header = RequestResponseHeader::new();
+        header.set_type(EntityType::RequestOwnedAssets);
+
+        let data: Vec<u8> = pub_key.to_vec();
+        let size = std::mem::size_of::<RequestResponseHeader>() + data.len();
+        header.set_size(size);
+        QubicApiPacket {
+            api_type: EntityType::RequestOwnedAssets,
+            peer: None,
+            header,
+            data,
+            response_data: None
+        }
+    }
+
+    pub fn request_possessed_assets(pub_key: &[u8; 32]) -> Self {
+        let mut header = RequestResponseHeader::new();
+        header.set_type(EntityType::RequestPossessedAssets);
+
+        let data: Vec<u8> = pub_key.to_vec();
+        let size = std::mem::size_of::<RequestResponseHeader>() + data.len();
+        header.set_size(size);
+        QubicApiPacket {
+            api_type: EntityType::RequestPossessedAssets,
+            peer: None,
+            header,
+            data,
+            response_data: None
+        }
+    }
+    
 
     pub fn request_quorum_tick(tick: u32) -> Self {
         let mut header = RequestResponseHeader::new();

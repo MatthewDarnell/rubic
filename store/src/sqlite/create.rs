@@ -75,6 +75,18 @@ pub fn open_database(path: &str, create: bool) -> Result<sqlite::Connection, Str
         created DATETIME DEFAULT CURRENT_TIMESTAMP,
         peer TEXT
     );
+    CREATE TABLE IF NOT EXISTS asset (
+        identity TEXT NOT NULL,
+        issuance TEXT NOT NULL,
+        ownership TEXT,
+        possession TEXT,
+        tick INTEGER NOT NULL,
+        universe_index INTEGER NOT NULL,
+        siblings TEXT NOT NULL,
+        created DATETIME DEFAULT CURRENT_TIMESTAMP,
+        peer TEXT,
+        FOREIGN KEY(identity) REFERENCES identities(identity) ON DELETE CASCADE
+    );
 ";
     //        FOREIGN KEY(identity) REFERENCES identities(identity)
     match sqlite::open(path) {

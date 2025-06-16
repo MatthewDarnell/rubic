@@ -5,6 +5,14 @@ const A_LOWERCASE_ASCII: u8 = 97u8;
 
 pub fn initialize() { sodiumoxide::init().expect("Failed To Initialize SodiumOxide!"); }
 
+
+pub mod encoding {
+    use sodiumoxide::hex;
+    pub fn bytes_to_hex(bytes: &Vec<u8>) -> String { hex::encode(bytes) }
+    pub fn to_hex(string: &str) -> String { hex::encode(string) }
+    pub fn from_hex_to_bytes(hex_string: &str) -> Result<Vec<u8>, ()> { hex::decode(hex_string) }
+}
+
 //#[cfg(feature = "hash")]
 pub mod hash {
     use sodiumoxide::hex::encode;
