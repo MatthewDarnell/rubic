@@ -3,6 +3,7 @@ use store::get_db_path;
 use store::sqlite::identity::insert_new_identity;
 use store::sqlite::master_password::get_master_password;
 use crypto::passwords::verify_password;
+use crate::routes::MINPASSWORDLEN;
 
 #[get("/balance/<address>")]
 pub fn balance(address: &str) -> String {
@@ -53,7 +54,7 @@ pub fn create_random_identity(password: &str) -> String {
         }
     }
     let mut id: identity::Identity = identity::Identity::new(seed_string.as_str());
-    if password.len() > 4 { //Minimum length
+    if password.len() >= MINPASSWORDLEN { //Minimum length
         let master_password = get_master_password(get_db_path().as_str())
                                             .expect("Failed To Fetch Master Password!");
         match verify_password(password, master_password[1].as_str()) {
@@ -103,7 +104,7 @@ pub fn add_identity_with_password(seed: &str, password: &str) -> String {
         }
     }
     let mut id: identity::Identity = identity::Identity::new(seed);
-    if password.len() > 4 { //Minimum length
+    if password.len() >= MINPASSWORDLEN { //Minimum length
         let master_password = get_master_password(get_db_path().as_str())
             .expect("Failed To Fetch Master Password!");
         match verify_password(password, master_password[1].as_str()) {
@@ -121,4 +122,31 @@ pub fn add_identity_with_password(seed: &str, password: &str) -> String {
         Err(_) => "Failed To Insert Identity!"
     };
     return format!("{}", response);
+}
+
+#[get("/identity/delete/<identity>/<password>")]
+pub fn delete_identity(identity: &str, password: &str) -> String {
+    match store::sqlite::identity::fetch_identity(get_db_path().as_str(), identity) {
+        Ok(mut id) => {
+            if id.encrypted && password.len() < MINPASSWORDLEN {
+                return "Must Supply Password To Delete Encrypted Identity".to_string();
+            }
+            if id.encrypted {
+                match id.decrypt_identity(password) {
+                    Ok(_) => {},
+                    Err(_) => {
+                        return "Invalid Password!".to_string()
+                    }
+                }
+            }
+            let response = match store::sqlite::identity::delete_identity(get_db_path().as_str(), identity) {
+                Ok(_) => "200",
+                Err(_) => "Failed To Delete Identity!"
+            };
+            format!("{}", response)
+        },
+        Err(_) => {
+            "Identity Not Found!".to_string()
+        }
+    }
 }

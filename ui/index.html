@@ -35,6 +35,10 @@
             border: 1px solid black;
         }
 
+        #txsTable table, #txsTable th, #txsTable td {
+            border: 1px solid black;
+        }
+
         /* The Modal (background) */
         .modal {
             display: none; /* Hidden by default */
@@ -169,7 +173,9 @@
                     <tr>
                         <th>Identity</th>
                         <th>Balance</th>
+                        <th>Txs</th>
                         <th>Encrypted</th>
+                        <th>Delete</th>
                     </tr>
                     </thead>
                     <tbody id="identityTable">
@@ -333,8 +339,39 @@
             </table>
 
         </div>
-
     </div>
+
+    <div id="txsDiv" style="margin-top: 10%; display: none">
+        <span id="txsIdentity"></span>
+        <table id="txsTable">
+            <thead id="txsTableHead">
+                <tr>
+                    <th>Destination</th>
+                    <th>Txid</th>
+                    <th>Tick</th>
+                    <th>Amount</th>
+                    <th>Confirmed</th>
+                </tr>
+            </thead>
+            <tbody id="txsTableBody"></tbody>
+        </table>
+    </div>
+
+    <div id="deleteIdModal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <span id="closeDeleteModal" class="close">&times;</span>
+            <b id="deleteIdIdentity"></b><br />
+            <label>
+                Password if Encrypted:
+                <input type="password" id="deleteIdPassword"/>
+            </label><br />
+            <button id="deleteIdBtn" onclick=deleteIdentity() >Delete This Identity</button>
+        </div>
+    </div>
+
+
+
+
     <div style="margin-top: 3%;">
         <table>
             <tr>

@@ -8,6 +8,10 @@ let expirationPendingTick = -1;
 let transactionPending = false;
 const passwordNotSetDefaultMessage = "You Can Set A Master Password In Settings.";
 
+let isShowingTxs = false;
+let identityCurrentlyShowingTxs = null;
+let transactionsObject = {};
+
 const doArrayElementsAgree = (array, thresholdPercentage) => {
     const length = array.length;
     if(length < 2) {
@@ -144,6 +148,8 @@ const getConnectedPeers = async () => {
     }
 }
 
+const identitiesTableObject = {};
+
 const getIdentities = async () => {
     const serverIp = document.getElementById("serverIp").value;
     const table = document.getElementById("identityTable");
@@ -154,35 +160,53 @@ const getIdentities = async () => {
         for (let i = 0; i < res.length; i += 2) {
             let identity = res[i];
             let encrypted = res[i + 1];
-            const tr = document.createElement("tr");
-            const td = document.createElement("td");
-            td.innerHTML = `&#x1f4cb ${identity}`;
-            td.addEventListener('click', () => {
-                navigator.clipboard.writeText(identity);
-                td.innerHTML = `&#x2705 ${identity}`;
-                setTimeout(() => {
-                    td.innerHTML = `&#x1f4cb ${identity}`;
-                }, 5000);
-            })
-            tr.appendChild(td);
 
-            const balanceTd = document.createElement("td");
-            balanceTd.id = `${identity}:balance:td`
+            if(!identitiesTableObject.hasOwnProperty(identity)) {
+                const tr = document.createElement("tr");
+                const td = document.createElement("td");
+                td.innerHTML = `&#x1f4cb ${identity}`;
+                td.addEventListener('click', () => {
+                    navigator.clipboard.writeText(identity);
+                    td.innerHTML = `&#x2705 ${identity}`;
+                    setTimeout(() => {
+                        td.innerHTML = `&#x1f4cb ${identity}`;
+                    }, 5000);
+                })
+                tr.appendChild(td);
 
-            let existingBalanceTd = document.getElementById(`${identity}:balance:td`);
-            if(existingBalanceTd) {
-                let existingBalance = existingBalanceTd.innerHTML ? existingBalanceTd.innerHTML : 0;
-                balanceTd.innerHTML = existingBalance;
-            } else {    //New Identity
-                balanceTd.innerHTML = `<b>0</b>`;
+                const balanceTd = document.createElement("td");
+                balanceTd.id = `${identity}:balance:td`
+
+                let existingBalanceTd = document.getElementById(`${identity}:balance:td`);
+                if(existingBalanceTd) {
+                    let existingBalance = existingBalanceTd.innerHTML ? existingBalanceTd.innerHTML : 0;
+                    balanceTd.innerHTML = existingBalance;
+                } else {    //New Identity
+                    balanceTd.innerHTML = `<b>0</b>`;
+                }
+
+                tr.appendChild(balanceTd);
+                let txTd = document.createElement("td")
+                txTd.innerHTML = `<button style="display: none" id="${identity}ShowTxsBtn"></button>`
+
+                tr.appendChild(txTd)
+                const encryptedId = document.createElement("td");
+                encryptedId.id = `${identity}:encrypted:td`
+                encryptedId.innerHTML = encrypted;
+                tr.appendChild(encryptedId);
+
+                const deleteId = document.createElement('td')
+                deleteId.innerHTML = `<button onclick=showDeleteModal("${identity}")>X</button>`;
+                tr.appendChild(deleteId)
+                newTableElements.push(tr);
+                identitiesTableObject[identity] = tr;
+
+            } else {
+                let tr = identitiesTableObject[identity]
+                //console.log(tr.children)
+                newTableElements.push(identitiesTableObject[identity])
+                let b = document.getElementById(`${identity}:balance:td`)
             }
-
-            tr.appendChild(balanceTd);
-            const encryptedId = document.createElement("td");
-            encryptedId.id = `${identity}:encrypted:td`
-            encryptedId.innerHTML = encrypted;
-            tr.appendChild(encryptedId);
-            newTableElements.push(tr);
             //table.appendChild(tr);
         }
         table.innerHTML = "";
@@ -192,6 +216,92 @@ const getIdentities = async () => {
         return res;
     } catch(error) {
     }
+}
+
+const deleteIdentity = async () => {
+    const serverIp = document.getElementById("serverIp").value;
+    try {
+        const identity = document.getElementById('deleteIdIdentity').innerText;
+        const pass = document.getElementById('deleteIdPassword').value || '0';
+        const result = await makeHttpRequest(`${serverIp}/identity/delete/${identity}/${pass}`);
+        if (parseInt(result) === 200) {
+            alert('Identity Deleted!')
+            document.getElementById('deleteIdModal').style.display = 'none';
+        } else {
+            alert(result)
+        }
+    } catch (error) {
+        console.log(error)
+        console.log('Failed To Delete Identity')
+    }
+}
+
+const showDeleteModal = async identity => {
+    const serverIp = document.getElementById("serverIp").value;
+    try {
+        document.getElementById('deleteIdPassword').value = "";
+        const modal = document.getElementById('deleteIdModal')
+        document.getElementById('deleteIdIdentity').innerText = identity;
+        modal.style.display = 'block';
+        const span = document.getElementById("closeDeleteModal");
+        span.onclick = function() {
+            modal.style.display = "none";
+        }
+    } catch {
+        console.log('Failed To Delete Identity')
+    }
+}
+
+const hideTxs = identity => {
+    isShowingTxs = false;
+    identityCurrentlyShowingTxs = null;
+    document.getElementById('txsDiv').style.display = 'none';
+    document.getElementById('txsIdentity').innerHTML = ``;
+    document.getElementById('txsTableBody').innerHTML = "";
+    document.getElementById(`${identity}ShowTxsBtn`).innerHTML = `<button id="${identity}ShowTxsBtn" onclick="showTxs('${identity}')">V</button>`
+}
+const showTxs = identity => {
+    isShowingTxs = true;
+    identityCurrentlyShowingTxs = identity
+    try {
+        if(document.getElementById(`${identity}ShowTxsBtn`)) {
+            document.getElementById(`${identity}ShowTxsBtn`).innerHTML = `<button onclick="hideTxs('${identity}')">^</button>`
+        }
+        document.getElementById('txsDiv').style.display = 'block';
+        document.getElementById('txsIdentity').innerHTML = `<b>${identity}</b><br/>`;
+        const tableBody = document.getElementById('txsTableBody')
+        tableBody.innerHTML = "";
+        for(const tx of transactionsObject[identity]) {
+            const tr = document.createElement('tr');
+            const dest = document.createElement('td')
+            const txid = document.createElement('td')
+            const tick = document.createElement('td')
+            const amount = document.createElement('td')
+            const confirmed = document.createElement('td')
+
+            dest.innerText = tx['destination'].substr(0, 6) + "...";
+            txid.innerText = tx['txid']
+            tick.innerText = tx['tick']
+            amount.innerText = tx['amount']
+
+            const status = tx['status'].toString() === "-1" ? "Pending" : (
+                tx['status'].toString() === "0" ? "Success" : "Failed"
+            );
+            confirmed.innerText = status
+
+            tr.appendChild(dest)
+            tr.appendChild(txid)
+            tr.appendChild(tick)
+            tr.appendChild(amount)
+            tr.appendChild(confirmed)
+            tableBody.appendChild(tr)
+        }
+
+    } catch(err) {
+        console.log(`Couldn't Find Element ${identity}ShowTxsBtn`);
+    }
+
+
 }
 
 const send = async (identity, isEncrypted) => {
@@ -224,6 +334,59 @@ const send = async (identity, isEncrypted) => {
     }
 
 
+}
+
+function onlyUnique(value, index, array) {
+    return array.indexOf(value) === index;
+}
+
+const getTransactions = async () => {
+    const serverIp = document.getElementById("serverIp").value;
+    try {
+        const result = await makeHttpRequest(`${serverIp}/transfer/0/0/0`);
+        const res = JSON.parse(result);
+        let transactionsObject2 = {};   //replace all at once instead of one at a time
+        for (const key of res) {    //which may be noticeable on the UI
+            if(!transactionsObject2.hasOwnProperty(key['source'])) {
+                transactionsObject2[key['source']] = []
+            }
+            transactionsObject2[key['source']].push(key)
+        }
+        transactionsObject = transactionsObject2
+        if(isShowingTxs) {  //Update Table (Status May Have Changed)
+            showTxs(identityCurrentlyShowingTxs)
+        }
+
+        for (const identity of res.map(x => x.source).filter(onlyUnique)) {
+            //console.log(identity)
+            if(document.getElementById(`${identity}ShowTxsBtn`)) {
+                let btnEl = document.getElementById(`${identity}ShowTxsBtn`);
+                if(!isShowingTxs) {
+                    btnEl.innerHTML = `<button id="${identity}ShowTxsBtn"  onclick="showTxs('${identity}')">V</button>`
+                } else {
+                    if(identityCurrentlyShowingTxs !== identity) {
+                        btnEl.innerHTML = `<button id="${identity}ShowTxsBtn" onclick="showTxs('${identity}')">V</button>`
+                    } else {
+                        btnEl.innerHTML = `<button onclick="hideTxs('${identity}')">^</button>`
+
+                    }
+                }
+                btnEl.style.display = 'block'
+
+            } else {
+                //console.log(`${identity}ShowTxsBtn Does Not Exist`)
+                //db corruption?
+            }
+
+        }
+
+
+
+
+        return res;
+    } catch(error) {
+        console.log(error)
+    }
 }
 const getBalance = async identity => {
     const serverIp = document.getElementById("serverIp").value;
@@ -600,7 +763,11 @@ const intervalLoopFunction = () => {
         })
         .then(_ => {
             //Finished Update Loop
-            setTimeout(intervalLoopFunction, 1000);
+            setTimeout(intervalLoopFunction, 2000);
+        })
+        .then(_ => {
+            //Finished Update Loop
+            setTimeout(getTransactions, 500);
         })
         .catch(() => {
             setTimeout(intervalLoopFunction, 1000);

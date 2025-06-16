@@ -78,7 +78,7 @@ impl PeerSet {
                 Ok(())
             },
             Err(err) => {
-                error!("Error Adding Peer! {}", err.to_string());
+                error!("Error Adding Peer <{}>! {}", ip, err.to_string());
                 Err(err.to_string())
             }
         }

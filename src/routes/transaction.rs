@@ -1,6 +1,7 @@
 use rocket::get;
 use logger::{debug, error, info};
 use store::{get_db_path, sqlite};
+use crate::routes::MINPASSWORDLEN;
 
 #[get("/transfer/<asc>/<limit>/<offset>")]
 pub fn fetch_transfers(asc: u8, limit: u32, offset: u32) -> String {
@@ -48,7 +49,7 @@ pub fn transfer(source: &str, dest: &str, amount: &str, expiration: &str, passwo
     };
 
     if source_identity.encrypted {
-        if password.len() > 1 {
+        if password.len() >= MINPASSWORDLEN {
             source_identity = match sqlite::master_password::get_master_password(get_db_path().as_str()) {
                 Ok(master_password) => {
                     match crypto::passwords::verify_password(password, master_password[1].as_str()) {

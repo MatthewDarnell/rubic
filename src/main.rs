@@ -6,13 +6,13 @@ use logger::{setup_logger, info};
 use std::sync::mpsc;
 mod env;
 mod routes;
-mod peer_set_thread;
+mod peer_loop;
 
 use rocket::http::Header;
 use rocket::{Request, Response};
 use rocket::fairing::{Fairing, Info, Kind};
 use store::sqlite;
-use crate::peer_set_thread::start_peer_set_thread;
+use crate::peer_loop::start_peer_set_thread;
 
 #[rocket::main]
 async fn main() {
@@ -31,11 +31,11 @@ async fn main() {
   let version: String = env!("CARGO_PKG_VERSION").to_string();
     
   setup_logger().expect("Failed To Set Up Logging!");
-  info!("Starting Rubic v{} - A Qubic Wallet", version);
+  logger::info(format!("Starting Rubic v{} - A Qubic Wallet", version).as_str());
   println!("{}", qubic_ascii_art_logo);
   println!("Starting Rubic v{} - A Qubic Wallet", version);
   println!("Warning! This software comes with no warranty, real or implied. Secure storage of seeds and passwords is paramount; total loss of funds may ensue otherwise.");
-  info!("Warning! This software comes with no warranty, real or implied. Secure storage of seeds and passwords is paramount; total loss of funds may ensue otherwise.");
+  info("Warning! This software comes with no warranty, real or implied. Secure storage of seeds and passwords is paramount; total loss of funds may ensue otherwise.");
   
   crypto::initialize();  
     
@@ -111,8 +111,9 @@ async fn main() {
       .mount("/", routes![
         routes::identity::balance,
         routes::identity::add_identity,
-        routes::identity::create_random_identity,
         routes::identity::add_identity_with_password,
+        routes::identity::create_random_identity,
+        routes::identity::delete_identity,
         routes::identity::get_identities,
         routes::identity::get_identity_from_seed,
 
@@ -122,6 +123,8 @@ async fn main() {
         routes::peer::peers,
         routes::peer::add_peer,
         routes::peer::delete_peer,
+        routes::peer::get_peer_limit,
+        routes::peer::set_peer_limit,
 
         routes::transaction::fetch_transfers,
         routes::transaction::transfer,
