@@ -750,7 +750,7 @@ const intervalLoopFunction = () => {
     loopCounter++;
     getIdentities()
         .then(async identities => {
-            if(loopCounter > 5) {
+            if(loopCounter > 2) {
                 identities = identities.filter(x => x.length > 10);
                 numFuncsToCall = 1 + identities.length;
                 for(const id of identities) {
@@ -763,7 +763,7 @@ const intervalLoopFunction = () => {
         })
         .then(_ => {
             //Finished Update Loop
-            setTimeout(intervalLoopFunction, 2000);
+            setTimeout(intervalLoopFunction, 1000);
         })
         .then(_ => {
             //Finished Update Loop

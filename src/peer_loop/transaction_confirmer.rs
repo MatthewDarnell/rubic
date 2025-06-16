@@ -12,7 +12,7 @@ use store::sqlite::{tick, transfer};
 pub fn confirm_transactions(peer_set: Arc<Mutex<PeerSet>>) {
     std::thread::spawn(move || {
         loop {
-            std::thread::sleep(Duration::from_millis(1000));
+            std::thread::sleep(Duration::from_millis(300));
             /*
             *
             *   SECTION <Look For Broadcasted Transfers That Are Executed To Confirm>
@@ -30,7 +30,7 @@ pub fn confirm_transactions(peer_set: Arc<Mutex<PeerSet>>) {
             match transfer::fetch_expired_and_broadcasted_transfers_with_unknown_status(get_db_path().as_str(), latest_tick) {
                 Ok(transfers) => {
                     for transfer in transfers {
-                        std::thread::sleep(std::time::Duration::from_millis(100));
+                        //std::thread::sleep(std::time::Duration::from_millis(100));
                         let _tick = transfer.get("tick").unwrap();
                         let txid = transfer.get("txid").unwrap();
                         //println!("looking for tx {} at tick {}", txid, _tick);
@@ -49,7 +49,7 @@ pub fn confirm_transactions(peer_set: Arc<Mutex<PeerSet>>) {
                                             match _lock.make_request(api::QubicApiPacket::request_quorum_tick(tick)) {
                                                 Ok(_) => {},
                                                 Err(_) => {
-                                                    println!("TransactionConfirmer: Failed To Request Quorum Tick!");
+                                                    //println!("TransactionConfirmer: Failed To Request Quorum Tick!");
                                                 }
                                             }
                                             drop(_lock);
@@ -144,7 +144,7 @@ pub fn confirm_transactions(peer_set: Arc<Mutex<PeerSet>>) {
                             }
                         }
                     }
-                    std::thread::sleep(std::time::Duration::from_millis(500));
+                    //std::thread::sleep(std::time::Duration::from_millis(500));
                 },
                 Err(_) => {
                     error!("Db Error Fetching Transfers to Broadcast")
