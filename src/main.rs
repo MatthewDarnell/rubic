@@ -109,6 +109,10 @@ async fn main() {
       .merge(("address", host.as_str()));
   rocket::custom(figment)
       .mount("/", routes![
+        
+        routes::asset::balance,
+        routes::asset::get_assets,  
+          
         routes::identity::balance,
         routes::identity::add_identity,
         routes::identity::add_identity_with_password,

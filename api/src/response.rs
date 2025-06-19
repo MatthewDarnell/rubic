@@ -1,3 +1,4 @@
+use std::ffi::CStr;
 use std::ops::Index;
 use std::str::FromStr;
 use consensus::computor::BroadcastComputors;
@@ -82,9 +83,6 @@ pub fn get_formatted_response_from_multiple(response: &mut Vec<QubicApiPacket>) 
                         get_db_path().as_str(),
                         _peer.as_str(),
                         get_identity(& asset.asset.ownership.pub_key).as_str(),
-                        _issuance.as_str(),
-                        Some(_ownership.as_str()),
-                        None,
                         asset.tick,
                         asset.universe_index,
                         _siblings.as_str()
@@ -111,23 +109,56 @@ pub fn get_formatted_response_from_multiple(response: &mut Vec<QubicApiPacket>) 
             }
             for (index, asset) in assets_data.iter().enumerate() {
                 unsafe {
-                    let _issuance = crypto::encoding::bytes_to_hex(&asset.issuance.issuance.to_bytes());
-                    let _ownership = crypto::encoding::bytes_to_hex(&asset.asset.ownership.to_bytes());
-                    let _possession = crypto::encoding::bytes_to_hex(&asset.asset.possession.to_bytes());
                     let _siblings = crypto::encoding::bytes_to_hex(&asset.siblings.as_flattened().to_vec());
                     let _peer = &response.index(index).peer.clone().unwrap();
                     match create_asset(
                         get_db_path().as_str(),
                         _peer.as_str(),
-                        get_identity(& asset.asset.ownership.pub_key).as_str(),
-                        _issuance.as_str(),
-                        Some(_ownership.as_str()),
-                        Some(_possession.as_str()),
+                        get_identity(&asset.asset.ownership.pub_key).as_str(),
                         asset.tick,
                         asset.universe_index,
                         _siblings.as_str()
                     ) {
-                        Ok(_) => {},
+                        Ok(id) => {
+                            let _issuance = &asset.issuance.issuance;
+                            //let _name = std::str::from_utf8(&_issuance.name);
+                            let _name = CStr::from_bytes_until_nul(&_issuance.name);
+                            if _name.is_err() {
+                                eprintln!("Failed To Parse AssetRecord Issuance Name: {:?}", _issuance.name);
+                                continue;
+                            }
+                            let name = _name.unwrap();
+                            let unit = crypto::encoding::bytes_to_hex(&_issuance.unit_of_measurement.to_vec());
+
+                            match store::sqlite::asset::asset_record::create_asset_issuance(
+                                get_db_path().as_str(),
+                                id,
+                                get_identity(&_issuance.pub_key).as_str(),
+                                _issuance._type,
+                                name.to_str().unwrap(),
+                                _issuance.number_of_decimal_places,
+                                unit.as_str(),
+                            ) {
+                                Ok(_) => {
+                                    let _possession = &asset.asset.possession;
+                                    match store::sqlite::asset::asset_record::create_asset_possession(
+                                        get_db_path().as_str(),
+                                        id,
+                                        get_identity(&_possession.pub_key).as_str(),
+                                        _possession._type,
+                                        _possession.padding,
+                                        _possession.managing_contract_index,
+                                        _possession.issuance_index,
+                                        _possession.number_of_shares
+                                    ) {
+                                        Ok(_) => {},
+                                        Err(_err) => { eprintln!("Failed to store asset Possession! {:?}", _err); }
+                                    }
+
+                                },
+                                Err(_err) => { eprintln!("Failed to store asset issuance! {:?}", _err); }
+                            }
+                        },
                         Err(_err) => {
                             eprintln!("Failed to create PossessedAsset! {:?}", _err);
                         }

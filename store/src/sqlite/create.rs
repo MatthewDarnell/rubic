@@ -76,16 +76,28 @@ pub fn open_database(path: &str, create: bool) -> Result<sqlite::Connection, Str
         peer TEXT
     );
     CREATE TABLE IF NOT EXISTS asset (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
         identity TEXT NOT NULL,
-        issuance TEXT NOT NULL,
-        ownership TEXT,
-        possession TEXT,
         tick INTEGER NOT NULL,
         universe_index INTEGER NOT NULL,
         siblings TEXT NOT NULL,
         created DATETIME DEFAULT CURRENT_TIMESTAMP,
         peer TEXT,
         FOREIGN KEY(identity) REFERENCES identities(identity) ON DELETE CASCADE
+    );
+    CREATE TABLE IF NOT EXISTS asset_record (
+        asset_id INTEGER NOT NULL,
+        record_type TEXT CHECK( record_type IN ('I','O','P') ) NOT NULL,
+        pub_key TEXT NOT NULL,
+        type INTEGER NOT NULL,
+        name TEXT,
+        num_decimal INTEGER,
+        unit_measure TEXT,
+        padding INTEGER,
+        managing_contract INTEGER,
+        issuance_index INTEGER,
+        num_shares INTEGER,
+        FOREIGN KEY(asset_id) REFERENCES asset(id)
     );
 ";
     //        FOREIGN KEY(identity) REFERENCES identities(identity)
@@ -95,7 +107,10 @@ pub fn open_database(path: &str, create: bool) -> Result<sqlite::Connection, Str
                 true => {
                     match connection.execute(query) {
                         Ok(_) => Ok(connection),
-                        Err(err) => Err(String::from(err.to_string()))
+                        Err(_err) => {
+                            eprintln!("Error {}", _err);
+                            Err(String::from(_err.to_string()))
+                        }
                     }
                 },
                 false => {
@@ -103,7 +118,10 @@ pub fn open_database(path: &str, create: bool) -> Result<sqlite::Connection, Str
                 }
             }
         },
-        Err(_) => Err(String::from("Failed To Create Db!"))
+        Err(_err) => {
+            eprintln!("Error opening database: {}", _err);
+            Err(String::from("Failed To Create Db!"))
+        }
     }
 }
 

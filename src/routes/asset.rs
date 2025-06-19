@@ -1,0 +1,21 @@
+use rocket::get;
+use store::get_db_path;
+use store::sqlite::asset::{fetch_asset_balance, fetch_issued_assets};
+
+#[get("/asset/balance/<asset>/<address>")]
+pub fn balance(asset: &str, address: &str) -> String {
+    match fetch_asset_balance(get_db_path().as_str(), asset, address) {
+        Ok(value) => { format!("{:?}", value) },
+        Err(error) => format!("{}", error)
+    }
+}
+
+#[get("/asset/issued")]
+pub fn get_assets() -> String {
+    match fetch_issued_assets(get_db_path().as_str()) {
+        Ok(assets) => {
+            format!("{:?}", assets)
+        },
+        Err(err) => format!("{}", err)
+    }
+}
