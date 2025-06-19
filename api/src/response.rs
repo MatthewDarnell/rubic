@@ -150,7 +150,7 @@ pub fn get_formatted_response_from_multiple(response: &mut Vec<QubicApiPacket>) 
                         tick_data.push(data)
                     },
                     None => {
-                        println!("Failed to format Tick!");
+                        //println!("Failed to format Tick!");
                     }
                 };
             }

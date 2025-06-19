@@ -246,7 +246,7 @@ pub fn set_transfer_as_broadcast(path: &str, txid: &str) -> Result<(), String> {
 }
 
 pub fn fetch_expired_and_broadcasted_transfers_with_unknown_status(path: &str, latest_tick: u32) -> Result<Vec<HashMap<String, String>>, String> {
-    let prep_query = "SELECT * FROM transfer WHERE broadcast = true AND tick < :latest_tick AND status = -1 ORDER BY tick ASC;";
+    let prep_query = "SELECT * FROM transfer WHERE broadcast = true AND tick <= :latest_tick AND status = -1 ORDER BY tick ASC;";
     let _lock = get_db_lock().lock().unwrap();
     //let _lock =SQLITE_TRANSFER_MUTEX.lock().unwrap();
     match open_database(path, true) {

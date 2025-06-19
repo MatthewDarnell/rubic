@@ -9,7 +9,7 @@ pub fn maintain_peers(peer_set: Arc<Mutex<PeerSet>>) {
     std::thread::spawn(move || {
         let peer_ips = vec![
             "62.2.98.75:21841",
-            "185.117.0.116:21841",
+            "31.204.159.145:21841",
             "144.2.106.163:21841"
         ];
         for ip in peer_ips {
