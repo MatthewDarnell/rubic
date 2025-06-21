@@ -120,6 +120,7 @@ pub fn setup_logger() -> Result<(), fern::InitError> {
     };
 
     let mut options = std::fs::OpenOptions::new();
+    options.create(true);
     options.append(true);
     
     

@@ -30,7 +30,12 @@ async fn main() {
 
   let version: String = env!("CARGO_PKG_VERSION").to_string();
     
-  setup_logger().expect("Failed To Set Up Logging!");
+  match setup_logger() {
+      Ok(_) => {},
+      Err(error) => {
+          eprintln!("Failed To Set Up Logging!: {}", error);
+      }
+  }
   logger::info(format!("Starting Rubic v{} - A Qubic Wallet", version).as_str());
   println!("{}", qubic_ascii_art_logo);
   println!("Starting Rubic v{} - A Qubic Wallet", version);
