@@ -110,9 +110,10 @@ async fn main() {
   rocket::custom(figment)
       .mount("/", routes![
         
+        routes::asset::all_asset_balances,
         routes::asset::balance,
-        routes::asset::get_assets,  
-          
+        routes::asset::get_assets,
+
         routes::identity::balance,
         routes::identity::add_identity,
         routes::identity::add_identity_with_password,

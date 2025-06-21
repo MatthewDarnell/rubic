@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use rocket::get;
 use store::get_db_path;
 use store::sqlite::asset::{fetch_asset_balance, fetch_issued_assets};
@@ -6,6 +7,24 @@ use store::sqlite::asset::{fetch_asset_balance, fetch_issued_assets};
 pub fn balance(asset: &str, address: &str) -> String {
     match fetch_asset_balance(get_db_path().as_str(), asset, address) {
         Ok(value) => { format!("{:?}", value) },
+        Err(error) => format!("{}", error)
+    }
+}
+#[get("/asset/balance/<address>")]
+pub fn all_asset_balances(address: &str) -> String {
+    match fetch_issued_assets(get_db_path().as_str()) {
+        Ok(assets) => {
+            let mut balances: Vec<HashMap<String, String>> = Vec::new();
+            for asset in assets.iter() {
+                match fetch_asset_balance(get_db_path().as_str(), asset, address) {
+                    Ok(value) => { balances.push(value); },
+                    Err(error) => {
+                        return format!("{}", error);
+                    }
+                }
+            }
+            format!("{:?}", balances)
+        },
         Err(error) => format!("{}", error)
     }
 }
