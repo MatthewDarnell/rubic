@@ -17,7 +17,14 @@ pub fn all_asset_balances(address: &str) -> String {
             let mut balances: Vec<HashMap<String, String>> = Vec::new();
             for asset in assets.iter() {
                 match fetch_asset_balance(get_db_path().as_str(), asset, address) {
-                    Ok(value) => { balances.push(value); },
+                    Ok(value) => { 
+                        if value.contains_key(&"balance".to_string()) {
+                            let balance = value.get(&"balance".to_string()).unwrap();
+                            if balance.len() > 0 && *balance != "0".to_string() {
+                                balances.push(value);
+                            }
+                        }
+                    },
                     Err(error) => {
                         return format!("{}", error);
                     }
