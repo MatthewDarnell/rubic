@@ -49,7 +49,6 @@ pub fn get_assets() -> String {
     }
 }
 
-//http://localhost:3000/asset/transfer/CFB/CFBMEMZOIDEXQAUXYYSZIURADQLAPWPMNJXQSNVQZAHYVOPYUKKJBJUCTVJL/XYZYOLNZNIGGKAKTHBYTFTKAQMBBKDSGYPWZNJVMFHAJYTEDBZWNMODHRIJD/FBPKVCKLFBNTDHTJYGNWMKFMNDXANRBOSDYLCOEJWFKFPZQPVEIFZYJHJBWI/1/27965836/password
 #[get("/asset/transfer/<asset_name>/<issuer>/<source>/<dest>/<amount>/<expiration>/<password>")]
 pub fn transfer(asset_name: &str, issuer: &str, source: &str, dest: &str, amount: &str, expiration: &str, password: &str) -> String {
     let source_identity: String = source.to_string();
