@@ -118,6 +118,7 @@ async fn main() {
         routes::asset::all_asset_balances,
         routes::asset::balance,
         routes::asset::get_assets,
+        routes::asset::transfer,
 
         routes::identity::balance,
         routes::identity::add_identity,

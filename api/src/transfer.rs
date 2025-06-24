@@ -2,8 +2,7 @@ use identity::Identity;
 use crypto::hash::k12_bytes;
 use crypto::qubic_identities::{get_subseed, get_public_key_from_identity, sign_raw, get_identity};
 use logger::info;
-
-
+use crate::AsBytes;
 /*
     Helper Functions
 */
@@ -119,36 +118,7 @@ impl TransferTransaction {
             _signature
         }
     }
-
-    pub fn as_bytes(&self) -> Vec<u8> {
-        let mut bytes: Vec<u8> = Vec::new();
-        for k in self._source_public_key.as_slice() {
-            bytes.push(*k);
-        }
-        for k in self._source_destination_public_key.as_slice() {
-            bytes.push(*k);
-        }
-        for c in self._amount.to_le_bytes() {
-            bytes.push(c);
-        }
-
-        for c in self._tick.to_le_bytes() {
-            bytes.push(c);
-        }
-
-        for c in self._input_type.to_le_bytes() {
-            bytes.push(c);
-        }
-
-        for c in self._input_size.to_le_bytes() {
-            bytes.push(c);
-        }
-
-        for k in self._signature.as_slice() {
-            bytes.push(*k);
-        }
-        bytes
-    }
+    
 
     pub fn as_bytes_without_signature(&self) -> Vec<u8> {
         let mut bytes: Vec<u8> = Vec::new();
@@ -182,6 +152,38 @@ impl TransferTransaction {
         get_identity(&digest).to_lowercase()
     }
 
+}
+
+impl AsBytes for TransferTransaction {
+    fn as_bytes(&self) -> Vec<u8> {
+        let mut bytes: Vec<u8> = Vec::new();
+        for k in self._source_public_key.as_slice() {
+            bytes.push(*k);
+        }
+        for k in self._source_destination_public_key.as_slice() {
+            bytes.push(*k);
+        }
+        for c in self._amount.to_le_bytes() {
+            bytes.push(c);
+        }
+
+        for c in self._tick.to_le_bytes() {
+            bytes.push(c);
+        }
+
+        for c in self._input_type.to_le_bytes() {
+            bytes.push(c);
+        }
+
+        for c in self._input_size.to_le_bytes() {
+            bytes.push(c);
+        }
+
+        for k in self._signature.as_slice() {
+            bytes.push(*k);
+        }
+        bytes
+    }
 }
 
 

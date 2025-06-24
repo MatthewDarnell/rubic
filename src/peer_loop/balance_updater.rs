@@ -64,7 +64,15 @@ pub fn update_balances(peer_set: Arc<Mutex<PeerSet>>) {
                 if latest_tick - last_deleted_tick > OLD_ENTITIES_DELETE_TICK {
                     debug!("Deleting Before Tick {}", latest_tick - OLD_ENTITIES_DELETE_TICK);
                     match sqlite::identity::delete_all_response_entities_before_tick(get_db_path().as_str(), latest_tick - OLD_ENTITIES_DELETE_TICK) {
-                        Ok(_) => {},
+                        Ok(_) => {
+                            match sqlite::asset::delete_all_assets_before_tick(get_db_path().as_str(), latest_tick - OLD_ENTITIES_DELETE_TICK) {
+                                Ok(_) => {
+                                },
+                                Err(err) => {
+                                    eprintln!("Error Deleting Assets! {}", err);
+                                }
+                            }
+                        },
                         Err(_err) => {
                             println!("Failed To Delete Old Entities {}", _err);
                         }

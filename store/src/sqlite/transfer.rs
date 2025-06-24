@@ -173,7 +173,7 @@ pub fn fetch_transfers_to_broadcast(path: &str) -> Result<Vec<HashMap<String, St
     let prep_query = "SELECT * FROM transfer WHERE broadcast = false ORDER BY tick ASC;";
     //let _lock =SQLITE_TRANSFER_MUTEX.lock().unwrap();
     let _lock = get_db_lock().lock().unwrap();
-    match open_database(path, true) {
+    match open_database(path, false) {
         Ok(connection) => {
             match prepare_crud_statement(&connection, prep_query) {
                 Ok(mut statement) => {
@@ -194,6 +194,7 @@ pub fn fetch_transfers_to_broadcast(path: &str) -> Result<Vec<HashMap<String, St
                                 transfer.insert("created".to_string(), statement.read::<String, _>("created").unwrap());
                                 response.push(transfer);
                             }
+                            drop(_lock);
                             Ok(response)
                         },
                         Err(err) => Err(err.to_string())

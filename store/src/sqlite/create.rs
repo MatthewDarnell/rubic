@@ -97,7 +97,17 @@ pub fn open_database(path: &str, create: bool) -> Result<sqlite::Connection, Str
         managing_contract INTEGER,
         issuance_index INTEGER,
         num_shares INTEGER,
-        FOREIGN KEY(asset_id) REFERENCES asset(id)
+        FOREIGN KEY(asset_id) REFERENCES asset(id) ON DELETE CASCADE
+    );
+    CREATE TABLE IF NOT EXISTS asset_transfer (
+        txid TEXT NOT NULL,
+        issuer TEXT NOT NULL,
+        new_owner_and_possessor TEXT NOT NULL,
+        name TEXT NOT NULL,
+        num_shares INTEGER NOT NULL,
+        input_type INTEGER NOT NULL,
+        input_size INTEGER NOT NULL,
+        FOREIGN KEY(txid) REFERENCES transfer(txid) ON DELETE CASCADE
     );
 ";
     //        FOREIGN KEY(identity) REFERENCES identities(identity)

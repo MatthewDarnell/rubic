@@ -1,12 +1,19 @@
 pub mod header;
 pub mod response;
 pub mod transfer;
+pub mod asset_transfer;
+
 extern crate crypto;
 extern crate identity;
 
 use crypto::qubic_identities::get_public_key_from_identity;
 use crate::header::{ EntityType, RequestResponseHeader };
 use crate::transfer::TransferTransaction;
+
+
+pub trait AsBytes {
+    fn as_bytes(&self) -> Vec<u8>;
+}
 
 //Takes a public key
 #[derive(Debug, Copy, Clone)]
@@ -68,7 +75,7 @@ impl QubicApiPacket {
         }
     }
     
-    pub fn broadcast_transaction(transaction: &TransferTransaction) -> Self {
+    pub fn broadcast_transaction<T: AsBytes>(transaction: T) -> Self {
         //let entity: EntityType = EntityType::RequestEntity;
         let mut header = RequestResponseHeader::new();
         header.set_type(EntityType::BroadcastTransaction);
