@@ -1,33 +1,8 @@
-use std::str::FromStr;
 use identity::Identity;
 use crypto::hash::k12_bytes;
 use crypto::qubic_identities::{get_subseed, get_public_key_from_identity, sign_raw, get_identity};
 use crate::AsBytes;
 use crate::transfer::TransferTransaction;
-/*
-    Helper Functions
-*/
-fn read_le_u64(input: &mut &[u8]) -> u64 {
-    let (int_bytes, rest) = input.split_at(std::mem::size_of::<u64>());
-    *input = rest;
-    u64::from_le_bytes(int_bytes.try_into().unwrap())
-}
-
-fn read_le_u32(input: &mut &[u8]) -> u32 {
-    let (int_bytes, rest) = input.split_at(std::mem::size_of::<u32>());
-    *input = rest;
-    u32::from_le_bytes(int_bytes.try_into().unwrap())
-}
-
-fn read_le_u16(input: &mut &[u8]) -> u16 {
-    let (int_bytes, rest) = input.split_at(std::mem::size_of::<u16>());
-    *input = rest;
-    u16::from_le_bytes(int_bytes.try_into().unwrap())
-}
-
-/*
-    End Helper Functions
-*/
 
 const QX_ADDRESS: &str = "BAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAARMID";
 pub const QX_TRANSFER_SHARE: u16 = 2;

@@ -49,6 +49,26 @@ pub fn get_assets() -> String {
     }
 }
 
+#[get("/asset/transfer/<asc>/<limit>/<offset>")]
+pub fn fetch_transfers(asc: u8, limit: u32, offset: u32) -> String {
+    let order: String = match asc {
+        1 => "ASC".to_string(),
+        _ => "DESC".to_string()
+    };
+
+    let _limit: i32 = match limit {
+        0 => -1,
+        _ => limit as i32
+    };
+    match sqlite::asset::asset_transfer::fetch_all_transfers(get_db_path().as_str(), &order, _limit, offset) {
+        Ok(txs) => format!("{:?}", txs),
+        Err(e) => {
+            println!("Error Fetching Asset Transfers: {}", e);
+            format!("Error Fetching Asset Transfers.")
+        }
+    }    
+}
+
 #[get("/asset/transfer/<asset_name>/<issuer>/<source>/<dest>/<amount>/<expiration>/<password>")]
 pub fn transfer(asset_name: &str, issuer: &str, source: &str, dest: &str, amount: &str, expiration: &str, password: &str) -> String {
     let source_identity: String = source.to_string();

@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 use crate::header::RequestResponseHeader;
 use crate::QubicApiPacket;
 use crate::response::FormatQubicResponseDataToStructure;
@@ -83,6 +85,7 @@ impl Ownership {
 }
 
 impl Possession {
+
     pub fn from_bytes(bytes: &[u8]) -> Self {
         Possession {
             pub_key: <[u8; 32]>::try_from(&bytes[0..32]).unwrap(),
@@ -93,6 +96,7 @@ impl Possession {
             number_of_shares: u64::from_le_bytes([bytes[40], bytes[41], bytes[42], bytes[43], bytes[44], bytes[45], bytes[46], bytes[47]])
         }
     }
+
     pub fn to_bytes(&self) -> Vec<u8> {
         let mut vec = Vec::with_capacity(size_of::<Possession>());
         vec.resize(size_of::<Possession>(), 0);
@@ -115,6 +119,7 @@ pub union AssetRecord {
 }
 
 #[derive( Copy, Clone)]
+#[repr(C)]
 pub struct IssuedAsset {
     pub asset: AssetRecord,
     pub tick: u32,
@@ -123,6 +128,7 @@ pub struct IssuedAsset {
 }
 
 #[derive( Copy, Clone)]
+#[repr(C)]
 pub struct OwnedAsset {
     pub asset: AssetRecord,
     pub issuance: AssetRecord,
@@ -132,6 +138,7 @@ pub struct OwnedAsset {
 }
 
 #[derive(Copy, Clone)]
+#[repr(C)]
 pub struct PossessedAsset {
     pub asset: AssetRecord,
     pub ownership: AssetRecord,

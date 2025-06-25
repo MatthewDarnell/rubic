@@ -47,7 +47,7 @@ pub fn create_transfer(path: &str, source: &str, destination: &str, amount: u64,
 }
 
 pub fn fetch_all_transfers(path: &str, asc: &String, limit: i32, offset: u32) -> Result<Vec<HashMap<String, String>>, String> {
-    let _prep_query = format!("SELECT * FROM transfer ORDER BY tick {} LIMIT {} OFFSET {};", asc, limit, offset);
+    let _prep_query = format!("SELECT * FROM transfer WHERE txid NOT IN (SELECT txid FROM asset_transfer) ORDER BY tick {} LIMIT {} OFFSET {};", asc, limit, offset);
     let prep_query = _prep_query.as_str();
     //let _lock =SQLITE_TRANSFER_MUTEX.lock().unwrap();
     let _lock = get_db_lock().lock().unwrap();

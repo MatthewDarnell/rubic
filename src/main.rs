@@ -117,6 +117,7 @@ async fn main() {
         
         routes::asset::all_asset_balances,
         routes::asset::balance,
+        routes::asset::fetch_transfers,
         routes::asset::get_assets,
         routes::asset::transfer,
 

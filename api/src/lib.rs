@@ -8,7 +8,6 @@ extern crate identity;
 
 use crypto::qubic_identities::get_public_key_from_identity;
 use crate::header::{ EntityType, RequestResponseHeader };
-use crate::transfer::TransferTransaction;
 
 
 pub trait AsBytes {
