@@ -1,10 +1,10 @@
 use identity::Identity;
 use crypto::hash::k12_bytes;
 use crypto::qubic_identities::{get_subseed, get_public_key_from_identity, sign_raw, get_identity};
-use crate::AsBytes;
-use crate::transfer::TransferTransaction;
+use api::AsBytes;
+use api::transfer::TransferTransaction;
+use crate::qx::QX_ADDRESS;
 
-const QX_ADDRESS: &str = "BAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAARMID";
 pub const QX_TRANSFER_SHARE: u16 = 2;
 
 #[derive(Debug, Clone, Copy)]
@@ -57,21 +57,21 @@ impl AssetTransferTransaction {
     {
         let mut name: [u8; 8] = [0; 8];
         name[0..asset_name.len()].copy_from_slice(asset_name.as_bytes());
-        
+
         let asset_tx = TransferAssetOwnershipAndPossessionInput {
             issuer: get_public_key_from_identity(&issuer.to_string()).unwrap(),
             new_owner_and_possessor: get_public_key_from_identity(&new_owner_and_possessor.to_string()).unwrap(),
             asset_name: u64::from_le_bytes(name),
             number_of_shares
         };
-        
+
         AssetTransferTransaction {
             tx,
             asset_tx,
             _signature: sig.to_vec()
         }
     }
-    
+
     pub fn from_vars(source_identity: &Identity, asset_name: &str, issuer: &str, dest: &str, amount: i64, tick: u32) -> Self {
         if source_identity.encrypted {
             panic!("Trying to Transfer From Encrypted Wallet!");
@@ -84,10 +84,10 @@ impl AssetTransferTransaction {
             Err(err) => panic!("{:?}", err)
         };
         let mut tx: TransferTransaction = TransferTransaction::from_vars(
-          source_identity,
-          QX_ADDRESS,
-          1000000u64,
-          tick
+            source_identity,
+            QX_ADDRESS,
+            1000000u64,
+            tick
         );
 
         tx._input_type = QX_TRANSFER_SHARE;
@@ -109,7 +109,7 @@ impl AssetTransferTransaction {
         pre_image.resize(tx_bytes.len(), 0);
         pre_image.copy_from_slice(&tx_bytes);
         pre_image.append(&mut input_bytes);
-        
+
         let hash = k12_bytes(&pre_image);
 
         let sub_seed: Vec<u8> = get_subseed(source_identity.seed.as_str()).expect("Failed To Get SubSeed!");

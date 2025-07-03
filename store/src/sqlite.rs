@@ -17,3 +17,4 @@ pub mod identity;
 pub mod transfer;
 pub mod response_entity;
 pub mod asset;
+pub mod qx;

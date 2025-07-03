@@ -1,4 +1,4 @@
-workspace = { members = [ "consensus","logger"] }
+workspace = { members = [ "consensus","logger", "smart_contract"] }
 [package]
 name = "rubic"
 version = "0.2.0"
@@ -16,6 +16,7 @@ crypto =  { path = './crypto' }
 identity = { path = './identity' }
 logger = { path = './logger' }
 network = { path = './network' }
+smart_contract = { path = './smart_contract' }
 store = { path = './store' }
 hex = "0.4.3"
 base64 = "0.21.7"

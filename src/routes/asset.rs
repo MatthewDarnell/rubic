@@ -136,7 +136,7 @@ pub fn transfer(asset_name: &str, issuer: &str, source: &str, dest: &str, amount
     let tck: u32 = expiration.parse().unwrap();
 
     info!("Creating Asset Transfer: {} .({}) ---> {} (Expires At Tick.<{}>)", &source_identity.identity.as_str(), amt.to_string().as_str(), dest, tck.to_string().as_str());
-    let transfer_tx = api::asset_transfer::AssetTransferTransaction::from_vars(&source_identity, asset_name.to_uppercase().as_str(), issuer, dest, amt, tck);
+    let transfer_tx = smart_contract::qx::asset_transfer::AssetTransferTransaction::from_vars(&source_identity, asset_name.to_uppercase().as_str(), issuer, dest, amt, tck);
     let txid = transfer_tx.txid();
 
     let sig = transfer_tx._signature;

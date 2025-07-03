@@ -109,6 +109,17 @@ pub fn open_database(path: &str, create: bool) -> Result<sqlite::Connection, Str
         input_size INTEGER NOT NULL,
         FOREIGN KEY(txid) REFERENCES transfer(txid) ON DELETE CASCADE
     );
+
+    CREATE TABLE IF NOT EXISTS qx_order (
+        txid TEXT NOT NULL,
+        issuer TEXT NOT NULL,
+        name TEXT NOT NULL,
+        price INTEGER NOT NULL,
+        num_shares INTEGER NOT NULL,
+        input_type INTEGER NOT NULL,
+        input_size INTEGER NOT NULL,
+        FOREIGN KEY(txid) REFERENCES transfer(txid) ON DELETE CASCADE
+    );
 ";
     //        FOREIGN KEY(identity) REFERENCES identities(identity)
     match sqlite::open(path) {

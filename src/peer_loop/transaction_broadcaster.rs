@@ -1,11 +1,12 @@
 use std::str::FromStr;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
-use api::asset_transfer::AssetTransferTransaction;
+use smart_contract::qx::asset_transfer::AssetTransferTransaction;
 use api::transfer::TransferTransaction;
 use crypto::qubic_identities::get_public_key_from_identity;
 use logger::{error, info};
 use network::peers::PeerSet;
+use smart_contract::qx::order::QxOrderTransaction;
 use store::{get_db_path, sqlite};
 use store::sqlite::transfer;
 use store::sqlite::transfer::set_transfer_as_broadcast;
@@ -67,7 +68,33 @@ pub fn broadcast_transactions(peer_set: Arc<Mutex<PeerSet>>) {
                                     let atx: AssetTransferTransaction = AssetTransferTransaction::from_signed_data(tx, issuer, new_owner_and_possessor, name.as_str(), i64::from_str(_num_shares).unwrap(), sig_arr.as_slice());
                                     _broadcast = Some(api::QubicApiPacket::broadcast_transaction(atx));
                                 } else {
-                                    _broadcast = Some(api::QubicApiPacket::broadcast_transaction(tx));
+                                    match sqlite::qx::order::fetch_qx_order_by_txid(get_db_path().as_str(), txid.as_str()) {
+                                        Ok(_order_tx) => {
+                                            if _order_tx.is_some() {
+                                                let order_tx = _order_tx.unwrap();
+                                                //This is an Asset Transfer
+                                                let issuer = order_tx.get("issuer").unwrap();
+                                                let name = order_tx.get("name").unwrap();
+                                                let _num_shares = order_tx.get("num_shares").unwrap();
+                                                let input_size = order_tx.get("input_size").unwrap();
+                                                let input_type = order_tx.get("input_type").unwrap();
+                                                let price = order_tx.get("price").unwrap();
+
+                                                tx._input_size = u16::from_str(input_size).unwrap();
+                                                tx._input_type = u16::from_str(input_type).unwrap();
+
+                                                let otx: QxOrderTransaction = QxOrderTransaction::from_signed_data(tx, issuer, name.as_str(), u64::from_str(price).unwrap(), u64::from_str(_num_shares).unwrap(), sig_arr.as_slice());
+                                                println!("{:?}", &otx);
+                                                println!("Re-Constructed Tx: {}", otx.txid());
+                                                _broadcast = Some(api::QubicApiPacket::broadcast_transaction(otx));
+                                            } else {
+                                                _broadcast = Some(api::QubicApiPacket::broadcast_transaction(tx));
+                                            }
+                                        },
+                                        Err(_) => {
+                                            _broadcast = None;
+                                        }
+                                    }
                                 }
                             },
                             Err(_) => {
@@ -80,7 +107,7 @@ pub fn broadcast_transactions(peer_set: Arc<Mutex<PeerSet>>) {
                                     Ok(_) => {
                                         match set_transfer_as_broadcast(get_db_path().as_str(), txid.as_str()) {
                                             Ok(_) => {
-                                                //println!("Transaction {} Broadcast", txid);
+                                                println!("Transaction {} Broadcast", txid);
                                                 info!("Transaction {} Broadcast", txid);
                                             },
                                             Err(err) => {

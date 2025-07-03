@@ -1,7 +1,7 @@
 pub mod header;
 pub mod response;
 pub mod transfer;
-pub mod asset_transfer;
+
 
 extern crate crypto;
 extern crate identity;
