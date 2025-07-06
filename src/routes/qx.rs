@@ -16,6 +16,26 @@ pub fn get_orderbook(asset: &str, ask_bid: &str, limit: i32, offset: u32) -> Str
     }
 }
 
+#[get("/qx/orders/<asc>/<limit>/<offset>")]
+pub fn fetch_orders(asc: u8, limit: u32, offset: u32) -> String {
+    let order: String = match asc {
+        1 => "ASC".to_string(),
+        _ => "DESC".to_string()
+    };
+
+    let _limit: i32 = match limit {
+        0 => -1,
+        _ => limit as i32
+    };
+    match sqlite::qx::order::fetch_all_qx_orders(get_db_path().as_str(), &order, _limit, offset) {
+        Ok(txs) => format!("{:?}", txs),
+        Err(e) => {
+            println!("Error Fetching QX Orders: {}", e);
+            format!("Error Fetching  QX Orders.")
+        }
+    }
+}
+
 #[get("/qx/order/<tick>/<issuer>/<asset>/<ask_bid>/<address>/<price>/<amount>/<password>")]
 pub fn place_order(tick: u32, issuer: &str, asset: &str, ask_bid: &str, address: &str, price: u64, amount: u64, password: &str) -> String {
     let _identity: String = address.to_string();
