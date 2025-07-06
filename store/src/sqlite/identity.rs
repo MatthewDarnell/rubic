@@ -1,6 +1,6 @@
 use std::collections::LinkedList;
 use sqlite::State;
-use identity::Identity;
+use protocol::identity::Identity;
 use logger::error;
 use crate::sqlite::create::open_database;
 use crate::sqlite::crud::prepare_crud_statement;
@@ -362,7 +362,7 @@ pub fn delete_identity(path: &str, identity: &str) -> Result<(), String> {
 
 
 pub mod test_identities {
-    use identity::Identity;
+    use protocol::identity::Identity;
     use crate::sqlite::identity::{insert_new_identity, fetch_identity, delete_identity};
     use serial_test::serial;
     use std::fs;

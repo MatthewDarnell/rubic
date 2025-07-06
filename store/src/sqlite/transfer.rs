@@ -408,7 +408,7 @@ pub mod test_transfer {
     use crate::sqlite::transfer::{create_transfer, fetch_transfer_by_txid, set_transfer_as_broadcast};
     use serial_test::serial;
     use std::fs;
-    use identity::Identity;
+    use protocol::identity::Identity;
 
     #[test]
     #[serial]

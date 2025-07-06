@@ -62,7 +62,7 @@ pub fn confirm_transactions(peer_set: Arc<Mutex<PeerSet>>) {
                                                 match _lock.make_request(api::QubicApiPacket::request_tick_data(tick)) {
                                                     Ok(_) => {},
                                                     Err(_) => {
-                                                        println!("TransactionConfirmer: Failed To Request Tick Data!");
+                                                        //println!("TransactionConfirmer: Failed To Request Tick Data!");
                                                     }
                                                 }
                                                 drop(_lock);
@@ -109,7 +109,7 @@ pub fn confirm_transactions(peer_set: Arc<Mutex<PeerSet>>) {
                                         match _lock.make_request(api::QubicApiPacket::request_quorum_tick(tick)) {
                                             Ok(_) => {},
                                             Err(_) => {
-                                                println!("TransactionConfirmer: Failed To Request Quorum Tick!");
+                                                //println!("TransactionConfirmer: Failed To Request Quorum Tick!");
                                             }
                                         }
                                         drop(_lock);
@@ -135,7 +135,7 @@ pub fn confirm_transactions(peer_set: Arc<Mutex<PeerSet>>) {
                                         match _lock.make_request(api::QubicApiPacket::request_quorum_tick(tick)) {
                                             Ok(_) => {},
                                             Err(_) => {
-                                                println!("TransactionConfirmer: Failed To Request Quorum Tick!");
+                                                //println!("TransactionConfirmer: Failed To Request Quorum Tick!");
                                             }
                                         }
                                         drop(_lock);

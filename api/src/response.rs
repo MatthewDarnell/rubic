@@ -1,6 +1,8 @@
+use std::collections::HashMap;
 use std::ffi::CStr;
 use std::ops::Index;
 use std::str::FromStr;
+use std::sync::{Arc, Mutex};
 use consensus::computor::BroadcastComputors;
 use std::time::{SystemTime, UNIX_EPOCH};
 use crate::QubicApiPacket;
@@ -18,6 +20,7 @@ use consensus::tick::Tick;
 use consensus::tick_data::{TickData, TransactionDigest};
 use crypto::qubic_identities::get_identity;
 use uuid::Uuid;
+use smart_contract::qx::orderbook::{AssetOrdersRequest, OrderBook};
 use store::sqlite::asset::create_asset;
 use crate::response::asset::{OwnedAsset, PossessedAsset};
 
@@ -27,6 +30,7 @@ pub mod broadcast_transaction;
 pub mod request_tick_data;
 mod tick;
 mod asset;
+mod asset_order;
 
 pub trait FormatQubicResponseDataToStructure {
     fn format_qubic_response_data_to_structure(response: & mut QubicApiPacket) -> Option<Self> where Self: Sized;
@@ -236,7 +240,7 @@ pub fn get_formatted_response_from_multiple(response: &mut Vec<QubicApiPacket>) 
     }
 }
 
-pub fn get_formatted_response(response: &mut QubicApiPacket) {
+pub fn get_formatted_response(requests: Arc<Mutex<HashMap<u32, QubicApiPacket>>>, response: &mut QubicApiPacket) {
     let path = store::get_db_path();
     match response.api_type {
         EntityType::BroadcastComputors => {
@@ -417,9 +421,50 @@ pub fn get_formatted_response(response: &mut QubicApiPacket) {
                 None => {}
             }
         },
+        EntityType::RespondContractFunction => {
+            //todo: as we implement more contracts, this might not be just for Qx Orderbook
+            match OrderBook::format_qubic_response_data_to_structure(response) {
+                Some(_v) => {
+                    match requests.lock() {
+                        Ok(guard) => {
+                            if let Some(request) = guard.get(&response.header._dejavu) {
+                                let asset_orders_request: AssetOrdersRequest = AssetOrdersRequest::from_bytes(request.data.as_slice());
+                                let side = match asset_orders_request.get_orderbook_side() {
+                                    "ASK" => "A",
+                                    "BID" => "B",
+                                    _ => "UNKNOWN"
+                                };
+                                if side != "UNKNOWN" {  //some other request, why did we match on this
+                                    let a_bytes = asset_orders_request.input.asset_name.to_le_bytes();
+                                    match CStr::from_bytes_until_nul(&a_bytes) {
+                                        Ok(asset_name) => store::sqlite::qx::orderbook::create_qx_orderbook(get_db_path().as_str(), asset_name.to_str().unwrap(), side, &_v).expect("Failed to create Orderbook"),
+                                        Err(_) => {}
+                                    }   
+                                }
+                            } else {
+                                //println!("Requests Tracker Missing Request {}", &response.header._dejavu);
+                            }
+                        },
+                        Err(_err) => {
+                            //println!("Failed To Get Order book Mutex Lock");
+                        }
+                    }
+                },
+                None => println!("Failed To Read Orderbook!")
+            }
+        },
         _ => { 
             //println!("Unknown Entity Type {:?}", response.api_type);
             //println!("{:?}", response);
+        }
+    }
+    match requests.lock() {
+        Ok(mut guard) => {
+            guard.remove(&response.header._dejavu);
+            //println!("Request {} Removed!", response.header._dejavu);
+        },
+        Err(_err) => {
+            //eprintln!("Failed To Remove Request {}", _err.to_string());
         }
     }
 

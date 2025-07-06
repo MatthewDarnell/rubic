@@ -4,6 +4,5 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-api = { path = '../api'}
 crypto = { path = '../crypto'}
-identity = { path = '../identity'}
+protocol = { path = '../protocol'}

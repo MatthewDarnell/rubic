@@ -125,7 +125,7 @@ impl Identity {
 mod create_identity {
 
     pub mod create {
-        use crate::Identity;
+        use crate::identity::Identity;
 
         #[test]
         fn create_new_identity() {
@@ -147,7 +147,7 @@ mod create_identity {
     }
 
     pub mod encryption {
-        use crate::Identity;
+        use crate::identity::Identity;
         #[test]
         fn encrypt_an_identity() {
             let mut id: Identity = Identity::new("lcehvbvddggkjfnokduyjuiyvkklrvrmsaozwbvjlzvgvfipqpnkkuf");

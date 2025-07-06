@@ -1,8 +1,8 @@
-use identity::Identity;
+use protocol::identity::Identity;
 use crypto::hash::k12_bytes;
 use crypto::qubic_identities::{get_subseed, get_public_key_from_identity, sign_raw, get_identity};
-use api::AsBytes;
-use api::transfer::TransferTransaction;
+use protocol::AsBytes;
+use protocol::transfer::TransferTransaction;
 use crate::qx::QX_ADDRESS;
 
 pub const QX_TRANSFER_SHARE: u16 = 2;

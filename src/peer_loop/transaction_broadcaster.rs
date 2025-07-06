@@ -2,7 +2,7 @@ use std::str::FromStr;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use smart_contract::qx::asset_transfer::AssetTransferTransaction;
-use api::transfer::TransferTransaction;
+use protocol::transfer::TransferTransaction;
 use crypto::qubic_identities::get_public_key_from_identity;
 use logger::{error, info};
 use network::peers::PeerSet;
@@ -84,8 +84,8 @@ pub fn broadcast_transactions(peer_set: Arc<Mutex<PeerSet>>) {
                                                 tx._input_type = u16::from_str(input_type).unwrap();
 
                                                 let otx: QxOrderTransaction = QxOrderTransaction::from_signed_data(tx, issuer, name.as_str(), u64::from_str(price).unwrap(), u64::from_str(_num_shares).unwrap(), sig_arr.as_slice());
-                                                println!("{:?}", &otx);
-                                                println!("Re-Constructed Tx: {}", otx.txid());
+                                                //println!("{:?}", &otx);
+                                                //println!("Re-Constructed Tx: {}", otx.txid());
                                                 _broadcast = Some(api::QubicApiPacket::broadcast_transaction(otx));
                                             } else {
                                                 _broadcast = Some(api::QubicApiPacket::broadcast_transaction(tx));

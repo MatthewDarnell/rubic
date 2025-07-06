@@ -8,6 +8,14 @@ use smart_contract::qx::order;
 use store::sqlite::tick::fetch_latest_tick;
 use crate::routes::MINPASSWORDLEN;
 
+#[get("/qx/orderbook/<asset>/<ask_bid>/<limit>/<offset>")]
+pub fn get_orderbook(asset: &str, ask_bid: &str, limit: i32, offset: u32) -> String {
+    match sqlite::qx::orderbook::fetch_qx_orderbook(get_db_path().as_str(), asset, ask_bid, limit, offset) {
+        Ok(r) => format!("{:?}", r),
+        Err(err) => err
+    }
+}
+
 #[get("/qx/order/<tick>/<issuer>/<asset>/<ask_bid>/<address>/<price>/<amount>/<password>")]
 pub fn place_order(tick: u32, issuer: &str, asset: &str, ask_bid: &str, address: &str, price: u64, amount: u64, password: &str) -> String {
     let _identity: String = address.to_string();
@@ -78,10 +86,7 @@ pub fn place_order(tick: u32, issuer: &str, asset: &str, ask_bid: &str, address:
     }
     
     match fetch_asset_balance(get_db_path().as_str(), asset, address) {
-        Ok(value) => { 
-            //order::create_qx_order(_procedure, &identity, price, amount);
-
-            
+        Ok(_) => {  //todo: enforce sufficient balance
             info!("Creating QX Order: {} .({}) ---> {} (Expires At Tick.<{}>)", &identity.identity.as_str(), amount.to_string().as_str(), price, tick_to_use.to_string().as_str());
             let order_tx = smart_contract::qx::order::QxOrderTransaction::from_vars(_procedure, &identity, asset.to_uppercase().as_str(), issuer, price, amount, tick_to_use);
             let txid = order_tx.txid();

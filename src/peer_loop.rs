@@ -5,6 +5,8 @@ mod disconnected_peer_handler;
 mod transaction_broadcaster;
 mod transaction_confirmer;
 mod broadcast_computors_updater;
+mod qx;
+
 use std::sync::{mpsc, Arc, Mutex};
 use network::peers::PeerSet;
 
@@ -13,6 +15,7 @@ use crate::peer_loop::broadcast_computors_updater::update_broadcast_computors;
 use crate::peer_loop::connected_peer_maintainer::maintain_peers;
 use crate::peer_loop::disconnected_peer_handler::handle_disconnected_peers;
 use crate::peer_loop::latest_tick_monitor::monitor_latest_tick;
+use crate::peer_loop::qx::monitor_qx_orderbook;
 use crate::peer_loop::transaction_broadcaster::broadcast_transactions;
 use crate::peer_loop::transaction_confirmer::confirm_transactions;
 
@@ -37,6 +40,7 @@ pub fn start_peer_set_thread(_: &mpsc::Sender<std::collections::HashMap<String, 
             handle_disconnected_peers(peer_set.clone());
             update_broadcast_computors(peer_set.clone());
             update_balances(peer_set.clone());
+            monitor_qx_orderbook(peer_set.clone());
         });
     }
     

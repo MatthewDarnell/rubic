@@ -1,18 +1,15 @@
 pub mod header;
 pub mod response;
-pub mod transfer;
-
 
 extern crate crypto;
-extern crate identity;
+extern crate protocol;
 
+use protocol::AsBytes;
 use crypto::qubic_identities::get_public_key_from_identity;
-use crate::header::{ EntityType, RequestResponseHeader };
+use smart_contract::qx::orderbook::AssetOrdersRequest;
+use crate::header::{EntityType, RequestResponseHeader};
 
 
-pub trait AsBytes {
-    fn as_bytes(&self) -> Vec<u8>;
-}
 
 //Takes a public key
 #[derive(Debug, Copy, Clone)]
@@ -173,6 +170,23 @@ impl QubicApiPacket {
             response_data: None
         }
     }
+
+    pub fn get_asset_qx_orders(request_contract_function_struct: &AssetOrdersRequest) -> Self {
+        let mut header = RequestResponseHeader::new();
+        header.set_type(EntityType::RequestContractFunction);
+        let data: Vec<u8> = request_contract_function_struct.as_bytes().to_vec();
+        let size = std::mem::size_of::<RequestResponseHeader>() + data.len();
+        header.set_size(size);
+        QubicApiPacket {
+            api_type: EntityType::RequestContractFunction,
+            peer: None,
+            header,
+            data,
+            response_data: None
+        }
+    }
+    
+    
     
     pub fn as_bytes(&mut self) -> Vec<u8> {
         let mut res: Vec<u8> = self.header.as_bytes();

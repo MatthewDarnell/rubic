@@ -120,6 +120,17 @@ pub fn open_database(path: &str, create: bool) -> Result<sqlite::Connection, Str
         input_size INTEGER NOT NULL,
         FOREIGN KEY(txid) REFERENCES transfer(txid) ON DELETE CASCADE
     );
+
+    CREATE TABLE IF NOT EXISTS qx_orderbook (
+        asset TEXT NOT NULL,
+        entity TEXT NOT NULL,
+        price INTEGER NOT NULL,
+        stale INTEGER DEFAULT 0,
+        num_shares INTEGER NOT NULL,
+        side TEXT CHECK( side IN ('A','B') ) NOT NULL,
+        created DATETIME DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY(asset, side, entity, price, num_shares)
+    );
 ";
     //        FOREIGN KEY(identity) REFERENCES identities(identity)
     match sqlite::open(path) {

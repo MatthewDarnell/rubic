@@ -1,6 +1,7 @@
 use std::io::prelude::*;
 use std::collections::HashMap;
 use std::net::{SocketAddr, TcpStream};
+use std::sync::{Arc, Mutex};
 use api::QubicApiPacket;
 use logger::{ debug, error };
 use std::time::{Duration};
@@ -15,6 +16,7 @@ use crate::peer::Peer;
 pub struct PeerSet {
   peers: Vec<Peer>,
   req_channel: (spmc::Sender<QubicApiPacket>, spmc::Receiver<QubicApiPacket>),
+  request_matcher: Arc<Mutex<HashMap<u32, QubicApiPacket>>>,
   threads: HashMap<String, std::thread::JoinHandle<()>>
 }
 
@@ -27,6 +29,7 @@ impl PeerSet {
         let peer_set = PeerSet {
             peers: vec![],
             threads: HashMap::new(),
+            request_matcher: Arc::new(Mutex::new(HashMap::new())),
             req_channel: spmc::channel::<QubicApiPacket>(),
         };
         peer_set
@@ -57,6 +60,7 @@ impl PeerSet {
                 stream.set_nodelay(true).expect("set_nodelay call failed");
                 stream.set_ttl(100).expect("set_ttl call failed");
                 let new_peer = Peer::new(ip, None, "");
+                let request_matcher = Arc::clone(&self.request_matcher);
                 let id = new_peer.get_id().to_owned();
                 {
                     let mut peer = new_peer.clone();
@@ -64,7 +68,7 @@ impl PeerSet {
                     let rx = self.req_channel.1.clone();
                     let id = id.clone();
                     let copied_id = id.to_owned();
-                    let t = std::thread::spawn(move || worker::handle_new_peer(id.to_owned(), peer, rx));
+                    let t = std::thread::spawn(move || worker::handle_new_peer(id.to_owned(), request_matcher, peer, rx));
                     self.threads.insert(copied_id, t);
                 }
                 self.peers.push(new_peer);
@@ -162,6 +166,7 @@ impl PeerSet {
             api::header::EntityType::RequestCurrentTickInfo => false,
             api::header::EntityType::RequestedQuorumTick => false,
             api::header::EntityType::RequestTickData => false,
+            api::header::EntityType::RequestContractFunction => false,
             _ => true
         };
 

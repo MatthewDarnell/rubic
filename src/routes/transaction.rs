@@ -89,7 +89,7 @@ pub fn transfer(source: &str, dest: &str, amount: &str, expiration: &str, passwo
     let tck: u32 = expiration.parse().unwrap();
 
     info!("Creating Transfer: {} .({}) ---> {} (Expires At Tick.<{}>)", &source_identity.identity.as_str(), amt.to_string().as_str(), dest, tck.to_string().as_str());
-    let transfer_tx = api::transfer::TransferTransaction::from_vars(&source_identity, &dest, amt, tck);
+    let transfer_tx = protocol::transfer::TransferTransaction::from_vars(&source_identity, &dest, amt, tck);
     let txid = transfer_tx.txid();
 
     let sig = transfer_tx._signature;

@@ -3,6 +3,7 @@ use store::get_db_path;
 use store::sqlite::identity::insert_new_identity;
 use store::sqlite::master_password::get_master_password;
 use crypto::passwords::verify_password;
+use protocol::identity;
 use crate::routes::MINPASSWORDLEN;
 
 #[get("/balance/<address>")]

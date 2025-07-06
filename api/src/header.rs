@@ -34,7 +34,11 @@ pub enum EntityType {
     RequestOwnedAssets = 38,
     RespondOwnedAssets = 39,
     RequestPossessedAssets = 40,
-    RespondPossessedAssets = 41
+    RespondPossessedAssets = 41,
+    
+    //Contracts
+    RequestContractFunction = 42,
+    RespondContractFunction = 43,
 }
 
 impl EntityType {
@@ -60,7 +64,9 @@ impl EntityType {
             EntityType::RequestOwnedAssets => 38,
             EntityType::RespondOwnedAssets => 39,
             EntityType::RequestPossessedAssets => 40,
-            EntityType::RespondPossessedAssets => 41
+            EntityType::RespondPossessedAssets => 41,
+            EntityType::RequestContractFunction => 42,
+            EntityType::RespondContractFunction => 43
         }
     }
 }
@@ -142,6 +148,8 @@ impl RequestResponseHeader {
             39 => EntityType::RespondOwnedAssets,
             40 => EntityType::RequestPossessedAssets,
             41 => EntityType::RespondPossessedAssets,
+            42 => EntityType::RequestContractFunction,
+            43 => EntityType::RespondContractFunction,
             55 => EntityType::ERROR,
             _ => EntityType::UNKNOWN
         }

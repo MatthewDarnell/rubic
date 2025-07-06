@@ -1,7 +1,8 @@
 use std::collections::HashMap;
+use std::hash::Hash;
 use std::str::FromStr;
 use sqlite::State;
-use identity::Identity;
+use protocol::identity::Identity;
 use logger::error;
 use crate::sqlite::create::open_database;
 use crate::sqlite::crud::prepare_crud_statement;
@@ -109,6 +110,48 @@ pub fn fetch_issued_assets(path: &str) -> Result<Vec<String>, String> {
                 },
                 Err(err) => {
                     error!("Error in fetch_issued_assets! : {}", &err);
+                    Err(err)
+                }
+            }
+        },
+        Err(err) => {
+            error!("Error in fetch_issued_assets! : {}", &err);
+            Err(err)
+        }
+    }
+}
+
+pub fn fetch_issued_assets_with_data(path: &str) -> Result<Vec<HashMap<String, String>>, String> {
+    let prep_query = "SELECT DISTINCT(name), pub_key FROM asset_record WHERE name IS NOT NULL;";
+    let _lock = get_db_lock().lock().unwrap();
+    //let _lock =SQLITE_IDENTITY_MUTEX.lock().unwrap();
+    match open_database(path, true) {
+        Ok(connection) => {
+            match prepare_crud_statement(&connection, prep_query) {
+                Ok(mut statement) => {
+                    let mut ret_val: Vec<HashMap<String, String>> = Vec::new();
+                    loop {
+                        match statement.next() {
+                            Ok(State::Row) => {
+                                let mut m: HashMap<String, String> = HashMap::new();
+                                let name: String = statement.read::<String, _>("name").unwrap();
+                                let issuer: String = statement.read::<String, _>("pub_key").unwrap();
+                                m.insert("name".to_string(), name);
+                                m.insert("issuer".to_string(), issuer);
+                                ret_val.push(m);
+                            },
+                            Ok(State::Done) => {
+                                //println!("Finished Reading. Failed To Fetch Identity.");
+                                return Ok(ret_val);
+                            },
+                            Err(err) => {
+                                return Err(err.to_string());
+                            }
+                        }
+                    }
+                },
+                Err(err) => {
+                    error!("Error in fetch_issued_assets_with_data! : {}", &err);
                     Err(err)
                 }
             }

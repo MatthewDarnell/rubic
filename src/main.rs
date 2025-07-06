@@ -138,6 +138,7 @@ async fn main() {
         routes::peer::get_peer_limit,
         routes::peer::set_peer_limit,
           
+        routes::qx::get_orderbook,  
         routes::qx::place_order,  
 
         routes::transaction::fetch_transfers,

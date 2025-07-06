@@ -1,26 +1,11 @@
-use api::AsBytes;
-use api::transfer::TransferTransaction;
+use protocol::AsBytes;
+use protocol::transfer::TransferTransaction;
 use crypto::hash::k12_bytes;
 use crypto::qubic_identities::{get_identity, get_public_key_from_identity, get_subseed, sign_raw};
-use identity::Identity;
-use crate::qx::QX_ADDRESS;
+use protocol::identity::Identity;
+pub use crate::qx::{QxProcedure, QX_ADDRESS};
 
-#[derive(Debug)]
-pub enum QxProcedure {
-    QxIssueAsset = 1,
-    QxTransferShare = 2,
-    QxPlaceholder0 = 3,
-    QxPlaceholder1 = 4,
-    QxAddAskOrder = 5,
-    QxAddBidOrder = 6,
-    QxRemoveAskOrder = 7,
-    QxRemoveBidOrder = 8,
-    QxTransferShareManagementRights = 9
-}
 
-pub fn create_qx_order(procedure: QxProcedure, address: &Identity, price: u64, amount: u64) {
-    println!("Creating QX Order! of type {:?} ({:?}) ({}) ({})", procedure, address, price, amount);
-}
 
 
 //IMPL
