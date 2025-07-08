@@ -37,7 +37,14 @@ pub trait FormatQubicResponseDataToStructure {
 }
 
 
-pub fn get_formatted_response_from_multiple(response: &mut Vec<QubicApiPacket>) {
+fn delete_request_from_matcher(dejavu: u32, requests: Arc<Mutex<HashMap<u32, QubicApiPacket>>>) {
+    match requests.lock() {
+        Ok(mut guard) => { guard.remove(&dejavu); },
+        Err(_err) => {}
+    }
+}
+
+pub fn get_formatted_response_from_multiple(requests: Arc<Mutex<HashMap<u32, QubicApiPacket>>>, response: &mut Vec<QubicApiPacket>) {
     let packet = response.first().unwrap();
     let peer = match &packet.peer {
         Some(peer) => peer.clone(),
@@ -170,8 +177,6 @@ pub fn get_formatted_response_from_multiple(response: &mut Vec<QubicApiPacket>) 
                 }
             }
         },
-        
-        
         EntityType::BroadcastTick => {
             let mut tick_data: Vec<Tick> = Vec::with_capacity(response.len());
             if tick_data.len() > 0 {
@@ -238,6 +243,7 @@ pub fn get_formatted_response_from_multiple(response: &mut Vec<QubicApiPacket>) 
         },
         _ => {}
     }
+    delete_request_from_matcher(response.first().unwrap().header._dejavu, requests.clone());
 }
 
 pub fn get_formatted_response(requests: Arc<Mutex<HashMap<u32, QubicApiPacket>>>, response: &mut QubicApiPacket) {
@@ -458,14 +464,5 @@ pub fn get_formatted_response(requests: Arc<Mutex<HashMap<u32, QubicApiPacket>>>
             //println!("{:?}", response);
         }
     }
-    match requests.lock() {
-        Ok(mut guard) => {
-            guard.remove(&response.header._dejavu);
-            //println!("Request {} Removed!", response.header._dejavu);
-        },
-        Err(_err) => {
-            //eprintln!("Failed To Remove Request {}", _err.to_string());
-        }
-    }
-
+    delete_request_from_matcher(response.header._dejavu, requests.clone());
 }

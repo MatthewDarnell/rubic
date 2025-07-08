@@ -24,11 +24,12 @@ use crate::sqlite::get_db_lock;
     );
     */
 pub fn create_asset(path: &str, peer: &str, identity: &str, tick: u32, universe_index: u32, siblings: &str) -> Result<u64, String> {
-    let _lock = get_db_lock().lock().unwrap();
+    let lock = get_db_lock().lock().unwrap();
     let prep_query = "INSERT INTO asset (peer, identity, tick, universe_index, siblings) VALUES (
     :peer, :identity, :tick, :universe_index, :siblings);";
     match open_database(path, true) {
         Ok(connection) => {
+            connection.execute("BEGIN TRANSACTION;").unwrap();
             match prepare_crud_statement(&connection, prep_query) {
                 Ok(mut statement) => {
                     match statement.bind::<&[(&str, &str)]>(&[
@@ -41,10 +42,11 @@ pub fn create_asset(path: &str, peer: &str, identity: &str, tick: u32, universe_
                         Ok(_) => {
                             match statement.next() {
                                 Ok(State::Done) => {
-                                    match prepare_crud_statement(&connection, "SELECT last_insert_rowid() as last_id") {
+                                    match prepare_crud_statement(&connection, "SELECT last_insert_rowid() as last_id;") {
                                         Ok(mut statement) => {
                                             match statement.next() {
                                                 Ok(State::Row) => {
+                                                    connection.execute("COMMIT;").unwrap();
                                                     let _id = statement.read::<String, _>("last_id").unwrap();
                                                     match u64::from_str(_id.as_str()) {
                                                         Ok(r) => Ok(r),
@@ -62,6 +64,9 @@ pub fn create_asset(path: &str, peer: &str, identity: &str, tick: u32, universe_
                                             Err(e)
                                         }
                                     }
+
+
+
                                 },
                                 Err(error) => { Err(error.to_string()) },
                                 _ => { Err("Weird!".to_string()) }

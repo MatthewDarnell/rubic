@@ -25,6 +25,7 @@ pub mod orderbook {
         let _lock = get_db_lock().lock().unwrap();
         match open_database(path, false) {
             Ok(connection) => {
+                connection.execute("BEGIN TRANSACTION;").unwrap();
                 match prepare_crud_statement(&connection, "UPDATE qx_orderbook SET stale = 1 WHERE side=:side AND asset = :asset;") {
                     Ok(mut stmt) => {
                         match stmt.bind::<&[(&str, &str)]>(&[
@@ -79,7 +80,9 @@ pub mod orderbook {
                                 ][..]) {
                                     Ok(_) => {
                                         match stmt.next() {
-                                            Ok(State::Done) => {},
+                                            Ok(State::Done) => {
+                                                connection.execute("COMMIT;").unwrap();
+                                            },
                                             _ => {}
                                         }
                                     },

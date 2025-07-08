@@ -17,7 +17,7 @@ pub fn qubic_tcp_receive_data (peer: &Peer, requests: Arc<Mutex<HashMap<u32, Qub
                 true => {
                     let mut data = recv_qubic_responses_until_end_response(peer, stream, 676);
                     //println!("Received Multiple Data: {} From Peer {}", data.len(), peer.get_ip_addr());
-                    response::get_formatted_response_from_multiple(&mut data);
+                    response::get_formatted_response_from_multiple(requests, &mut data);
                 },
                 false => {
                     match recv_qubic_response(peer, stream) {
