@@ -66,7 +66,7 @@ pub fn open_database(path: &str, create: bool) -> Result<sqlite::Connection, Str
         broadcast BOOLEAN DEFAULT FALSE,
         status INTEGER DEFAULT -1,
         created DATETIME DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY(source_identity) REFERENCES identities(identity)
+        FOREIGN KEY(source_identity) REFERENCES identities(identity) ON DELETE CASCADE
     );
     CREATE TABLE IF NOT EXISTS computors (
         epoch INTEGER NOT NULL UNIQUE,
