@@ -26,6 +26,9 @@ async fn main() {
     });
     fn setup<'a>(app: &'a mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
         run_api_server();
+        let window = app.get_webview_window("main").unwrap();
+        window.open_devtools();
+        window.close_devtools();
         // This one
         let handle = app.handle();
 
