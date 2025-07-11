@@ -1,0 +1,349 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Rubic - Qubic Wallet</title>
+    <style>
+        #exportSettingsTable{margin-bottom:2%;}
+        #setPasswordTable{margin-bottom:2%;}
+        .mainHeaderTable{width:50%;}
+        .mainHeaderTable td{width:5%;}
+        .mainHeaderTable{margin-bottom: 3%;}
+        .headerTable{width:100%;}
+        .headerTable td{width:5%;}
+        #settingsDiv{display: none;}
+        #identityDiv{display: none;}
+        #myIdentitiesDiv{margin-top: 5%;}
+        #peersDiv{display: none;}
+        #screensDiv{margin-top: 3%;}
+        #peerTableHead{width:30%;}
+        #peerTableHead th{width:3%;}
+        #peerTable{width:30%;}
+        #peerTable td{width: 3%;}
+        #addIdentityTable{width: 100%;}
+        #addIdentityTable td{width: 50%;}
+        #addIdentityTable th{width: 50%;}
+        #seedInput{resize: none;}
+        #passwordInput{resize: none;}
+        #newIdentityPreview{display: none;}
+
+        #peerTable table, #peerTable th, #peerTable td {
+            border: 1px solid black;
+        }
+
+        #myIdentitiesTable table, #myIdentitiesTable th, #myIdentitiesTable td {
+            border: 1px solid black;
+        }
+
+        /* The Modal (background) */
+        .modal {
+            display: none; /* Hidden by default */
+            position: fixed; /* Stay in place */
+            z-index: 1; /* Sit on top */
+            left: 0;
+            top: 0;
+            width: 100%; /* Full width */
+            height: 100%; /* Full height */
+            overflow: auto; /* Enable scroll if needed */
+            background-color: rgb(0,0,0); /* Fallback color */
+            background-color: rgba(0,0,0,0.4); /* Black w/ opacity */
+        }
+
+        /* Modal Content/Box */
+        .modal-content {
+            background-color: #fefefe;
+            margin: 15% auto; /* 15% from the top and centered */
+            padding: 20px;
+            border: 1px solid #888;
+            width: 80%; /* Could be more or less, depending on screen size */
+        }
+
+        /* The Close Button */
+        .close {
+            color: #aaa;
+            float: right;
+            font-size: 28px;
+            font-weight: bold;
+        }
+
+        .close:hover,
+        .close:focus {
+            color: black;
+            text-decoration: none;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <div id="mainDiv">
+        <table class="mainHeaderTable">
+            <tr>
+                <td>
+                    <b>Rubic - Qubic Wallet</b>
+                </td>
+                <td>
+                    <label for="serverIp">Rubic Server Running At: </label><input type="text" id="serverIp" value="http://127.0.0.1:3000"> <span id="connectedStatusSpan"></span>
+                </td>
+            </tr>
+        </table>
+        <table class="headerTable">
+            <tr>
+                <td>
+                    Connected Peers: <span id="numPeersSpan">0</span>
+                </td>
+
+                <td>
+                    Latest Tick: <span id="latestTickSpan">0</span>
+                </td>
+
+                <td>
+                    Wallet: <span id="isWalletEncryptedSpan"></span>
+                </td>
+            </tr>
+            <tr>
+                <td>
+                    <a href="#" onclick="switchToElement('identityDiv')">My Identities</a>
+                </td>
+                <td>
+                    <a href="#" onclick="switchToElement('peersDiv')">Connected Peers</a>
+                </td>
+                <td>
+                    <a href="#" onclick="switchToElement('settingsDiv')">Settings</a>
+                </td>
+            </tr>
+        </table>
+        <table class="headerTable">
+            <tr>
+                <td>
+                   <span id="pendingTransferSpan"></span>
+                </td>
+            </tr>
+        </table>
+    </div>
+    <div id="screensDiv">
+        <div id="identityDiv">
+            <div id="importIdentityDiv">
+                <span>Import New Identity</span>
+                <table id="addIdentityTable">
+                    <thead>
+                    <tr>
+                        <th>Seed</th>
+                        <th>Encrypt With Master Password (Optional)</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>
+                                <div style="text-align: center;">
+                                    <textarea onchange="previewNewIdentity()" id="seedInput" cols="55"></textarea>
+                                </div>
+                            </td>
+                            <td>
+                                <div style="text-align: center;">
+                                    <textarea cols="48" id="passwordInput"></textarea>
+                                </div>
+                            </td>
+                        </tr>
+                        <tr id="newIdentityPreview">
+                            <td>
+                                <span id="newIdentityPreviewSpan"></span>
+                            </td>
+                            <td>
+                                <button id="importNewIdentityBtn" onclick="addNewIdentity()" disabled>Import Identity</button>
+                            </td>
+                        </tr>
+                    <tr>
+                        <td>
+                            <div style="text-align: center;">
+                                <button id="generateRandomIdentityBtn" onclick="generateRandomIdentity()">Generate Random Identity</button>
+                            </div>
+                        </td>
+                    </tr>
+                    </tbody>
+                </table>
+            </div>
+            <div id="myIdentitiesDiv">
+                <span id="myIdentitiesSpan">My Identities</span>
+                <table id="myIdentitiesTable">
+                    <thead>
+                    <tr>
+                        <th>Identity</th>
+                        <th>Balance</th>
+                        <th>Encrypted</th>
+                    </tr>
+                    </thead>
+                    <tbody id="identityTable">
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        <div id="peersDiv">
+            <div id="importPeerDiv">
+                <span>Add A Peer</span>
+                <table id="addPeerTable">
+                    <thead>
+                    <tr>
+                        <th>IP</th>
+                        <th>Port (optional, defaults to 21841)</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    <tr>
+                        <td>
+                            <div style="text-align: center;">
+                                <label for="addPeerIpInput"></label><input type="text" id="addPeerIpInput">
+                            </div>
+                        </td>
+                        <td>
+                            <div style="text-align: center;">
+                                <label for="addPeerPortInput"></label><input type="number" id="addPeerPortInput">
+                            </div>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td>
+                            <button id="addNewPeerBtn" onclick="addNewPeer()">Add Peer</button>
+                        </td>
+                        <td>
+
+                        </td>
+                    </tr>
+                    </tbody>
+                </table>
+            </div>
+            <div id="myPeersDiv">
+                <table>
+                    <thead id="peerTableHead">
+                    <tr>
+                        <th>Ip</th>
+                        <th>NickName</th>
+                        <th>Last Responded</th>
+                    </tr>
+                    </thead>
+                    <tbody id="peerTable">
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        <div id="settingsDiv">
+            <div id="setPasswordTable">
+                <table>
+                    <thead>
+                    <tr>
+                        <th style="text-align: left;">
+                            Set Wallet Encryption Master Password
+                        </th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    <tr>
+                        <td>
+                            <label for="setMasterPasswordInput">Password: </label><input type="password" id="setMasterPasswordInput">
+                        </td>
+                    </tr>
+                    <tr>
+                        <td>
+                            <button id="setDbPassBtn" onclick="setMasterPassword()">Set Password</button>
+                        </td>
+                    </tr>
+                    </tbody>
+                </table>
+            </div>
+            <div id="encryptAllIdentitiesDiv">
+                <table>
+                    <thead>
+                    <tr>
+                        <th style="text-align: left;">
+                            Encrypt All Identities With Master Password
+                        </th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    <tr>
+                        <td>
+                            <label for="encryptAllIdentitiesInput">Master Password (This will encrypt ALL identities in your Db!): </label><input type="password" id="encryptAllIdentitiesInput">
+                        </td>
+                    </tr>
+                    <tr>
+                        <td>
+                            <button id="encryptAllIdentitiesBtn" onclick="encryptAllIdentities()">Encrypt All Identities</button>
+                        </td>
+                    </tr>
+                    </tbody>
+                </table>
+            </div>
+            <div id="exportDbDiv">
+                <table>
+                    <thead>
+                    <tr>
+                        <th style="text-align: left;">
+                            Export Database
+                        </th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    <tr>
+                        <td>
+                            <label for="exportSettingsPasswordInput">Wallet Password (Optional, db will be decrypted if supplied): </label><input type="password" id="exportSettingsPasswordInput">
+                        </td>
+                    </tr>
+                    <tr>
+                        <td>
+                            <button id="dumpDbBtn" onclick="exportDb()">Export As CSV</button>
+                        </td>
+                    </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <div id="sendModal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <span class="close">&times;</span>
+            <table>
+                <tbody id="sendModalTableBody">
+                <tr>
+                    <td>
+                        <p>Send Qubics </p><span id="sendModalIdentitySpan"></span>
+                    </td>
+                </tr>
+                <tr>
+                    <td>
+                        <label for="sendModalDestinationInput">Destination Address: </label><input type="text" size="90%;" id="sendModalDestinationInput">
+                    </td>
+                </tr>
+                <tr>
+                    <td>
+                        <label for="sendModalAmountInput">Amount To Send (Qus): </label><input type="number" id="sendModalAmountInput">
+                    </td>
+                </tr>
+                <tr>
+                    <td>
+                        <label for="sendModalExpirationTick">Expiration Tick: </label><input type="number" id="sendModalExpirationTick">
+                    </td>
+                </tr>
+                <tr id="sendModalPasswordInput"></tr>
+                <tr>
+                    <td>
+                        <button id="sendQubicsBtn" onclick="initiateTransfer()">Send</button>
+                    </td>
+                </tr>
+                </tbody>
+            </table>
+
+        </div>
+
+    </div>
+    <div style="margin-top: 3%;">
+        <table>
+            <tr>
+                <td>
+                    <span id="warningSpan"></span>
+                </td>
+            </tr>
+        </table>
+    </div>
+</body>
+<script type="text/javascript" src="index.js"></script>
+</html>

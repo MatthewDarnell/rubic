@@ -10,6 +10,6 @@ consensus = { path = "../consensus" }
 crypto = { path = '../crypto' }
 protocol = { path = '../protocol' }
 logger = { path = '../logger' }
-smart_contract = { path = '../smart_contract'}
-store = { path = '../store'}
+smart_contract = { path = '../smart_contract' }
+store = { path = '../store' }
 uuid = { version = "1.17.0", features = ["v4"] }
