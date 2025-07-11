@@ -12,7 +12,7 @@
     "targets": "all",
     "externalBin": [],
     "icon": [
-      "icons/icon.png"
+      "icons/rubic.png"
     ],
     "windows": {
       "certificateThumbprint": null,
