@@ -12,7 +12,8 @@
     "targets": "all",
     "externalBin": [],
     "icon": [
-      "icons/rubic.png"
+      "icons/rubic.png",
+      "icons/icon.ico"
     ],
     "windows": {
       "certificateThumbprint": null,
