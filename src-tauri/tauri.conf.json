@@ -13,7 +13,8 @@
     "externalBin": [],
     "icon": [
       "icons/rubic.png",
-      "icons/icon.ico"
+      "icons/icon.ico",
+      "icons/icon.icns"
     ],
     "windows": {
       "certificateThumbprint": null,
@@ -38,19 +39,19 @@
       }
     }
   },
-  "productName": "React Server RS",
-  "mainBinaryName": "React Server RS",
-  "version": "0.1.0",
-  "identifier": "com.react-server-rs.dev",
+  "productName": "Rubic",
+  "mainBinaryName": "Rubic",
+  "version": "0.2.0",
+  "identifier": "com.rubic.dev",
   "plugins": {},
   "app": {
     "windows": [
       {
         "fullscreen": false,
-        "height": 600,
+        "width": 1366,
+        "height": 768,
         "resizable": true,
-        "title": "React Server RS",
-        "width": 800,
+        "title": "Rubic - Qubic Wallet",
         "visible": true,
         "useHttpsScheme": true
       }
