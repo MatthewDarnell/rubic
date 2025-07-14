@@ -3,7 +3,7 @@ use std::time::Duration;
 use logger::{debug, error};
 use network::peers::PeerSet;
 use store::{get_db_path, sqlite};
-use crate::env;
+use crate::*;
 
 pub fn maintain_peers(peer_set: Arc<Mutex<PeerSet>>) {
     std::thread::spawn(move || {

@@ -2,19 +2,19 @@ use std::collections::HashMap;
 use rocket::routes;
 
 extern crate dotenv_codegen;
-use logger::{setup_logger, info};
 use std::sync::mpsc;
-mod env;
-mod routes;
-mod peer_loop;
+
+use rubic::logger::{setup_logger, info};
+use rubic::store::{sqlite};
+use rubic::peer_loop::start_peer_set_thread;
+use rubic::env;
 
 use rocket::http::Header;
 use rocket::{Request, Response};
 use rocket::fairing::{Fairing, Info, Kind};
-use store::sqlite;
-use crate::peer_loop::start_peer_set_thread;
 
-use tokio::sync::oneshot;
+
+
 use tauri::Manager;
 
 #[rocket::main]
@@ -24,16 +24,16 @@ async fn main() {
     let api_server_handle = rt.spawn(async move {
         run_api_server().await;
     });
-    fn setup<'a>(app: &'a mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
-        run_api_server();
-        let window = app.get_webview_window("main").unwrap();
+    fn setup<'a>(_app: &'a mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
+        let window = _app.get_webview_window("main").unwrap();
         window.open_devtools();
         window.close_devtools();
         // This one
-        let handle = app.handle();
+       // let handle = app.handle();
 
         tauri::async_runtime::spawn(async move { // also added move here
             println!("Local Server is running");
+            run_api_server().await;
         });
         Ok(())
     }
@@ -64,15 +64,15 @@ async fn main() {
                 eprintln!("Failed To Set Up Logging!: {}", error);
             }
         }
-        logger::info(format!("Starting Rubic v{} - A Qubic Wallet", version).as_str());
+        info(format!("Starting Rubic v{} - A Qubic Wallet", version).as_str());
         println!("{}", qubic_ascii_art_logo);
         println!("Starting Rubic v{} - A Qubic Wallet", version);
         println!("Warning! This software comes with no warranty, real or implied. Secure storage of seeds and passwords is paramount; total loss of funds may ensue otherwise.");
         info("Warning! This software comes with no warranty, real or implied. Secure storage of seeds and passwords is paramount; total loss of funds may ensue otherwise.");
 
-        crypto::initialize();
+        rubic::crypto::initialize();
 
-        let path = store::get_db_path();
+        let path = rubic::store::get_db_path();
         sqlite::peer::set_all_peers_disconnected(path.as_str()).unwrap();
 
 
@@ -143,40 +143,40 @@ async fn main() {
         rocket::custom(figment)
             .mount("/", routes![
 
-        routes::asset::all_asset_balances,
-        routes::asset::balance,
-        routes::asset::fetch_transfers,
-        routes::asset::get_assets,
-        routes::asset::transfer,
+        rubic::routes::asset::all_asset_balances,
+        rubic::routes::asset::balance,
+        rubic::routes::asset::fetch_transfers,
+        rubic::routes::asset::get_assets,
+        rubic::routes::asset::transfer,
 
-        routes::identity::balance,
-        routes::identity::add_identity,
-        routes::identity::add_identity_with_password,
-        routes::identity::create_random_identity,
-        routes::identity::delete_identity,
-        routes::identity::get_identities,
-        routes::identity::get_identity_from_seed,
+        rubic::routes::identity::balance,
+        rubic::routes::identity::add_identity,
+        rubic::routes::identity::add_identity_with_password,
+        rubic::routes::identity::create_random_identity,
+        rubic::routes::identity::delete_identity,
+        rubic::routes::identity::get_identities,
+        rubic::routes::identity::get_identity_from_seed,
 
-        routes::info::info,
-        routes::info::latest_tick,
+        rubic::routes::info::info,
+        rubic::routes::info::latest_tick,
 
-        routes::peer::peers,
-        routes::peer::add_peer,
-        routes::peer::delete_peer,
-        routes::peer::get_peer_limit,
-        routes::peer::set_peer_limit,
+        rubic::routes::peer::peers,
+        rubic::routes::peer::add_peer,
+        rubic::routes::peer::delete_peer,
+        rubic::routes::peer::get_peer_limit,
+        rubic::routes::peer::set_peer_limit,
 
-        routes::qx::fetch_orders,
-        routes::qx::get_orderbook,
-        routes::qx::place_order,
+        rubic::routes::qx::fetch_orders,
+        rubic::routes::qx::get_orderbook,
+        rubic::routes::qx::place_order,
 
-        routes::transaction::fetch_transfers,
-        routes::transaction::transfer,
+        rubic::routes::transaction::fetch_transfers,
+        rubic::routes::transaction::transfer,
 
-        routes::wallet::is_wallet_encrypted,
-        routes::wallet::encrypt_wallet,
-        routes::wallet::set_master_password,
-        routes::wallet::download_wallet
+        rubic::routes::wallet::is_wallet_encrypted,
+        rubic::routes::wallet::encrypt_wallet,
+        rubic::routes::wallet::set_master_password,
+        rubic::routes::wallet::download_wallet
       ])
             .manage(std::sync::Mutex::new(tx))
             .manage(std::sync::Mutex::new(rx_server_route_responses_from_thread))

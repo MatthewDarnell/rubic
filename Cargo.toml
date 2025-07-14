@@ -1,31 +1,33 @@
 [package]
-name = "rubicui"
+name = "rubic"
 version = "0.2.0"
 edition = "2021"
 authors = ["Matthew Darnell"]
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
+[lib]
+name = "rubic"
+crate-type = ["lib"]
 
-[build-dependencies]
-tauri-build = { version = "2", features = [] }
+[[bin]]
+name = "rubic"
+test = false
 
 [dependencies]
 dotenv = "0.15.0"
 dotenv_codegen = "0.15.0"
 rocket = "0.5.0-rc.3"
 spmc = "0.3.0"
-rubic = { path = "../" }
-tauri = { version = "2", features = [ "devtools"] }
-tokio = { version = "1.28", features = ["full"] }
 
+api = { path = './api' }
+crypto =  { path = './crypto' }
+protocol = { path = './protocol' }
+logger = { path = './logger' }
+network = { path = './network' }
+smart_contract = { path = './smart_contract' }
+store = { path = './store' }
 hex = "0.4.3"
 base64 = "0.21.7"
-tauri-plugin-shell = "2"
-
-[features]
-# this feature is used for production builds or when `devPath` points to the filesystem
-# DO NOT REMOVE!!
-custom-protocol = ["tauri/custom-protocol"]
 
 [profile.test]  # Disable Overflow Checks For FourQ Operations
 overflow-checks = false
