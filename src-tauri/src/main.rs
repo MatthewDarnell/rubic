@@ -33,7 +33,6 @@ async fn main() {
 
         tauri::async_runtime::spawn(async move { // also added move here
             println!("Local Server is running");
-            run_api_server().await;
         });
         Ok(())
     }
