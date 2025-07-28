@@ -31,6 +31,10 @@
             border: 1px solid black;
         }
 
+        #assetTable table, #assetTable th, #assetTable tr #assetTable td {
+            border: 1px solid black;
+        }
+
         #myIdentitiesTable table, #myIdentitiesTable th, #myIdentitiesTable td {
             border: 1px solid black;
         }
@@ -112,6 +116,9 @@
                     <a href="#" onclick="switchToElement('peersDiv')">Connected Peers</a>
                 </td>
                 <td>
+                    <a href="#" onclick="switchToElement('allAssetsDiv')">Assets</a>
+                </td>
+                <td>
                     <a href="#" onclick="switchToElement('settingsDiv')">Settings</a>
                 </td>
             </tr>
@@ -174,6 +181,7 @@
                         <th>Identity</th>
                         <th>Balance</th>
                         <th>Txs</th>
+                        <th>Assets</th>
                         <th>Encrypted</th>
                         <th>Delete</th>
                     </tr>
@@ -304,6 +312,21 @@
         </div>
     </div>
 
+    <div id="allAssetsDiv" style="display: none;">
+        <div id="allAssets">
+            <table id="allAssetsTable">
+                <thead>
+                    <tr>
+                        <th>Asset Name</th>
+                        <th>Issuer</th>
+                    </tr>
+                </thead>
+                <tbody id="allAssetsTableTbody">
+                </tbody>
+            </table>
+        </div>
+    </div>
+
     <div id="sendModal" class="modal" style="display: none;">
         <div class="modal-content">
             <span class="close">&times;</span>
@@ -369,7 +392,9 @@
         </div>
     </div>
 
-
+    <div id="assetsDiv">
+        
+    </div>
 
 
     <div style="margin-top: 3%;">

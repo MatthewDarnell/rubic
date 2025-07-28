@@ -4,7 +4,7 @@ use std::io::ErrorKind;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use crate::peer::Peer;
-use api::QubicApiPacket;
+use api::request::QubicApiPacket;
 use store::get_db_path;
 use store::sqlite::peer::set_peer_disconnected;
 use crate::tcp_recv::qubic_tcp_receive_data;

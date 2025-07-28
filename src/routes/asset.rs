@@ -3,7 +3,7 @@ use rocket::get;
 use crypto::qubic_identities::get_identity;
 use logger::{debug, error, info};
 use store::{get_db_path, sqlite};
-use store::sqlite::asset::{fetch_asset_balance, fetch_issued_assets};
+use store::sqlite::asset::{asset_issuance, fetch_asset_balance};
 use crate::routes::MINPASSWORDLEN;
 
 #[get("/asset/balance/<asset>/<address>")]
@@ -15,7 +15,7 @@ pub fn balance(asset: &str, address: &str) -> String {
 }
 #[get("/asset/balance/<address>")]
 pub fn all_asset_balances(address: &str) -> String {
-    match fetch_issued_assets(get_db_path().as_str()) {
+    match asset_issuance::fetch_issued_assets(get_db_path().as_str()) {
         Ok(assets) => {
             let mut balances: Vec<HashMap<String, String>> = Vec::new();
             for asset in assets.iter() {
@@ -41,7 +41,7 @@ pub fn all_asset_balances(address: &str) -> String {
 
 #[get("/asset/issued")]
 pub fn get_assets() -> String {
-    match fetch_issued_assets(get_db_path().as_str()) {
+    match asset_issuance::fetch_issued_assets(get_db_path().as_str()) {
         Ok(assets) => {
             format!("{:?}", assets)
         },
