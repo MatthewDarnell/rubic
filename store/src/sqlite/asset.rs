@@ -189,7 +189,7 @@ pub mod asset_issuance {
     }
 
     pub fn fetch_issued_assets_with_data(path: &str) -> Result<Vec<HashMap<String, String>>, String> {
-        let prep_query = "SELECT DISTINCT(name), pub_key FROM asset_record WHERE name IS NOT NULL;";
+        let prep_query = "SELECT DISTINCT(name), pub_key FROM asset_issuance WHERE name IS NOT NULL;";
         let _lock = get_db_lock().lock().unwrap();
         //let _lock =SQLITE_IDENTITY_MUTEX.lock().unwrap();
         match open_database(path, true) {
@@ -234,32 +234,29 @@ pub mod asset_issuance {
 
 
 pub fn fetch_asset_balance(path: &str, asset_name: &str, identity: &str) -> Result<HashMap<String, String>, String> {
-    let prep_query = "SELECT asset.tick, issuance.peer, issuance.name,
+    let prep_query = "
+                        SELECT asset.tick, asset.num_shares as balance,
+                               issuance.peer, issuance.name,
                                issuance.pub_key as issuer,
-                               issuance.num_decimal,
-                               possession.num_shares as balance
-                                   FROM (
-                                          SELECT tick
-                                          FROM asset_record
-                                          WHERE identity = :identity
-                                          GROUP by tick
-                                          ORDER BY tick DESC
-                                          limit 1
-                                   ) asset
-                               left outer join asset_record a
-                                        on asset.tick = a.tick
-                               inner join asset_issuance issuance
-                                         ON issuance.id = a.asset_id
-                               inner join asset_record possession
-                                         ON possession.asset_id = a.asset_id
-                               where a.identity=:identity
-                               and issuance.name = :asset_name
-                               AND possession.record_type = 'P'
-                               GROUP BY issuance.name, issuance.peer
-                               HAVING COUNT (DISTINCT balance) <= 1
-                               order by asset.tick desc
-                               LIMIT 1
-                        ";
+                               issuance.num_decimal
+                        
+                        FROM
+                            (
+                                SELECT id, peer, name, pub_key, num_decimal
+                                FROM asset_issuance
+                                WHERE name = :asset_name
+                            ) issuance
+                            INNER JOIN
+                            (
+                                 SELECT tick, asset_id, num_shares
+                                 FROM asset_record
+                                 WHERE identity = :identity
+                                 AND record_type = 'P'
+                                 ORDER BY tick DESC
+                             ) asset
+                                ON issuance.id = asset.asset_id
+                        ORDER BY asset.tick DESC
+                        LIMIT 1";
     let _lock = get_db_lock().lock().unwrap();
     //let _lock =SQLITE_IDENTITY_MUTEX.lock().unwrap();
     match open_database(path, true) {

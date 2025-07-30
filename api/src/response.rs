@@ -128,6 +128,7 @@ pub fn get_formatted_response_from_multiple(requests: Arc<Mutex<HashMap<u32, Qub
                             let id = u64::from_str(_id).unwrap();
                             let _issuance = &asset.issuance.issuance;
                             let _possession = &asset.asset.possession;
+                            //println!("Got Possession For {}", get_identity(&_possession.pub_key).as_str());
                             match store::sqlite::asset::asset_record::create_asset_possession(
                                 get_db_path().as_str(),
                                 id,

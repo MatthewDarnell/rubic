@@ -338,8 +338,6 @@ const send = async (identity, isEncrypted) => {
     span.onclick = function() {
         modal.style.display = "none";
     }
-
-
 }
 
 function onlyUnique(value, index, array) {
@@ -716,6 +714,54 @@ window.exportDb = () => {
     }
 }
 
+const sendAsset = async () => {
+    const serverIp = document.getElementById("serverIp").value;
+
+
+    const passInput = document.getElementById("sendAssetPasswordInput");
+    const _pass = passInput.value.length > 4 ? passInput.value : "0";
+    if(passInput) {
+        passInput.innerHTML = "";
+    }
+    const sourceId = document.getElementById("sendAssetFromInput");
+    const destId = document.getElementById("sendAssetToInput");
+    const amount = document.getElementById("sendAssetAmountInput");
+    const assetName = document.getElementById("sendAssetNameInput");
+    const issuer = document.getElementById("sendAssetIssuerInput");
+
+    const _source = sourceId.value;
+    const _dest = destId.value;
+    const _amount = amount.value;
+    const _asset = assetName.value;
+    const _issuer = issuer.value;
+
+    const amountToSend = parseInt(_amount);
+    if(isNaN(amountToSend) || amountToSend <= 0 || amountToSend > MAX_AMOUNT) {
+        alert("Invalid Amount To Send!");
+        return;
+    }
+    if(_source.length !== 60) {
+        alert("Invalid Source Identity!");
+        return;
+    }
+    if(_dest.length !== 60) {
+        alert("Invalid Destination Identity!");
+        return;
+    }
+    document.getElementById("sendAssetButton").disabled = true;
+    const result = await makeHttpRequest(`${serverIp}/asset/transfer/${_asset}/${_issuer}/${_source}/${_dest}/${_amount}/0/${_pass}`);
+    document.getElementById("sendAssetButton").disabled = false;
+   /* if(result !== "Transfer Sent!") {
+        expirationPendingTick = expirationTick;
+    } else {
+        transactionPending = true;
+        const pendingTransferTable = document.getElementById("pendingTransferSpan");
+        pendingTransferTable.innerHTML = `Pending Transfer: (${sourceIdentity.substring(0, 4)}...) <b>${amountToSend}</b> Qus -> (${destinationIdentity}) Expires At Tick.(<b>${expirationPendingTick}</b>) `;
+    }
+
+    */
+    alert(result);
+}
 
 window.initiateTransfer = async () => {
     try {

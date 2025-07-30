@@ -4,6 +4,7 @@ use crypto::qubic_identities::get_identity;
 use logger::{debug, error, info};
 use store::{get_db_path, sqlite};
 use store::sqlite::asset::{asset_issuance, fetch_asset_balance};
+use store::sqlite::tick;
 use crate::routes::MINPASSWORDLEN;
 
 #[get("/asset/balance/<asset>/<address>")]
@@ -133,7 +134,18 @@ pub fn transfer(asset_name: &str, issuer: &str, source: &str, dest: &str, amount
         debug!("Creating Transfer, Wallet Is Not Encrypted!");
     }
     let amt: i64 = amount.parse().unwrap();
-    let tck: u32 = expiration.parse().unwrap();
+    let mut tck: u32 = expiration.parse().unwrap();
+    
+    if tck == 0 {
+        tck = match tick::fetch_latest_tick(get_db_path().as_str()) {
+            Ok(tick) => {
+                tick.parse::<u32>().unwrap()
+            },
+            Err(_) => {
+                0 as u32
+            }
+        };
+    }
 
     info!("Creating Asset Transfer: {} .({}) ---> {} (Expires At Tick.<{}>)", &source_identity.identity.as_str(), amt.to_string().as_str(), dest, tck.to_string().as_str());
     let transfer_tx = smart_contract::qx::asset_transfer::AssetTransferTransaction::from_vars(&source_identity, asset_name.to_uppercase().as_str(), issuer, dest, amt, tck);

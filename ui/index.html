@@ -31,6 +31,13 @@
             border: 1px solid black;
         }
 
+
+        #sendAssetTable tbody {
+            min-width: 50%;
+        }
+        #sendAssetTable td {
+            text-align: left;
+        }
         #assetTable table, #assetTable th, #assetTable tr #assetTable td {
             border: 1px solid black;
         }
@@ -313,6 +320,55 @@
     </div>
 
     <div id="allAssetsDiv" style="display: none;">
+        <div id="sendAssetDiv">
+            <table id="sendAssetTable">
+                <thead>
+                <tr></tr>
+                <tr></tr>
+                <tr></tr>
+                <tr></tr>
+                <tr></tr>
+                <tr></tr>
+                </thead>
+                <tbody id="sendAssetBody">
+                    <tr>
+                        <td>
+                            <label for="sendAssetFromInput">Sending Identity </label><input type="text" size="60" id="sendAssetFromInput" />
+                        </td>
+                    </tr>
+                    <tr>
+                        <td>
+                            <label for="sendAssetToInput">Destination Identity </label><input type="text" size="60" id="sendAssetToInput" />
+                        </td>
+                    </tr>
+                    <tr>
+                        <td>
+                            <label for="sendAssetNameInput">Asset Name </label><input type="text" id="sendAssetNameInput" />
+                        </td>
+                    </tr>
+                    <tr>
+                        <td>
+                            <label for="sendAssetIssuerInput"></label>Issuer <input type="text" size="60" id="sendAssetIssuerInput" />
+                        </td>
+                    </tr>
+                    <tr>
+                        <td>
+                            <label for="sendAssetAmountInput"></label>Amount <input type="number" id="sendAssetAmountInput" />
+                        </td>
+                    </tr>
+                    <tr>
+                        <td>
+                            <label for="sendAssetPasswordInput"></label>Password (If Encrypted) <input size="25" type="password" id="sendAssetPasswordInput" />
+                        </td>
+                    </tr>
+                    <tr>
+                        <td>
+                            <button id="sendAssetButton" onclick="sendAsset()">Send</button>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
         <div id="allAssets">
             <table id="allAssetsTable">
                 <thead>
