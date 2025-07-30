@@ -39,12 +39,14 @@ pub enum EntityType {
     //Contracts
     RequestContractFunction = 42,
     RespondContractFunction = 43,
+    
+    RequestAssets = 52,
+    RespondAssets = 53,
 }
 
 impl EntityType {
     pub fn to_byte(&self) -> i8 {
         match self {
-            EntityType::ERROR => 55,
             EntityType::UNKNOWN => -1,
             EntityType::ExchangePeers => 0,
             EntityType::BroadcastComputors => 2,
@@ -66,7 +68,10 @@ impl EntityType {
             EntityType::RequestPossessedAssets => 40,
             EntityType::RespondPossessedAssets => 41,
             EntityType::RequestContractFunction => 42,
-            EntityType::RespondContractFunction => 43
+            EntityType::RespondContractFunction => 43,
+            EntityType::RequestAssets => 52,
+            EntityType::RespondAssets => 53,
+            EntityType::ERROR => 55
         }
     }
 }
@@ -150,6 +155,8 @@ impl RequestResponseHeader {
             41 => EntityType::RespondPossessedAssets,
             42 => EntityType::RequestContractFunction,
             43 => EntityType::RespondContractFunction,
+            52 => EntityType::RequestAssets,
+            53 => EntityType::RespondAssets,
             55 => EntityType::ERROR,
             _ => EntityType::UNKNOWN
         }
@@ -160,6 +167,7 @@ impl RequestResponseHeader {
             EntityType::RespondIssuedAssets => true,
             EntityType::RespondOwnedAssets => true,
             EntityType::RespondPossessedAssets => true,
+            EntityType::RespondAssets => true,
             _ => false
         }
     }

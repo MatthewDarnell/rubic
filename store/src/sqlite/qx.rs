@@ -123,7 +123,7 @@ pub mod orderbook {
         let prep_query = _prep_query.as_str();
         //let _lock =SQLITE_TRANSFER_MUTEX.lock().unwrap();
         let _lock = get_db_lock().lock().unwrap();
-        match open_database(path, true) {
+        match open_database(path, false) {
             Ok(connection) => {
                 match prepare_crud_statement(&connection, prep_query) {
                     Ok(mut statement) => {
@@ -174,7 +174,7 @@ pub mod order {
     );";
         let _lock = get_db_lock().lock().unwrap();
         //let _lock =SQLITE_TRANSFER_MUTEX.lock().unwrap();
-        match open_database(path, true) {
+        match open_database(path, false) {
             Ok(connection) => {
                 match prepare_crud_statement(&connection, prep_query) {
                     Ok(mut statement) => {
@@ -259,7 +259,7 @@ pub mod order {
         let prep_query = _prep_query.as_str();
         //let _lock =SQLITE_TRANSFER_MUTEX.lock().unwrap();
         let _lock = get_db_lock().lock().unwrap();
-        match open_database(path, true) {
+        match open_database(path, false) {
             Ok(connection) => {
                 match prepare_crud_statement(&connection, prep_query) {
                     Ok(mut statement) => {

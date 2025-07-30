@@ -44,7 +44,9 @@ pub fn update_balances(peer_set: Arc<Mutex<PeerSet>>) {
                             }
                             {
                                 match peer_set.lock().unwrap().make_request(possessed_asset_request) {
-                                    Ok(_) => {},
+                                    Ok(_) => {
+                                        //println!("Requested Possessed Assets For  {}", identity);
+                                    },
                                     Err(err) => error!("{}", err)
                                 }
                             }

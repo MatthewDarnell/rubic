@@ -11,7 +11,7 @@ pub fn create_transfer(path: &str, source: &str, destination: &str, amount: u64,
     );";
     let _lock = get_db_lock().lock().unwrap();
     //let _lock =SQLITE_TRANSFER_MUTEX.lock().unwrap();
-    match open_database(path, true) {
+    match open_database(path, false) {
         Ok(connection) => {
             match prepare_crud_statement(&connection, prep_query) {
                 Ok(mut statement) => {
@@ -51,7 +51,7 @@ pub fn fetch_all_transfers(path: &str, asc: &String, limit: i32, offset: u32) ->
     let prep_query = _prep_query.as_str();
     //let _lock =SQLITE_TRANSFER_MUTEX.lock().unwrap();
     let _lock = get_db_lock().lock().unwrap();
-    match open_database(path, true) {
+    match open_database(path, false) {
         Ok(connection) => {
             match prepare_crud_statement(&connection, prep_query) {
                 Ok(mut statement) => {
@@ -94,7 +94,7 @@ pub fn fetch_transfer_by_txid(path: &str, txid: &str) -> Result<Vec<HashMap<Stri
     let prep_query = "SELECT * FROM transfer WHERE txid = :txid ORDER BY created DESC;";
     let _lock = get_db_lock().lock().unwrap();
     //let _lock =SQLITE_TRANSFER_MUTEX.lock().unwrap();
-    match open_database(path, true) {
+    match open_database(path, false) {
         Ok(connection) => {
             match prepare_crud_statement(&connection, prep_query) {
                 Ok(mut statement) => {
@@ -138,7 +138,7 @@ pub fn delete_transfers_by_source_identity(path: &str, source_identity: &str) ->
     let prep_query = "DELETE FROM transfer WHERE source_identity = :source_identity;";
     let _lock = get_db_lock().lock().unwrap();
     //let _lock =SQLITE_TRANSFER_MUTEX.lock().unwrap();
-    match open_database(path, true) {
+    match open_database(path, false) {
         Ok(connection) => {
             match prepare_crud_statement(&connection, prep_query) {
                 Ok(mut statement) => {
@@ -216,7 +216,7 @@ pub fn set_transfer_as_broadcast(path: &str, txid: &str) -> Result<(), String> {
     let prep_query = "UPDATE transfer SET broadcast = true WHERE txid = :txid;";
     let _lock = get_db_lock().lock().unwrap();
     //let _lock =SQLITE_TRANSFER_MUTEX.lock().unwrap();
-    match open_database(path, true) {
+    match open_database(path, false) {
         Ok(connection) => {
             match prepare_crud_statement(&connection, prep_query) {
                 Ok(mut statement) => {
@@ -250,7 +250,7 @@ pub fn fetch_expired_and_broadcasted_transfers_with_unknown_status(path: &str, l
     let prep_query = "SELECT * FROM transfer WHERE broadcast = true AND tick <= :latest_tick AND status = -1 ORDER BY tick ASC;";
     let _lock = get_db_lock().lock().unwrap();
     //let _lock =SQLITE_TRANSFER_MUTEX.lock().unwrap();
-    match open_database(path, true) {
+    match open_database(path, false) {
         Ok(connection) => {
             match prepare_crud_statement(&connection, prep_query) {
                 Ok(mut statement) => {
@@ -294,7 +294,7 @@ pub fn fetch_expired_and_broadcasted_transfers_with_unknown_status_and_specific_
     let prep_query = "SELECT * FROM transfer WHERE broadcast = true AND tick = :tick AND status = -1 ORDER BY tick ASC;";
     let _lock = get_db_lock().lock().unwrap();
     //let _lock =SQLITE_TRANSFER_MUTEX.lock().unwrap();
-    match open_database(path, true) {
+    match open_database(path, false) {
         Ok(connection) => {
             match prepare_crud_statement(&connection, prep_query) {
                 Ok(mut statement) => {
@@ -338,7 +338,7 @@ pub fn set_broadcasted_transfer_as_success(path: &str, txid: &str) -> Result<(),
     let prep_query = "UPDATE transfer SET status = 0 WHERE txid = :txid AND broadcast = true;";
     let _lock = get_db_lock().lock().unwrap();
     //let _lock =SQLITE_TRANSFER_MUTEX.lock().unwrap();
-    match open_database(path, true) {
+    match open_database(path, false) {
         Ok(connection) => {
             match prepare_crud_statement(&connection, prep_query) {
                 Ok(mut statement) => {
@@ -372,7 +372,7 @@ pub fn set_broadcasted_transfer_as_failure(path: &str, txid: &str) -> Result<(),
     let prep_query = "UPDATE transfer SET status = 1 WHERE txid = :txid AND broadcast = true;";
     let _lock = get_db_lock().lock().unwrap();
     //let _lock =SQLITE_TRANSFER_MUTEX.lock().unwrap();
-    match open_database(path, true) {
+    match open_database(path, false) {
         Ok(connection) => {
             match prepare_crud_statement(&connection, prep_query) {
                 Ok(mut statement) => {

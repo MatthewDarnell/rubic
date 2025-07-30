@@ -45,6 +45,16 @@ async fn main() {
   crypto::initialize();  
     
   let path = store::get_db_path();
+  match sqlite::create::open_database(path.as_str(), true) {
+      Ok(_) => info!("Database successfully opened"),
+      Err(error) => {
+          logger::error(format!("Database Failed To Open/Create: {}", error).as_str());
+          panic!("Failed To Open Database!");
+      }
+  }  
+    
+    
+    
   sqlite::peer::set_all_peers_disconnected(path.as_str()).unwrap();
 
     

@@ -1,5 +1,8 @@
 pub mod header;
 pub mod response;
+pub mod request;
+
+pub use crate::request::QubicApiPacket;
 
 extern crate crypto;
 extern crate protocol;
@@ -9,22 +12,6 @@ use crypto::qubic_identities::get_public_key_from_identity;
 use smart_contract::qx::orderbook::AssetOrdersRequest;
 use crate::header::{EntityType, RequestResponseHeader};
 
-
-
-//Takes a public key
-#[derive(Debug, Copy, Clone)]
-pub struct RequestedEntity {
-    pub public_key: [u8; 32]
-}
-
-#[derive(Debug, Clone)]
-pub struct QubicApiPacket {
-    pub api_type: EntityType,
-    pub peer: Option<String>,
-    pub header: RequestResponseHeader,
-    pub data: Vec<u8>,
-    pub response_data: Option<Vec<u8>>
-}
 impl QubicApiPacket {
     pub fn get_latest_tick() -> Self {
         let mut header = RequestResponseHeader::new();
@@ -104,22 +91,7 @@ impl QubicApiPacket {
             response_data: None
         }
     }
-
-    pub fn request_issued_assets(pub_key: &[u8; 32]) -> Self {
-        let mut header = RequestResponseHeader::new();
-        header.set_type(EntityType::RequestIssuedAssets);
-
-        let data: Vec<u8> = pub_key.to_vec();
-        let size = std::mem::size_of::<RequestResponseHeader>() + data.len();
-        header.set_size(size);
-        QubicApiPacket {
-            api_type: EntityType::RequestOwnedAssets,
-            peer: None,
-            header,
-            data,
-            response_data: None
-        }
-    }
+    
     
     pub fn request_owned_assets(pub_key: &[u8; 32]) -> Self {
         let mut header = RequestResponseHeader::new();

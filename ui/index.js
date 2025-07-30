@@ -190,6 +190,12 @@ const getIdentities = async () => {
                 txTd.innerHTML = `<button style="display: none" id="${identity}ShowTxsBtn"></button>`
 
                 tr.appendChild(txTd)
+
+                txTd = document.createElement("td")
+                txTd.innerHTML = `<button onclick="getAssets('${identity}')" id="${identity}ShowAssetsBtn">My Assets</button>`
+
+                tr.appendChild(txTd)
+
                 const encryptedId = document.createElement("td");
                 encryptedId.id = `${identity}:encrypted:td`
                 encryptedId.innerHTML = encrypted;
@@ -332,8 +338,6 @@ const send = async (identity, isEncrypted) => {
     span.onclick = function() {
         modal.style.display = "none";
     }
-
-
 }
 
 function onlyUnique(value, index, array) {
@@ -388,6 +392,30 @@ const getTransactions = async () => {
         console.log(error)
     }
 }
+
+const getAllAssets = async () => {
+    const serverIp = document.getElementById("serverIp").value;
+    const tbody = document.getElementById('allAssetsTableTbody');
+    try {
+        const result = await makeHttpRequest(`${serverIp}/asset/issued`);
+        const res = JSON.parse(result);
+        const trs = []
+        for(let i = 0; i < res.length; i+= 2) {
+            const tr = document.createElement('tr')
+            const td1 = document.createElement('td')
+            const td2 = document.createElement('td')
+            td1.innerText = res[i]
+            td2.innerText = res[i + 1]
+            tr.appendChild(td1)
+            tr.appendChild(td2)
+            trs.push(tr)
+        }
+        tbody.innerHTML = ""
+        trs.map(tr => tbody.appendChild(tr))
+    } catch {
+
+    }
+}
 const getBalance = async identity => {
     const serverIp = document.getElementById("serverIp").value;
     const balanceTd = document.getElementById(`${identity}:balance:td`);
@@ -437,11 +465,39 @@ const getBalance = async identity => {
     }
 }
 
+const getAssets = async identity => {
+    const serverIp = document.getElementById("serverIp").value;
+    const balanceTd = document.getElementById(`assetsDiv`);
+    balanceTd.innerHTML = "";
+    balanceTd.innerHTML = "<table id='assetTable'><thead><th>Asset</th><th>Balance</th></thead><tbody id='assetTable'>";
+    try {
+        const numPeers = parseInt(document.getElementById("numPeersSpan").value);
+        const result = await makeHttpRequest(`${serverIp}/asset/balance/${identity}`);
+        const res = JSON.parse(result);
+        for (const asset of res) {
+            let name = asset['name']
+            let balance = asset['balance']
+            balanceTd.innerHTML +=`<tr><td>${name}  </td><td>${balance}</td></tr><br/>`
+        }
+        balanceTd.innerHTML += "</tbody></table>"
+        const myAssetsDiv = document.getElementById('assetsDiv');
+        myAssetsDiv.style.display = 'block'
+    } catch(error) {
+        console.log(error)
+    }
+}
+
 window.switchToElement = el => {
     const elToShow = document.getElementById(el);
     const identityDiv = document.getElementById('identityDiv');
     const peersDiv = document.getElementById('peersDiv');
+    const allAssetsDiv = document.getElementById('allAssetsDiv');
     const settingsDiv = document.getElementById('settingsDiv');
+    const myAssetsDiv = document.getElementById('assetsDiv');
+
+
+    myAssetsDiv.style.display = "none";
+    allAssetsDiv.style.display = "none";
     identityDiv.style.display = "none";
     peersDiv.style.display = "none";
     settingsDiv.style.display = "none";
@@ -658,6 +714,54 @@ window.exportDb = () => {
     }
 }
 
+const sendAsset = async () => {
+    const serverIp = document.getElementById("serverIp").value;
+
+
+    const passInput = document.getElementById("sendAssetPasswordInput");
+    const _pass = passInput.value.length > 4 ? passInput.value : "0";
+    if(passInput) {
+        passInput.innerHTML = "";
+    }
+    const sourceId = document.getElementById("sendAssetFromInput");
+    const destId = document.getElementById("sendAssetToInput");
+    const amount = document.getElementById("sendAssetAmountInput");
+    const assetName = document.getElementById("sendAssetNameInput");
+    const issuer = document.getElementById("sendAssetIssuerInput");
+
+    const _source = sourceId.value;
+    const _dest = destId.value;
+    const _amount = amount.value;
+    const _asset = assetName.value;
+    const _issuer = issuer.value;
+
+    const amountToSend = parseInt(_amount);
+    if(isNaN(amountToSend) || amountToSend <= 0 || amountToSend > MAX_AMOUNT) {
+        alert("Invalid Amount To Send!");
+        return;
+    }
+    if(_source.length !== 60) {
+        alert("Invalid Source Identity!");
+        return;
+    }
+    if(_dest.length !== 60) {
+        alert("Invalid Destination Identity!");
+        return;
+    }
+    document.getElementById("sendAssetButton").disabled = true;
+    const result = await makeHttpRequest(`${serverIp}/asset/transfer/${_asset}/${_issuer}/${_source}/${_dest}/${_amount}/0/${_pass}`);
+    document.getElementById("sendAssetButton").disabled = false;
+   /* if(result !== "Transfer Sent!") {
+        expirationPendingTick = expirationTick;
+    } else {
+        transactionPending = true;
+        const pendingTransferTable = document.getElementById("pendingTransferSpan");
+        pendingTransferTable.innerHTML = `Pending Transfer: (${sourceIdentity.substring(0, 4)}...) <b>${amountToSend}</b> Qus -> (${destinationIdentity}) Expires At Tick.(<b>${expirationPendingTick}</b>) `;
+    }
+
+    */
+    alert(result);
+}
 
 window.initiateTransfer = async () => {
     try {
@@ -768,6 +872,9 @@ const intervalLoopFunction = () => {
         .then(_ => {
             //Finished Update Loop
             setTimeout(getTransactions, 500);
+        })
+        .then(_ => {
+            setTimeout(getAllAssets, 2000)
         })
         .catch(() => {
             setTimeout(intervalLoopFunction, 1000);
