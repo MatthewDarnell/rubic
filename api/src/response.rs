@@ -1,7 +1,6 @@
 use std::collections::HashMap;
 use std::ffi::CStr;
 use std::ops::Index;
-use std::ptr::copy_nonoverlapping;
 use std::str::FromStr;
 use std::sync::{Arc, Mutex};
 use consensus::computor::BroadcastComputors;
@@ -21,9 +20,10 @@ use consensus::tick::Tick;
 use consensus::tick_data::{TickData, TransactionDigest};
 use crypto::qubic_identities::get_identity;
 use uuid::Uuid;
+use logger::error;
 use smart_contract::qx::orderbook::{AssetOrdersRequest, OrderBook};
 use store::sqlite::asset::{asset_issuance};
-use smart_contract::qx::asset::{IssuedAsset, OwnedAsset, PossessedAsset};
+use smart_contract::qx::asset::{IssuedAsset, PossessedAsset};
 
 pub mod exchange_peers;
 pub mod response_entity;
@@ -75,7 +75,7 @@ pub fn get_formatted_response_from_multiple(requests: Arc<Mutex<HashMap<u32, Qub
                                 asset.asset.issuance.number_of_decimal_places,
                                 asset.asset.issuance.pad_unit_of_measurement_to_u64(),
                             ) {
-                                Ok(id) => {
+                                Ok(_id) => {
                                     //println!("Created Asset Issuance! <{}> : <{}>", asset.asset.issuance.get_name().as_str(), id);
                                 },
                                 Err(_err) => {
@@ -120,7 +120,7 @@ pub fn get_formatted_response_from_multiple(requests: Arc<Mutex<HashMap<u32, Qub
                         get_identity(& asset.issuance.issuance.pub_key).as_str(),
                     ) {
                         Ok(issued_asset) => {
-                            if(issued_asset.is_empty()) {
+                            if issued_asset.is_empty() {
                                 println!("failed to insert Possessed Asset For Unknown Issuance {}", name);
                                 continue;
                             }
@@ -418,7 +418,11 @@ pub fn get_formatted_response(requests: Arc<Mutex<HashMap<u32, QubicApiPacket>>>
                                     let a_bytes = asset_orders_request.input.asset_name.to_le_bytes();
                                     match CStr::from_bytes_until_nul(&a_bytes) {
                                         Ok(asset_name) => {
-                                            store::sqlite::qx::orderbook::create_qx_orderbook(get_db_path().as_str(), asset_name.to_str().unwrap(), side, &_v).expect("Failed to create Orderbook");
+                                            match store::sqlite::qx::orderbook::create_qx_orderbook(get_db_path().as_str(), asset_name.to_str().unwrap(), side, &_v) {
+                                                Ok(_) => {},
+                                                Err(_err) => error(format!("Failed To Create OrderBook!: {}", _err).as_str())
+                                                
+                                            }
                                         },
                                         Err(_) => {}
                                     }   

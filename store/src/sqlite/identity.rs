@@ -12,7 +12,7 @@ pub fn insert_new_identity(path: &str, identity: &Identity) -> Result<(), String
     let _lock = get_db_lock().lock().unwrap();
     let prep_query = "INSERT INTO identities (seed, salt, hash, is_encrypted, identity) VALUES (:seed, :salt, :hash, :is_encrypted, :identity)";
     //let _lock =SQLITE_IDENTITY_MUTEX.lock().unwrap();
-    match open_database(path, true) {
+    match open_database(path, false) {
         Ok(connection) => {
             match prepare_crud_statement(&connection, prep_query) {
                 Ok(mut statement) => {
@@ -56,7 +56,7 @@ pub fn update_identity_encrypted(path: &str, identity: &Identity) -> Result<(), 
     let _lock = get_db_lock().lock().unwrap();
     let prep_query = "UPDATE identities SET seed = :seed, salt = :salt, hash = :hash, is_encrypted = :is_encrypted WHERE identity = :identity";
     //let _lock =SQLITE_IDENTITY_MUTEX.lock().unwrap();
-    match open_database(path, true) {
+    match open_database(path, false) {
         Ok(connection) => {
             match prepare_crud_statement(&connection, prep_query) {
                 Ok(mut statement) => {
@@ -97,7 +97,7 @@ pub fn fetch_all_identities(path: &str) -> Result<LinkedList<String>, String> {
     let prep_query = "SELECT identity FROM identities;";
     let _lock = get_db_lock().lock().unwrap();
     //let _lock =SQLITE_IDENTITY_MUTEX.lock().unwrap();
-    match open_database(path, true) {
+    match open_database(path, false) {
         Ok(connection) => {
             match prepare_crud_statement(&connection, prep_query) {
                 Ok(mut statement) => {
@@ -131,7 +131,7 @@ pub fn fetch_all_identities_full(path: &str) -> Result<LinkedList<Identity>, Str
     let prep_query = "SELECT * FROM identities;";
     let _lock = get_db_lock().lock().unwrap();
     //let _lock =SQLITE_IDENTITY_MUTEX.lock().unwrap();
-    match open_database(path, true) {
+    match open_database(path, false) {
         Ok(connection) => {
             match prepare_crud_statement(&connection, prep_query) {
                 Ok(mut statement) => {
@@ -174,7 +174,7 @@ pub fn delete_all_response_entities_before_tick(path: &str, tick: u32) -> Result
     let prep_query = "DELETE FROM response_entity WHERE tick < :tick;";
     let _lock = get_db_lock().lock().unwrap();
     //let _lock =SQLITE_IDENTITY_MUTEX.lock().unwrap();
-    match open_database(path, true) {
+    match open_database(path, false) {
         Ok(connection) => {
             match prepare_crud_statement(&connection, prep_query) {
                 Ok(mut statement) => {
@@ -234,7 +234,7 @@ pub fn fetch_balance_by_identity(path: &str, identity: &str) -> Result<Vec<Strin
     ";
     //let _lock =SQLITE_IDENTITY_MUTEX.lock().unwrap();
     let mut response: Vec<String> = Vec::new();
-    match open_database(path, true) {
+    match open_database(path, false) {
         Ok(connection) => {
             match prepare_crud_statement(&connection, prep_query) {
                 Ok(mut statement) => {
@@ -274,7 +274,7 @@ pub fn fetch_identity(path: &str, identity: &str) -> Result<Identity, String> {
     let prep_query = "SELECT * FROM identities WHERE identity = :identity LIMIT 1;";
     let _lock = get_db_lock().lock().unwrap();
     //let _lock =SQLITE_IDENTITY_MUTEX.lock().unwrap();
-    match open_database(path, true) {
+    match open_database(path, false) {
         Ok(connection) => {
             match prepare_crud_statement(&connection, prep_query) {
                 Ok(mut statement) => {
@@ -323,7 +323,7 @@ pub fn delete_identity(path: &str, identity: &str) -> Result<(), String> {
     //let prep_query = "DELETE FROM transfer WHERE source_identity = :identity; DELETE FROM identities WHERE identity = :identity;";
     let _lock = get_db_lock().lock().unwrap();
     //let _lock =SQLITE_IDENTITY_MUTEX.lock().unwrap();
-    match open_database(path, true) {
+    match open_database(path, false) {
         Ok(connection) => {
             match prepare_crud_statement(&connection, prep_query) {
                 Ok(mut statement) => {

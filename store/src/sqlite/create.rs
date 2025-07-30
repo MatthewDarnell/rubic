@@ -3,6 +3,7 @@ pub fn open_database(path: &str, create: bool) -> Result<sqlite::Connection, Str
     let query = "
     PRAGMA foreign_keys = ON;
     PRAGMA journal_mode = WAL;
+    PRAGMA busy_timeout = 1000;
     CREATE TABLE IF NOT EXISTS peer (
       id TEXT UNIQUE NOT NULL PRIMARY KEY,
       ip TEXT UNIQUE NOT NULL,
@@ -133,7 +134,11 @@ pub fn open_database(path: &str, create: bool) -> Result<sqlite::Connection, Str
 ";
     //        FOREIGN KEY(identity) REFERENCES identities(identity)
     match sqlite::open(path) {
-        Ok(connection) => {
+        Ok(mut connection) => {
+            match connection.set_busy_timeout(1000) {
+                Ok(_) => {},
+                Err(error) => logger::error(format!("Failed To Set DB Busy Handler {}", error.to_string()).as_str())
+            }
             match create {
                 true => {
                     match connection.execute(query) {

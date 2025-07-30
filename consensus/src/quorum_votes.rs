@@ -36,6 +36,7 @@ pub fn get_quorum_votes(bc: &BroadcastComputors, ticks: &Vec<Tick>) -> Result<bo
             }
             //println!("Vote #{} (voted by {} computors ID) ", index, vote_indices[index].len());
         }
+    //println!("Quorum Passed: {:?}", passed);
     Ok(passed)
 }
 

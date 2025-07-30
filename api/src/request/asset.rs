@@ -1,4 +1,3 @@
-use crypto::qubic_identities::get_public_key_from_identity;
 use protocol::AsBytes;
 use std::io::Write;
 
@@ -118,36 +117,43 @@ impl RequestAssets {
     }
 }
 
-#[test]
-fn test_requested_entity_size() {
-    assert_eq!(112, size_of::<RequestAssets>());
-}
 
-#[test]
-fn test_request_all_issued_assets() {
-    let s = RequestAssets::request_all_issued_assets(None, None);
-    let bytes = vec![
-        0, 0, 6, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-        0, 0, 0, 0]
-    ;
-    unsafe {
-        assert_eq!(bytes.as_slice(), s.by_filter.as_bytes().as_slice());
-        assert_eq!(6, s.by_filter.flags);
-        assert_eq!(0, s.asset_req_type);
+mod request_assets_tests {
+    use crypto::qubic_identities::get_public_key_from_identity;
+    use protocol::AsBytes;
+    use crate::request::asset::RequestAssets;
+
+    #[test]
+    fn test_requested_entity_size() {
+        assert_eq!(112, size_of::<RequestAssets>());
     }
-}
 
-#[test]
-fn test_request_issued_assets_by_issuer_and_name() {
-    let id = get_public_key_from_identity(&"EPYWDREDNLHXOFYVGQUKPHJGOMPBSLDDGZDPKVQUMFXAIQYMZGEHPZTAAWON".to_string()).unwrap();
-    let s = RequestAssets::request_all_issued_assets(Some(id), Some(String::from("name")));
-    unsafe {
-        assert_eq!(0, s.by_filter.flags);
-        assert_eq!(0, s.asset_req_type);
+    #[test]
+    fn test_request_all_issued_assets() {
+        let s = RequestAssets::request_all_issued_assets(None, None);
+        let bytes = vec![
+            0, 0, 6, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0]
+            ;
+        unsafe {
+            assert_eq!(bytes.as_slice(), s.by_filter.as_bytes().as_slice());
+            assert_eq!(6, s.by_filter.flags);
+            assert_eq!(0, s.asset_req_type);
+        }
+    }
+
+    #[test]
+    fn test_request_issued_assets_by_issuer_and_name() {
+        let id = get_public_key_from_identity(&"EPYWDREDNLHXOFYVGQUKPHJGOMPBSLDDGZDPKVQUMFXAIQYMZGEHPZTAAWON".to_string()).unwrap();
+        let s = RequestAssets::request_all_issued_assets(Some(id), Some(String::from("name")));
+        unsafe {
+            assert_eq!(0, s.by_filter.flags);
+            assert_eq!(0, s.asset_req_type);
+        }
     }
 }

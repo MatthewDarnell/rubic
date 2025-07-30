@@ -21,7 +21,7 @@ pub(crate) fn prepare_crud_statement<'a>(connection: &'a sqlite::Connection, pre
 pub fn create_peer_response(path: &str, peer: &str, data: &Vec<u8>) -> Result<(), String> {
     let prep_query = "INSERT INTO response (peer, header, type, data) VALUES (:peer, :header, :response_type, :data);";
     //let _lock =SQLITE_MUTEX.lock().unwrap();
-    match open_database(path, true) {
+    match open_database(path, false) {
         Ok(connection) => {
             match prepare_crud_statement(&connection, prep_query) {
                 Ok(mut statement) => {
@@ -59,7 +59,7 @@ pub fn create_peer_response(path: &str, peer: &str, data: &Vec<u8>) -> Result<()
 pub fn fetch_peer_response_by_type(path: &str, response_type: u8) -> Result<Vec<Vec<u8>>, String> {
     let prep_query = "SELECT * FROM response WHERE type = :response_type ORDER BY created DESC;";
     //let _lock =SQLITE_MUTEX.lock().unwrap();
-    match open_database(path, true) {
+    match open_database(path, false) {
         Ok(connection) => {
             match prepare_crud_statement(&connection, prep_query) {
                 Ok(mut statement) => {

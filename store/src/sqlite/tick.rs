@@ -9,7 +9,7 @@ use crate::sqlite::get_db_lock;
 pub fn insert_tick(path: &str, peer_id: &str, tick: u32) -> Result<(), String> {
     let prep_query = "INSERT INTO tick (tick, peer) VALUES(:tick, :peer) ON CONFLICT(tick) DO NOTHING";
     let _lock = get_db_lock().lock().unwrap();
-    match open_database(path, true) {
+    match open_database(path, false) {
         Ok(connection) => {
             match crate::sqlite::crud::prepare_crud_statement(&connection, prep_query) {
                 Ok(mut statement) => {
@@ -51,7 +51,7 @@ pub fn insert_tick(path: &str, peer_id: &str, tick: u32) -> Result<(), String> {
 pub fn set_tick_tx_digest_hash(path: &str, tx_digests_hash: &String, tick: u32) -> Result<(), String> {
     let prep_query = "UPDATE tick SET transaction_digests_hash = :hash WHERE tick = :tick AND transaction_digests_hash = ''";
     let _lock = get_db_lock().lock().unwrap();
-    match open_database(path, true) {
+    match open_database(path, false) {
         Ok(connection) => {
             match crate::sqlite::crud::prepare_crud_statement(&connection, prep_query) {
                 Ok(mut statement) => {
@@ -94,7 +94,7 @@ pub fn fetch_tick(path: &str, tick: u32) -> Result<std::collections::HashMap<Str
     let prep_query = "SELECT * FROM tick WHERE tick = :tick LIMIT 1;";
     let _lock = get_db_lock().lock().unwrap();
     //let _lock =SQLITE_TICK_MUTEX.lock().unwrap();
-    match open_database(path, true) {
+    match open_database(path, false) {
         Ok(connection) => {
             match crate::sqlite::crud::prepare_crud_statement(&connection, prep_query) {
                 Ok(mut statement) => {
@@ -147,7 +147,7 @@ pub fn fetch_latest_tick(path: &str) -> Result<String, String> {
     let prep_query = "SELECT tick FROM tick ORDER BY tick DESC LIMIT 1;";
     let _lock = get_db_lock().lock().unwrap();
     //let _lock =SQLITE_TICK_MUTEX.lock().unwrap();
-    match open_database(path, true) {
+    match open_database(path, false) {
         Ok(connection) => {
             match crate::sqlite::crud::prepare_crud_statement(&connection, prep_query) {
                 Ok(mut statement) => {
@@ -181,7 +181,7 @@ pub fn set_tick_validated(path: &str, tick: u32) -> Result<(), String> {
     let prep_query = "UPDATE tick SET valid = true WHERE tick = :tick;";
     //let _lock =SQLITE_TICK_MUTEX.lock().unwrap();
     let _lock = get_db_lock().lock().unwrap();
-    match open_database(path, true) {
+    match open_database(path, false) {
         Ok(connection) => {
             match crate::sqlite::crud::prepare_crud_statement(&connection, prep_query) {
                 Ok(mut statement) => {
@@ -224,7 +224,7 @@ pub fn set_tick_transaction_digests(path: &str, tick: u32, tx_digests: &[u8]) ->
     let _lock = get_db_lock().lock().unwrap();
     //let _lock =SQLITE_TICK_MUTEX.lock().unwrap();
     let digests: String = general_purpose::STANDARD_NO_PAD.encode::<&[u8]>(tx_digests);
-    match open_database(path, true) {
+    match open_database(path, false) {
         Ok(connection) => {
             match crate::sqlite::crud::prepare_crud_statement(&connection, prep_query) {
                 Ok(mut statement) => {

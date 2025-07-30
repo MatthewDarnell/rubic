@@ -32,7 +32,7 @@ pub mod asset_issuance {
         let lock = get_db_lock().lock().unwrap();
         let prep_query = "INSERT INTO asset_issuance (peer, pub_key, type, name, num_decimal, unit_measure) VALUES (
     :peer, :pub_key, :type, :name, :num_decimal, :unit_measure);";
-        match open_database(path, true) {
+        match open_database(path, false) {
             Ok(connection) => {
                 connection.execute("BEGIN TRANSACTION;").unwrap();
                 match prepare_crud_statement(&connection, prep_query) {
@@ -98,7 +98,7 @@ pub mod asset_issuance {
         let prep_query = "SELECT * FROM asset_issuance WHERE name=:name AND pub_key=:issuer;";
         let _lock = get_db_lock().lock().unwrap();
         //let _lock =SQLITE_IDENTITY_MUTEX.lock().unwrap();
-        match open_database(path, true) {
+        match open_database(path, false) {
             Ok(connection) => {
                 match prepare_crud_statement(&connection, prep_query) {
                     Ok(mut statement) => {
@@ -152,7 +152,7 @@ pub mod asset_issuance {
         let prep_query = "SELECT DISTINCT(name), pub_key FROM asset_issuance WHERE name IS NOT NULL;";
         let _lock = get_db_lock().lock().unwrap();
         //let _lock =SQLITE_IDENTITY_MUTEX.lock().unwrap();
-        match open_database(path, true) {
+        match open_database(path, false) {
             Ok(connection) => {
                 match prepare_crud_statement(&connection, prep_query) {
                     Ok(mut statement) => {
@@ -192,7 +192,7 @@ pub mod asset_issuance {
         let prep_query = "SELECT DISTINCT(name), pub_key FROM asset_issuance WHERE name IS NOT NULL;";
         let _lock = get_db_lock().lock().unwrap();
         //let _lock =SQLITE_IDENTITY_MUTEX.lock().unwrap();
-        match open_database(path, true) {
+        match open_database(path, false) {
             Ok(connection) => {
                 match prepare_crud_statement(&connection, prep_query) {
                     Ok(mut statement) => {
@@ -259,7 +259,7 @@ pub fn fetch_asset_balance(path: &str, asset_name: &str, identity: &str) -> Resu
                         LIMIT 1";
     let _lock = get_db_lock().lock().unwrap();
     //let _lock =SQLITE_IDENTITY_MUTEX.lock().unwrap();
-    match open_database(path, true) {
+    match open_database(path, false) {
         Ok(connection) => {
             match prepare_crud_statement(&connection, prep_query) {
                 Ok(mut statement) => {
@@ -314,7 +314,7 @@ pub fn delete_all_assets_before_tick(path: &str, tick: u32) -> Result<(), String
     let prep_query = "DELETE FROM asset_record WHERE tick < :tick;";
     let _lock = get_db_lock().lock().unwrap();
     //let _lock =SQLITE_IDENTITY_MUTEX.lock().unwrap();
-    match open_database(path, true) {
+    match open_database(path, false) {
         Ok(connection) => {
             match prepare_crud_statement(&connection, prep_query) {
                 Ok(mut statement) => {
@@ -362,7 +362,7 @@ pub mod asset_record {
         let _lock = get_db_lock().lock().unwrap();
         let prep_query = "INSERT INTO asset_record (asset_id, record_type, pub_key, type, name, num_decimal, unit_measure) VALUES (
     :asset_id, 'I', :pub_key, :type, :name, :num_decimal, :unit_measure);";
-        match open_database(path, true) {
+        match open_database(path, false) {
             Ok(connection) => {
                 match prepare_crud_statement(&connection, prep_query) {
                     Ok(mut statement) => {
@@ -401,7 +401,7 @@ pub mod asset_record {
         let _lock = get_db_lock().lock().unwrap();
         let prep_query = "INSERT INTO asset_record (asset_id, record_type, pub_key, type, padding, managing_contract, issuance_index, num_shares) VALUES (
     :asset_id, 'O', :pub_key, :type, :padding, :managing_contract, :issuance_index, :num_shares);";
-        match open_database(path, true) {
+        match open_database(path, false) {
             Ok(connection) => {
                 match prepare_crud_statement(&connection, prep_query) {
                     Ok(mut statement) => {
@@ -441,7 +441,7 @@ pub mod asset_record {
         let _lock = get_db_lock().lock().unwrap();
         let prep_query = "INSERT INTO asset_record (asset_id, record_type, identity, managing_contract, issuance_index, num_shares, tick) VALUES (
     :asset_id, 'P', :identity, :managing_contract, :issuance_index, :num_shares, :tick);";
-        match open_database(path, true) {
+        match open_database(path, false) {
             Ok(connection) => {
                 match prepare_crud_statement(&connection, prep_query) {
                     Ok(mut statement) => {
@@ -491,7 +491,7 @@ pub mod asset_transfer {
     );";
         let _lock = get_db_lock().lock().unwrap();
         //let _lock =SQLITE_TRANSFER_MUTEX.lock().unwrap();
-        match open_database(path, true) {
+        match open_database(path, false) {
             Ok(connection) => {
                 match prepare_crud_statement(&connection, prep_query) {
                     Ok(mut statement) => {
@@ -575,7 +575,7 @@ pub mod asset_transfer {
         let prep_query = _prep_query.as_str();
         //let _lock =SQLITE_TRANSFER_MUTEX.lock().unwrap();
         let _lock = get_db_lock().lock().unwrap();
-        match open_database(path, true) {
+        match open_database(path, false) {
             Ok(connection) => {
                 match prepare_crud_statement(&connection, prep_query) {
                     Ok(mut statement) => {
