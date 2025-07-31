@@ -32,8 +32,9 @@ pub fn monitor_qx_orderbook(peer_set: Arc<Mutex<PeerSet>>) {
                                 Err(err) => error!("{}", err)
                             }
                         }
-
-
+                        
+                        
+                        
                         let asset_order_request2: AssetOrdersRequest = AssetOrdersRequest::new(QxFunctions::QxGetAssetAskOrder,
                                                                                                name.as_str(),
                                                                                                issuer.as_str(),
@@ -45,21 +46,6 @@ pub fn monitor_qx_orderbook(peer_set: Arc<Mutex<PeerSet>>) {
                                 Ok(_) => {},
                                 Err(err) => error!("{}", err)
                             }
-                        }
-                    }
-
-                    let name = "RANDOM";
-                    let issuer = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFXIB";
-                    let asset_order_request: AssetOrdersRequest = AssetOrdersRequest::new(QxFunctions::QxGetAssetBidOrder,
-                                                                                          name,
-                                                                                          issuer,
-                                                                                          0
-                    );
-                    let request = api::QubicApiPacket::get_asset_qx_orders(&asset_order_request);
-                    {
-                        match peer_set.lock().unwrap().make_request(request) {
-                            Ok(_) => {},
-                            Err(err) => error!("{}", err)
                         }
                     }
                 },
