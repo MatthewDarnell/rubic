@@ -11,6 +11,8 @@ const passwordNotSetDefaultMessage = "You Can Set A Master Password In Settings.
 let isShowingTxs = false;
 let identityCurrentlyShowingTxs = null;
 let transactionsObject = {};
+const knownAssets = {};
+
 
 const doArrayElementsAgree = (array, thresholdPercentage) => {
     const length = array.length;
@@ -393,6 +395,39 @@ const getTransactions = async () => {
     }
 }
 
+const viewOrderbook = async () => {
+    try {
+        const asset = document.getElementById('qxAssetDropdownSelector');
+        const assetValueIssuerArray = asset.value.split(":");
+        const assetName = assetValueIssuerArray[0];
+        const assetIssuer = assetValueIssuerArray[1];
+        const serverIp = document.getElementById("serverIp").value;
+        const buySide = await makeHttpRequest(`${serverIp}/qx/orderbook/${assetName}/BID/1000/0`);
+        const buyRes = JSON.parse(buySide);
+        console.log(buyRes)
+
+        const askSide = await makeHttpRequest(`${serverIp}/qx/orderbook/${assetName}/ASK/1000/0`);
+        const askRes = JSON.parse(askSide);
+
+        const tbody = document.getElementById('qxOrderbookBody');
+        tbody.innerHTML = "";
+
+        for (let i = askRes.length - 1; i >= 0; i--) {
+            let ask = askRes[i];
+            tbody.innerHTML += `<tr><td>ASK</td><td>${ask['price']}</td><td>${ask['num_shares']}</td><td>${ask['entity']}</td></tr>`;
+        }
+
+        tbody.innerHTML += "<tr><td>---</td><td>-------------</td><td>-------</td><td>------------------------------------------------------------</td></tr>"
+        for (const bid of buyRes) {
+            tbody.innerHTML += `<tr><td>BID</td><td>${bid['price']}</td><td>${bid['num_shares']}</td><td>${bid['entity']}</td></tr>`;
+        }
+    } catch(error) {
+        console.log("viewOrderbook Failed:")
+        console.log(error)
+    }
+}
+
+
 const getAllAssets = async () => {
     const serverIp = document.getElementById("serverIp").value;
     const tbody = document.getElementById('allAssetsTableTbody');
@@ -406,6 +441,13 @@ const getAllAssets = async () => {
             const td2 = document.createElement('td')
             td1.innerText = res[i]
             td2.innerText = res[i + 1]
+
+            if(!knownAssets.hasOwnProperty(res[i])) {
+                knownAssets[res[i]] = res[i + 1];
+                const dropdown = document.getElementById('qxAssetDropdownSelector');
+                dropdown.innerHTML += `<option value="${res[i]}:${res[i+1]}">${res[i]}</option>`;
+            }
+
             tr.appendChild(td1)
             tr.appendChild(td2)
             trs.push(tr)
@@ -416,6 +458,7 @@ const getAllAssets = async () => {
 
     }
 }
+
 const getBalance = async identity => {
     const serverIp = document.getElementById("serverIp").value;
     const balanceTd = document.getElementById(`${identity}:balance:td`);

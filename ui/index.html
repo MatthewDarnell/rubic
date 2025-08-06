@@ -31,6 +31,10 @@
             border: 1px solid black;
         }
 
+        #qxOrderbookBody tbody, #qxOrderbookBody th, #qxOrderbookBody td {
+            border: 1px solid black;
+        }
+
 
         #sendAssetTable tbody {
             min-width: 50%;
@@ -114,6 +118,9 @@
                 <td>
                     Wallet: <span id="isWalletEncryptedSpan"></span>
                 </td>
+                <td>
+                    <a href="#" onclick="switchToElement('settingsDiv')">Settings</a>
+                </td>
             </tr>
             <tr>
                 <td>
@@ -126,7 +133,7 @@
                     <a href="#" onclick="switchToElement('allAssetsDiv')">Assets</a>
                 </td>
                 <td>
-                    <a href="#" onclick="switchToElement('settingsDiv')">Settings</a>
+                    <a href="#" onclick="switchToElement('qxDiv')">Qx</a>
                 </td>
             </tr>
         </table>
@@ -381,6 +388,43 @@
                 </tbody>
             </table>
         </div>
+    </div>
+
+    <div id="qxDiv" style="display: none;">
+        <table>
+            <thead>
+                <tr>
+                    <th>
+                        <label for="qxAssetDropdownSelector">Asset: </label><select name="qxDropdown" id="qxAssetDropdownSelector">
+                        </select>
+                    </th>
+                    <th></th>
+                    <th></th>
+                    <th></th>
+                </tr>
+                <tr>
+                    <th>
+                        <button onclick="viewOrderbook()">Fetch Orderbook</button>
+                    </th>
+                    <th></th>
+                    <th></th>
+                    <th></th>
+                </tr>
+            </thead>
+        </table>
+        <table>
+            <thead>
+                <tr>
+                    <th>Side</th>
+                    <th>Price</th>
+                    <th>Amount</th>
+                    <th>Entity</th>
+                </tr>
+            </thead>
+            <tbody id="qxOrderbookBody">
+            </tbody>
+        </table>
+        <div id="qxDivInternal"></div>
     </div>
 
     <div id="sendModal" class="modal" style="display: none;">
