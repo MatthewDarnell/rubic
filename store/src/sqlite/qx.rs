@@ -20,7 +20,7 @@ pub mod orderbook {
 
     
     pub fn create_qx_orderbook(path: &str, asset: &str, side: &str, orders: &OrderBook) -> Result<(), String> {
-        let prep_query: &str = "INSERT INTO qx_orderbook (asset, side, entity, price, num_shares, stale) VALUES (:asset, :side, :entity, :price, :num_shares, 0) \
+        let prep_query: &str = "INSERT INTO qx_orderbook (asset, side, entity, price, num_shares, stale, offset_at_price) VALUES (:asset, :side, :entity, :price, :num_shares, 0, :offset_at_price) \
         ON CONFLICT DO UPDATE SET stale = 0 WHERE asset=:asset AND side=:side AND entity=:entity AND price=:price AND num_shares=:num_shares;";
         let _lock = get_db_lock().lock().unwrap();
         match open_database(path, false) {
@@ -48,13 +48,25 @@ pub mod orderbook {
                 }
                 match prepare_crud_statement(&connection, prep_query) {
                     Ok(mut statement) => {
+                        let mut offset_at_price: i32 = -1;  //Keep track of FIFO for orders
+                        let mut curr_price: i64 = 0;        // at same price
                         for order in orders.full_order_list.iter() {
+                            if order.price != curr_price {  //New Price Point, Reset Order Offsets
+                                offset_at_price = 0;
+                                curr_price = order.price;
+                            } else {    //Same Price as Before, Increment Order Offset
+                                offset_at_price += offset_at_price + 1;
+                            }
+                            if asset=="CFB" && side == "A" {
+                                println!("Inserting: {} - {} - price.{} - offset.{}", asset, get_identity(&order.entity).as_str(), order.price, offset_at_price);
+                            }
                             match statement.bind::<&[(&str, &str)]>(&[
                                 (":asset", asset),
                                 (":side", side),
                                 (":entity", get_identity(&order.entity).as_str()),
                                 (":price", order.price.to_string().as_str()),
-                                (":num_shares", order.num_shares.to_string().as_str())
+                                (":num_shares", order.num_shares.to_string().as_str()),
+                                (":offset_at_price", offset_at_price.to_string().as_str()),
                             ][..]) {
                                 Ok(_) => {
                                     match statement.next() {

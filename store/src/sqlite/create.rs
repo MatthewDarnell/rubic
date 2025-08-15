@@ -127,6 +127,7 @@ pub fn open_database(path: &str, create: bool) -> Result<sqlite::Connection, Str
         price INTEGER NOT NULL,
         stale INTEGER DEFAULT 0,
         num_shares INTEGER NOT NULL,
+        offset_at_price INTEGER NOT NULL,
         side TEXT CHECK( side IN ('A','B') ) NOT NULL,
         created DATETIME DEFAULT CURRENT_TIMESTAMP,
         PRIMARY KEY(asset, side, entity, price, num_shares)
