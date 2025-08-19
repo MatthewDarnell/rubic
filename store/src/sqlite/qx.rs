@@ -55,10 +55,7 @@ pub mod orderbook {
                                 offset_at_price = 0;
                                 curr_price = order.price;
                             } else {    //Same Price as Before, Increment Order Offset
-                                offset_at_price += offset_at_price + 1;
-                            }
-                            if asset=="CFB" && side == "A" {
-                                println!("Inserting: {} - {} - price.{} - offset.{}", asset, get_identity(&order.entity).as_str(), order.price, offset_at_price);
+                                offset_at_price += 1;
                             }
                             match statement.bind::<&[(&str, &str)]>(&[
                                 (":asset", asset),
@@ -130,8 +127,13 @@ pub mod orderbook {
             "A" => "ASC",
             _ => "DESC"
         };
+
+        let offset_ordering = match s {
+            "A" => "DESC",
+            _ => "ASC"
+        };
         
-        let _prep_query = format!("SELECT * FROM qx_orderbook WHERE asset=:asset AND side=:side ORDER BY price {} LIMIT {} OFFSET {};", asc, limit, offset);
+        let _prep_query = format!("SELECT * FROM qx_orderbook WHERE asset=:asset AND side=:side ORDER BY price {}, offset_at_price {} LIMIT {} OFFSET {};", asc, offset_ordering, limit, offset);
         let prep_query = _prep_query.as_str();
         //let _lock =SQLITE_TRANSFER_MUTEX.lock().unwrap();
         let _lock = get_db_lock().lock().unwrap();

@@ -107,12 +107,14 @@ pub fn get_formatted_response_from_multiple(requests: Arc<Mutex<HashMap<u32, Qub
                 unsafe {
                     let _siblings = crypto::encoding::bytes_to_hex(&asset.siblings.as_flattened().to_vec());
                     let _peer = &response.index(index).peer.clone().unwrap();
-
-                    let _name = CStr::from_bytes_until_nul(&asset.issuance.issuance.name);
+                    let mut _temp_name: [u8; 8] = [0u8; 8];
+                    _temp_name[0..7].copy_from_slice(&asset.issuance.issuance.name);
+                    let _name = CStr::from_bytes_until_nul(&_temp_name);
                     if _name.is_err() {
                         eprintln!("Failed To Parse AssetRecord Issuance Name: {:?}", asset.issuance.issuance.name);
                         continue;
                     }
+                    
                     let name = _name.unwrap().to_str().unwrap();
                     match asset_issuance::fetch_issued_asset(
                         get_db_path().as_str(),
@@ -419,7 +421,9 @@ pub fn get_formatted_response(requests: Arc<Mutex<HashMap<u32, QubicApiPacket>>>
                                     match CStr::from_bytes_until_nul(&a_bytes) {
                                         Ok(asset_name) => {
                                             match store::sqlite::qx::orderbook::create_qx_orderbook(get_db_path().as_str(), asset_name.to_str().unwrap(), side, &_v) {
-                                                Ok(_) => {},
+                                                Ok(_) => {
+                                                    //println!("Created Orderbook {} - {} Side", asset_name.to_str().unwrap(), side);
+                                                },
                                                 Err(_err) => error(format!("Failed To Create OrderBook!: {}", _err).as_str())
                                                 
                                             }

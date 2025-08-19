@@ -8,9 +8,9 @@ use crate::env;
 pub fn maintain_peers(peer_set: Arc<Mutex<PeerSet>>) {
     std::thread::spawn(move || {
         let peer_ips = vec![
-            "62.2.98.75:21841",
-            "31.204.159.145:21841",
-            "144.2.106.163:21841"
+            "31.204.159.155:21841",
+            "138.68.105.178:21841",
+            "164.90.210.6:21841"
         ];
         for ip in peer_ips {
             debug!("Adding Peer {}", ip);
