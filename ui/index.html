@@ -31,6 +31,21 @@
             border: 1px solid black;
         }
 
+        #qxOrderbookBody tbody, #qxOrderbookBody th, #qxOrderbookBody td {
+            border: 1px solid black;
+        }
+
+
+        #sendAssetTable tbody {
+            min-width: 50%;
+        }
+        #sendAssetTable td {
+            text-align: left;
+        }
+        #assetTable table, #assetTable th, #assetTable tr #assetTable td {
+            border: 1px solid black;
+        }
+
         #myIdentitiesTable table, #myIdentitiesTable th, #myIdentitiesTable td {
             border: 1px solid black;
         }
@@ -103,6 +118,9 @@
                 <td>
                     Wallet: <span id="isWalletEncryptedSpan"></span>
                 </td>
+                <td>
+                    <a href="#" onclick="switchToElement('settingsDiv')">Settings</a>
+                </td>
             </tr>
             <tr>
                 <td>
@@ -112,7 +130,10 @@
                     <a href="#" onclick="switchToElement('peersDiv')">Connected Peers</a>
                 </td>
                 <td>
-                    <a href="#" onclick="switchToElement('settingsDiv')">Settings</a>
+                    <a href="#" onclick="switchToElement('allAssetsDiv')">Assets</a>
+                </td>
+                <td>
+                    <a href="#" onclick="switchToElement('qxDiv')">Qx</a>
                 </td>
             </tr>
         </table>
@@ -174,6 +195,7 @@
                         <th>Identity</th>
                         <th>Balance</th>
                         <th>Txs</th>
+                        <th>Assets</th>
                         <th>Encrypted</th>
                         <th>Delete</th>
                     </tr>
@@ -304,6 +326,107 @@
         </div>
     </div>
 
+    <div id="allAssetsDiv" style="display: none;">
+        <div id="sendAssetDiv">
+            <table id="sendAssetTable">
+                <thead>
+                <tr></tr>
+                <tr></tr>
+                <tr></tr>
+                <tr></tr>
+                <tr></tr>
+                <tr></tr>
+                </thead>
+                <tbody id="sendAssetBody">
+                    <tr>
+                        <td>
+                            <label for="sendAssetFromInput">Sending Identity </label><input type="text" size="60" id="sendAssetFromInput" />
+                        </td>
+                    </tr>
+                    <tr>
+                        <td>
+                            <label for="sendAssetToInput">Destination Identity </label><input type="text" size="60" id="sendAssetToInput" />
+                        </td>
+                    </tr>
+                    <tr>
+                        <td>
+                            <label for="sendAssetNameInput">Asset Name </label><input type="text" id="sendAssetNameInput" />
+                        </td>
+                    </tr>
+                    <tr>
+                        <td>
+                            <label for="sendAssetIssuerInput"></label>Issuer <input type="text" size="60" id="sendAssetIssuerInput" />
+                        </td>
+                    </tr>
+                    <tr>
+                        <td>
+                            <label for="sendAssetAmountInput"></label>Amount <input type="number" id="sendAssetAmountInput" />
+                        </td>
+                    </tr>
+                    <tr>
+                        <td>
+                            <label for="sendAssetPasswordInput"></label>Password (If Encrypted) <input size="25" type="password" id="sendAssetPasswordInput" />
+                        </td>
+                    </tr>
+                    <tr>
+                        <td>
+                            <button id="sendAssetButton" onclick="sendAsset()">Send</button>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+        <div id="allAssets">
+            <table id="allAssetsTable">
+                <thead>
+                    <tr>
+                        <th>Asset Name</th>
+                        <th>Issuer</th>
+                    </tr>
+                </thead>
+                <tbody id="allAssetsTableTbody">
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <div id="qxDiv" style="display: none;">
+        <table>
+            <thead>
+                <tr>
+                    <th>
+                        <label for="qxAssetDropdownSelector">Asset: </label><select name="qxDropdown" id="qxAssetDropdownSelector">
+                        </select>
+                    </th>
+                    <th></th>
+                    <th></th>
+                    <th></th>
+                </tr>
+                <tr>
+                    <th>
+                        <button onclick="viewOrderbook()">Fetch Orderbook</button>
+                    </th>
+                    <th></th>
+                    <th></th>
+                    <th></th>
+                </tr>
+            </thead>
+        </table>
+        <table>
+            <thead>
+                <tr>
+                    <th>Side</th>
+                    <th>Price</th>
+                    <th>Amount</th>
+                    <th>Entity</th>
+                </tr>
+            </thead>
+            <tbody id="qxOrderbookBody">
+            </tbody>
+        </table>
+        <div id="qxDivInternal"></div>
+    </div>
+
     <div id="sendModal" class="modal" style="display: none;">
         <div class="modal-content">
             <span class="close">&times;</span>
@@ -369,7 +492,9 @@
         </div>
     </div>
 
-
+    <div id="assetsDiv">
+        
+    </div>
 
 
     <div style="margin-top: 3%;">

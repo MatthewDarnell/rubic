@@ -15,7 +15,7 @@ pub fn monitor_qx_orderbook(peer_set: Arc<Mutex<PeerSet>>) {
             *   SECTION <Update QX Orderbooks>
             *
             */
-            match store::sqlite::asset::fetch_issued_assets_with_data(get_db_path().as_str()) {
+            match store::sqlite::asset::asset_issuance::fetch_issued_assets_with_data(get_db_path().as_str()) {
                 Ok(assets) => {
                     for asset in assets {
                         let name = asset.get(&"name".to_string()).unwrap();
@@ -32,8 +32,9 @@ pub fn monitor_qx_orderbook(peer_set: Arc<Mutex<PeerSet>>) {
                                 Err(err) => error!("{}", err)
                             }
                         }
-
-
+                        
+                        
+                        
                         let asset_order_request2: AssetOrdersRequest = AssetOrdersRequest::new(QxFunctions::QxGetAssetAskOrder,
                                                                                                name.as_str(),
                                                                                                issuer.as_str(),

@@ -76,29 +76,28 @@ pub fn open_database(path: &str, create: bool) -> Result<sqlite::Connection, Str
         created DATETIME DEFAULT CURRENT_TIMESTAMP,
         peer TEXT
     );
-    CREATE TABLE IF NOT EXISTS asset (
+    CREATE TABLE IF NOT EXISTS asset_issuance (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
-        identity TEXT NOT NULL,
-        tick INTEGER NOT NULL,
-        universe_index INTEGER NOT NULL,
-        siblings TEXT NOT NULL,
+        pub_key TEXT NOT NULL,
+        type INTEGER NOT NULL,
+        name TEXT NOT NULL,
+        num_decimal INTEGER,
+        unit_measure TEXT,
         created DATETIME DEFAULT CURRENT_TIMESTAMP,
         peer TEXT,
-        FOREIGN KEY(identity) REFERENCES identities(identity) ON DELETE CASCADE
+        UNIQUE (pub_key, type, name, num_decimal, unit_measure) ON CONFLICT IGNORE
     );
     CREATE TABLE IF NOT EXISTS asset_record (
         asset_id INTEGER NOT NULL,
-        record_type TEXT CHECK( record_type IN ('I','O','P') ) NOT NULL,
-        pub_key TEXT NOT NULL,
-        type INTEGER NOT NULL,
-        name TEXT,
-        num_decimal INTEGER,
-        unit_measure TEXT,
-        padding INTEGER,
+        record_type TEXT CHECK( record_type IN ('O','P') ) NOT NULL,
+        identity TEXT NOT NULL,
         managing_contract INTEGER,
         issuance_index INTEGER,
         num_shares INTEGER,
-        FOREIGN KEY(asset_id) REFERENCES asset(id) ON DELETE CASCADE
+        tick INTEGER NOT NULL,
+        FOREIGN KEY(asset_id) REFERENCES asset_issuance(id) ON DELETE CASCADE,
+        FOREIGN KEY(identity) REFERENCES identities(identity) ON DELETE CASCADE,
+        UNIQUE (asset_id, identity, record_type, managing_contract, issuance_index, tick) ON CONFLICT REPLACE
     );
     CREATE TABLE IF NOT EXISTS asset_transfer (
         txid TEXT NOT NULL,
@@ -128,6 +127,7 @@ pub fn open_database(path: &str, create: bool) -> Result<sqlite::Connection, Str
         price INTEGER NOT NULL,
         stale INTEGER DEFAULT 0,
         num_shares INTEGER NOT NULL,
+        offset_at_price INTEGER NOT NULL,
         side TEXT CHECK( side IN ('A','B') ) NOT NULL,
         created DATETIME DEFAULT CURRENT_TIMESTAMP,
         PRIMARY KEY(asset, side, entity, price, num_shares)
@@ -135,7 +135,11 @@ pub fn open_database(path: &str, create: bool) -> Result<sqlite::Connection, Str
 ";
     //        FOREIGN KEY(identity) REFERENCES identities(identity)
     match sqlite::open(path) {
-        Ok(connection) => {
+        Ok(mut connection) => {
+            match connection.set_busy_timeout(1000) {
+                Ok(_) => {},
+                Err(error) => logger::error(format!("Failed To Set DB Busy Handler {}", error.to_string()).as_str())
+            }
             match create {
                 true => {
                     match connection.execute(query) {

@@ -20,9 +20,10 @@ use consensus::tick::Tick;
 use consensus::tick_data::{TickData, TransactionDigest};
 use crypto::qubic_identities::get_identity;
 use uuid::Uuid;
+use logger::error;
 use smart_contract::qx::orderbook::{AssetOrdersRequest, OrderBook};
-use store::sqlite::asset::create_asset;
-use crate::response::asset::{OwnedAsset, PossessedAsset};
+use store::sqlite::asset::{asset_issuance};
+use smart_contract::qx::asset::{IssuedAsset, PossessedAsset};
 
 pub mod exchange_peers;
 pub mod response_entity;
@@ -51,61 +52,45 @@ pub fn get_formatted_response_from_multiple(requests: Arc<Mutex<HashMap<u32, Qub
         None => "".to_string(),
     };
     let api_type = response.first().unwrap().api_type;
+    let deja_vu = response.first().unwrap().header._dejavu;
     match api_type {
-        EntityType::RespondIssuedAssets => {},
-        EntityType::RespondOwnedAssets => {
-            let mut assets_data: Vec<OwnedAsset> = Vec::with_capacity(response.len());
-            if assets_data.len() > 0 {
-                unsafe {
-                    println!("Received Owned Assets {:?}", &assets_data[0].asset.ownership.issuance_index);
-                }
-            } else {
-                //println!("Got 0 Length Quorum Tick...");
-            }
-            for entry in response.iter_mut() {
-                println!("Peer Owned Asset: {:?}", entry.peer);
-                match OwnedAsset::format_qubic_response_data_to_structure(entry) {
-                    Some(data) => {
-                        assets_data.push(data)
+        EntityType::RespondAssets => {
+            for mut asset in response {
+                match IssuedAsset::format_qubic_response_data_to_structure(&mut asset) {
+                    Some(asset) => {
+                        unsafe {
+                            /*
+                            let contract_index = asset.asset.possession.issuance_index;
+                            let managing_index = asset.asset.possession.managing_contract_index;
+                            
+                            println!("Asset: {}: Contract Index.({}) - Managing Index.({})", asset.asset.issuance.get_name().as_str(), contract_index, managing_index);
+                            */
+                            
+                            match asset_issuance::create_asset_issuance(
+                                get_db_path().as_str(),
+                                peer.as_str(),
+                                get_identity(& asset.asset.issuance.pub_key).as_str(),
+                                asset.asset.issuance._type,
+                                asset.asset.issuance.get_name().as_str(),
+                                asset.asset.issuance.number_of_decimal_places,
+                                asset.asset.issuance.pad_unit_of_measurement_to_u64(),
+                            ) {
+                                Ok(_id) => {
+                                    //println!("Created Asset Issuance! <{}> : <{}>", asset.asset.issuance.get_name().as_str(), id);
+                                },
+                                Err(_err) => {
+                                    eprintln!("Failed to create asset_issuance! {:?}", _err);
+                                }
+                            }
+                        }
                     },
                     None => {
-                        println!("Failed to format OwnedAsset!");
+                        println!("Failed to format IssuedAsset!");
                     }
                 };
             }
-            println!("Got Owned Assets: {:?}", assets_data.len());
-            for (index, asset) in assets_data.iter().enumerate() {
-                unsafe {
-                    println!("Identity: {}",get_identity(& asset.asset.ownership.pub_key));
-                    println!("Issuance Index: {}", asset.asset.ownership.issuance_index);
-                    println!("Issuance Number of Shares: {}", asset.asset.ownership.number_of_shares);
-                    println!("Issuance Type: {}", asset.asset.ownership._type);
-                    //println!("{:?}", &asset.asset.ownership);
-                    //println!("{:?}", &asset.asset.ownership);
-                    
-                    let _issuance = crypto::encoding::bytes_to_hex(&asset.issuance.issuance.to_bytes());
-                    let _ownership = crypto::encoding::bytes_to_hex(&asset.asset.ownership.to_bytes());
-                    
-                    let _siblings = crypto::encoding::bytes_to_hex(&asset.siblings.as_flattened().to_vec());
-
-                    let _peer = &response.index(index).peer.clone().unwrap();
-                    
-                    match create_asset(
-                        get_db_path().as_str(),
-                        _peer.as_str(),
-                        get_identity(& asset.asset.ownership.pub_key).as_str(),
-                        asset.tick,
-                        asset.universe_index,
-                        _siblings.as_str()
-                    ) {
-                        Ok(_) => {},
-                        Err(_err) => {
-                            eprintln!("Failed to create asset! {:?}", _err);
-                        }
-                    }
-                }
-            }
         },
+        EntityType::RespondOwnedAssets => {},   //TODO
         EntityType::RespondPossessedAssets => {
             let mut assets_data: Vec<PossessedAsset> = Vec::with_capacity(response.len());
             for entry in response.iter_mut() {
@@ -122,52 +107,41 @@ pub fn get_formatted_response_from_multiple(requests: Arc<Mutex<HashMap<u32, Qub
                 unsafe {
                     let _siblings = crypto::encoding::bytes_to_hex(&asset.siblings.as_flattened().to_vec());
                     let _peer = &response.index(index).peer.clone().unwrap();
-                    match create_asset(
+                    let mut _temp_name: [u8; 8] = [0u8; 8];
+                    _temp_name[0..7].copy_from_slice(&asset.issuance.issuance.name);
+                    let _name = CStr::from_bytes_until_nul(&_temp_name);
+                    if _name.is_err() {
+                        eprintln!("Failed To Parse AssetRecord Issuance Name: {:?}", asset.issuance.issuance.name);
+                        continue;
+                    }
+                    
+                    let name = _name.unwrap().to_str().unwrap();
+                    match asset_issuance::fetch_issued_asset(
                         get_db_path().as_str(),
-                        _peer.as_str(),
-                        get_identity(&asset.asset.ownership.pub_key).as_str(),
-                        asset.tick,
-                        asset.universe_index,
-                        _siblings.as_str()
+                        name.to_string().as_str(),
+                        get_identity(& asset.issuance.issuance.pub_key).as_str(),
                     ) {
-                        Ok(id) => {
-                            let _issuance = &asset.issuance.issuance;
-                            //let _name = std::str::from_utf8(&_issuance.name);
-                            let _name = CStr::from_bytes_until_nul(&_issuance.name);
-                            if _name.is_err() {
-                                eprintln!("Failed To Parse AssetRecord Issuance Name: {:?}", _issuance.name);
+                        Ok(issued_asset) => {
+                            if issued_asset.is_empty() {
+                                println!("failed to insert Possessed Asset For Unknown Issuance {}", name);
                                 continue;
                             }
-                            let name = _name.unwrap();
-                            let unit = crypto::encoding::bytes_to_hex(&_issuance.unit_of_measurement.to_vec());
-
-                            match store::sqlite::asset::asset_record::create_asset_issuance(
+                            let _id = issued_asset.get(&"id".to_string()).unwrap();
+                            let id = u64::from_str(_id).unwrap();
+                            let _issuance = &asset.issuance.issuance;
+                            let _possession = &asset.asset.possession;
+                            //println!("Got Possession For {}", get_identity(&_possession.pub_key).as_str());
+                            match store::sqlite::asset::asset_record::create_asset_possession(
                                 get_db_path().as_str(),
                                 id,
-                                get_identity(&_issuance.pub_key).as_str(),
-                                _issuance._type,
-                                name.to_str().unwrap(),
-                                _issuance.number_of_decimal_places,
-                                unit.as_str(),
+                                get_identity(&_possession.pub_key).as_str(),
+                                _possession.managing_contract_index,
+                                _possession.issuance_index,
+                                _possession.number_of_shares as u64,
+                                asset.tick
                             ) {
-                                Ok(_) => {
-                                    let _possession = &asset.asset.possession;
-                                    match store::sqlite::asset::asset_record::create_asset_possession(
-                                        get_db_path().as_str(),
-                                        id,
-                                        get_identity(&_possession.pub_key).as_str(),
-                                        _possession._type,
-                                        _possession.padding,
-                                        _possession.managing_contract_index,
-                                        _possession.issuance_index,
-                                        _possession.number_of_shares
-                                    ) {
-                                        Ok(_) => {},
-                                        Err(_err) => { eprintln!("Failed to store asset Possession! {:?}", _err); }
-                                    }
-
-                                },
-                                Err(_err) => { eprintln!("Failed to store asset issuance! {:?}", _err); }
+                                Ok(_) => {},
+                                Err(_err) => { eprintln!("Failed to store asset Possession! {:?}", _err); }
                             }
                         },
                         Err(_err) => {
@@ -241,9 +215,11 @@ pub fn get_formatted_response_from_multiple(requests: Arc<Mutex<HashMap<u32, Qub
 
             }
         },
-        _ => {}
+        _ => {
+            println!("Got Response Multiple Type {:?}", response.first().unwrap().api_type);
+        }
     }
-    delete_request_from_matcher(response.first().unwrap().header._dejavu, requests.clone());
+    delete_request_from_matcher(deja_vu, requests.clone());
 }
 
 pub fn get_formatted_response(requests: Arc<Mutex<HashMap<u32, QubicApiPacket>>>, response: &mut QubicApiPacket) {
@@ -443,7 +419,15 @@ pub fn get_formatted_response(requests: Arc<Mutex<HashMap<u32, QubicApiPacket>>>
                                 if side != "UNKNOWN" {  //some other request, why did we match on this
                                     let a_bytes = asset_orders_request.input.asset_name.to_le_bytes();
                                     match CStr::from_bytes_until_nul(&a_bytes) {
-                                        Ok(asset_name) => store::sqlite::qx::orderbook::create_qx_orderbook(get_db_path().as_str(), asset_name.to_str().unwrap(), side, &_v).expect("Failed to create Orderbook"),
+                                        Ok(asset_name) => {
+                                            match store::sqlite::qx::orderbook::create_qx_orderbook(get_db_path().as_str(), asset_name.to_str().unwrap(), side, &_v) {
+                                                Ok(_) => {
+                                                    //println!("Created Orderbook {} - {} Side", asset_name.to_str().unwrap(), side);
+                                                },
+                                                Err(_err) => error(format!("Failed To Create OrderBook!: {}", _err).as_str())
+                                                
+                                            }
+                                        },
                                         Err(_) => {}
                                     }   
                                 }
@@ -459,8 +443,9 @@ pub fn get_formatted_response(requests: Arc<Mutex<HashMap<u32, QubicApiPacket>>>
                 None => println!("Failed To Read Orderbook!")
             }
         },
+        EntityType::ResponseEnd => {},
         _ => { 
-            //println!("Unknown Entity Type {:?}", response.api_type);
+            println!("Unknown Entity Type {:?}", response.api_type);
             //println!("{:?}", response);
         }
     }

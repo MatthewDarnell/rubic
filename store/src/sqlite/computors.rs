@@ -29,7 +29,7 @@ pub fn insert_computors_from_bytes(path: &str, peer: &str, bytes: &Vec<u8>) -> R
 
     let prep_query = "INSERT INTO computors (peer, epoch, pub_keys, signature) VALUES(:peer, :epoch, :keys, :sig) ON CONFLICT(epoch) DO NOTHING;";
     //let _lock =SQLITE_COMPUTORS_MUTEX.lock().unwrap();
-    match open_database(path, true) {
+    match open_database(path, false) {
         Ok(connection) => {
             match prepare_crud_statement(&connection, prep_query) {
                 Ok(mut statement) => {
@@ -83,7 +83,7 @@ pub fn insert_computors_from_parts(path: &str, epoch: u16, pub_keys: &Vec<Vec<u8
 
     let prep_query = "INSERT INTO computors (epoch, pub_keys, signature) VALUES(:epoch, :keys, :sig) ON CONFLICT(epoch) DO NOTHING;";
     //let _lock =SQLITE_COMPUTORS_MUTEX.lock().unwrap();
-    match open_database(path, true) {
+    match open_database(path, false) {
         Ok(connection) => {
             match prepare_crud_statement(&connection, prep_query) {
                 Ok(mut statement) => {
@@ -126,7 +126,7 @@ pub fn fetch_computors_by_epoch(path: &str, epoch: u16) -> Result<[u8; 2 + 676*3
     let _lock = get_db_lock().lock().unwrap();
     let prep_query = "SELECT epoch, pub_keys, signature FROM computors WHERE epoch = :epoch ORDER BY epoch DESC LIMIT 1;";
     //let _lock =SQLITE_COMPUTORS_MUTEX.lock().unwrap();
-    match open_database(path, true) {
+    match open_database(path, false) {
         Ok(connection) => {
             match prepare_crud_statement(&connection, prep_query) {
                 Ok(mut statement) => {
@@ -174,7 +174,7 @@ pub fn fetch_latest_computors(path: &str) -> Result<[u8; 2 + 676*32 + 64], Strin
     let _lock = get_db_lock().lock().unwrap();
     let prep_query = "SELECT epoch, pub_keys, signature FROM computors ORDER BY epoch DESC LIMIT 1;";
     //let _lock =SQLITE_COMPUTORS_MUTEX.lock().unwrap();
-    match open_database(path, true) {
+    match open_database(path, false) {
         Ok(connection) => {
             match prepare_crud_statement(&connection, prep_query) {
                 Ok(mut statement) => {

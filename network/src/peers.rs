@@ -2,7 +2,7 @@ use std::io::prelude::*;
 use std::collections::HashMap;
 use std::net::{SocketAddr, TcpStream};
 use std::sync::{Arc, Mutex};
-use api::QubicApiPacket;
+use api::request::QubicApiPacket;
 use logger::{ debug, error };
 use std::time::{Duration};
 use rand::prelude::IteratorRandom;
@@ -167,6 +167,7 @@ impl PeerSet {
             api::header::EntityType::RequestedQuorumTick => false,
             api::header::EntityType::RequestTickData => false,
             api::header::EntityType::RequestContractFunction => false,
+            api::header::EntityType::RequestAssets => false,
             _ => true
         };
 
