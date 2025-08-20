@@ -32,7 +32,7 @@ pub fn unlock(password: String, timeout_ms: u64) -> String {
     } else if password.len() > 64 {
         return "Password Too Long!".to_string();
     }
-    if timeout_ms > 9999 {
+    if timeout_ms > 99999 {
         return "Wallet Unlock Timeout Period Too Long!".to_string();
     }
     let timeout_ms = std::time::Duration::from_millis(timeout_ms);
