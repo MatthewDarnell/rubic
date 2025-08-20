@@ -29,6 +29,7 @@ pub fn set_master_password(password: &str) -> String {
                 Ok(hashed) => {
                     match store::sqlite::master_password::set_master_password(store::get_db_path().as_str(), hashed.as_str()) {
                         Ok(_) => {
+                            logger::info("Master Password Set!");
                             return format!("Master Password Set!");
                         },
                         Err(err) => {
@@ -73,6 +74,7 @@ pub fn encrypt_wallet(password: &str) -> String {
                                         }
                                     }
                                 }
+                                logger::info("Wallet Encrypted!");
                                 return format!("Wallet Encrypted!");
                             },
                             Err(err) => {return format!("{}", err);}
