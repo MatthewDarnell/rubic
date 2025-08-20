@@ -17,13 +17,40 @@ pub fn is_wallet_encrypted() -> String {
     }
 }
 
+#[get("/wallet/unlocked")]
+pub fn is_unlocked() -> String {
+    match protocol::wallet_unlock::is_wallet_unlocked() {
+        Ok(pass) => format!("{}", pass),
+        Err(err) => format!("{:?}", err)
+    }
+}
+
+#[get("/wallet/unlock/<password>/<timeout_ms>")]
+pub fn unlock(password: String, timeout_ms: u64) -> String {
+    if password.len() < MINPASSWORDLEN {
+        return "Password Too Short!".to_string();
+    } else if password.len() > 64 {
+        return "Password Too Long!".to_string();
+    }
+    if timeout_ms > 9999 {
+        return "Wallet Unlock Timeout Period Too Long!".to_string();
+    }
+    let timeout_ms = std::time::Duration::from_millis(timeout_ms);
+    match store::sqlite::master_password::get_master_password(store::get_db_path().as_str()) {
+        Ok(master_password) => {
+            protocol::wallet_unlock::unlock_wallet(master_password[1].as_str(), password.as_str(), timeout_ms).unwrap_or_else(|err| err)       
+        },
+        Err(_) => "Wallet Cannot Be Unlocked. Not Already Encrypted!".to_string()
+    }
+}
+
 #[get("/wallet/set_master_password/<password>")]
 pub fn set_master_password(password: &str) -> String {
     if password.len() < MINPASSWORDLEN {
         return format!("Password Too Short!");
     }
     match store::sqlite::master_password::get_master_password(store::get_db_path().as_str()) {
-        Ok(_) => { return format!("Wallet Password Already Set!"); },
+        Ok(_) => format!("Wallet Password Already Set!"),
         Err(_) => {
             match crypto::passwords::hash_password(password) {
                 Ok(hashed) => {

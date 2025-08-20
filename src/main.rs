@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use rocket::routes;
 
 extern crate dotenv_codegen;
-use logger::{setup_logger, info};
+use logger::{info, setup_logger};
 use std::sync::mpsc;
 mod env;
 mod routes;
@@ -158,7 +158,9 @@ async fn main() {
         routes::wallet::is_wallet_encrypted,
         routes::wallet::encrypt_wallet,
         routes::wallet::set_master_password,
-        routes::wallet::download_wallet
+        routes::wallet::download_wallet,
+        routes::wallet::is_unlocked,
+        routes::wallet::unlock
       ])
       .manage(std::sync::Mutex::new(tx))
       .manage(std::sync::Mutex::new(rx_server_route_responses_from_thread))
