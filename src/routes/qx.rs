@@ -67,6 +67,10 @@ pub fn place_order(tick: u32, issuer: &str, asset: &str, ask_bid: &str, address:
         }
     };
 
+    if identity.encrypted && protocol::wallet_unlock::is_wallet_unlocked().unwrap() {
+        identity = identity.decrypt_identity_unlocked_wallet().unwrap();
+    }
+
     if identity.encrypted {
         if password.len() >= MINPASSWORDLEN {
             identity = match sqlite::master_password::get_master_password(get_db_path().as_str()) {
