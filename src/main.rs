@@ -145,6 +145,9 @@ async fn main() {
     routes::qx::get_orderbook,
     routes::qx::place_order,
             
+    routes::transaction::fetch_transfers,
+    routes::transaction::transfer,
+            
     routes::wallet::is_wallet_encrypted,
     routes::wallet::encrypt_wallet,
     routes::wallet::set_master_password,
