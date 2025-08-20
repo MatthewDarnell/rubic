@@ -129,6 +129,14 @@ pub fn add_identity_with_password(seed: &str, password: &str) -> String {
 pub fn delete_identity(identity: &str, password: &str) -> String {
     match store::sqlite::identity::fetch_identity(get_db_path().as_str(), identity) {
         Ok(mut id) => {
+            if protocol::wallet_unlock::is_wallet_unlocked().unwrap() {
+                let response = match store::sqlite::identity::delete_identity(get_db_path().as_str(), identity) {
+                    Ok(_) => "200",
+                    Err(_) => "Failed To Delete Identity!"
+                };
+                return format!("{}", response);
+            }
+            
             if id.encrypted && password.len() < MINPASSWORDLEN {
                 return "Must Supply Password To Delete Encrypted Identity".to_string();
             }

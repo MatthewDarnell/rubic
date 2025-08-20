@@ -7,3 +7,5 @@ edition = "2024"
 crypto = { path = '../crypto', features = ["encryption"] }
 logger = { path = '../logger' }
 hex = "0.4.3"
+once_cell = "1.21.3"
+secrets = "1.2.0"
