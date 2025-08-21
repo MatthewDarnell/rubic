@@ -1,5 +1,5 @@
 use rocket::get;
-use logger::{debug, error};
+use logger::{debug, error, info};
 use store;
 use crate::routes::MINPASSWORDLEN;
 
@@ -91,7 +91,10 @@ pub fn encrypt_wallet(password: &str) -> String {
                                         match id.encrypt_identity(password) {
                                             Ok(encrypted) => {
                                                 match store::sqlite::identity::update_identity_encrypted(store::get_db_path().as_str(), &encrypted) {
-                                                    Ok(_) => println!("Updating Database, Identity.({}) Encrypted.", &encrypted.identity),
+                                                    Ok(_) => {
+                                                        info(format!("Updating Database, Identity.({}) Encrypted.", &encrypted.identity).as_str());
+                                                        println!("Updating Database, Identity.({}) Encrypted.", &encrypted.identity)
+                                                    },
                                                     Err(err) => error!("Failed To Encrypt Identity.({}) : <{}>", &encrypted.identity, err)
                                                 }
                                             },
