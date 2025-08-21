@@ -22,7 +22,7 @@ jobs:
       - name: Install Tauri
         run: cargo install tauri-cli --version "^2.0.0" --locked
       - name: Build Frontend
-        run: cd frontend; yarn install; yarn build; cd ..;
+        run: cd frontend; yarn install --network-timeout 1000000000; yarn build; cd ..;
       - name: Build Headless
         run: cargo +nightly build --release
       - name: Build UI

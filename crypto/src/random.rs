@@ -2,7 +2,8 @@ use rand::prelude::*;
 pub fn random_bytes(length: u32) -> Vec<u8> {
     let mut data: Vec<u8> = Vec::with_capacity(length as usize);
     data.resize(length as usize, 0);
-    data = data.chunks_exact_mut(1).map(|mut chunk| rand::rng().random()).collect();
+    let mut rng = StdRng::from_os_rng();    //Use OS getrandom rng
+    data = data.chunks_exact_mut(1).map(|mut chunk| rng.random()).collect();
     data
 }
 
