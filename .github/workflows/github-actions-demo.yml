@@ -11,48 +11,52 @@ on:
 env:
   CARGO_TERM_COLOR: always
 jobs:
-  build:
-    permissions:
-      contents: write
-    runs-on: windows-latest
-    steps:
-      - uses: actions/checkout@v3
-      - name: Install Cargo Toolchain
-        run: rustup install nightly
-      - name: Install Tauri
-        run: cargo install tauri-cli --version "^2.0.0" --locked
-      - name: Build Frontend
-        run: cd frontend; yarn install --network-timeout 1000000000; yarn build; cd ..;
-      - name: Build Headless
-        run: cargo +nightly build --release
-      - name: Build UI
-        run: cargo tauri build
-      - name: Generate Commit Hash
-        run: echo ${{ github.sha }} > Release.txt
-      - name: Generate Env Vars Version
-        run: echo RUBIC_VERSION=${{ github.sha }} > .env
-      - name: Generate Env Vars Port
-        run: echo RUBIC_PORT=3000 >> .env
-      - name: Generate Env Vars Max Peers
-        run: echo RUBIC_MAX_PEERS=7 >> .env
-      - name: Generate Env Vars Min Peers
-        run: echo RUBIC_MIN_PEERS=3 >> .env
-      - name: Generate Env Vars Log Level
-        run: echo RUBIC_LOG_LEVEL=error >> .env
-      - name: Zip UI for deployment
-        run: tar.exe -a -c -f ui.zip ui/*
-      - name: Generate release tag
-        id: tag
-        run: |
-          echo "::set-output name=release_tag::Release_$(date +"%Y.%m.%d_%H-%M")"
-      - name: Publish Release
-        uses: softprops/action-gh-release@v1
-        with:
-          tag_name: ${{ steps.tag.outputs.release_tag }}
-          files: |
-            target/release/rubic.exe
-            src-tauri/target/release/Rubic.exe
-            LICENSE
-            Release.txt
-            ui.zip
-      - run: echo "🍏 This job's status is ${{ job.status }}."
+  mac:
+    build:
+      permissions:
+        contents: write
+      runs-on: macos-14
+      steps:
+        - uses: actions/checkout@v3
+        - name: Install Cargo Toolchain
+          run: rustup install nightly
+  windows:
+    build:
+      permissions:
+        contents: write
+      runs-on: windows-latest
+      steps:
+        - uses: actions/checkout@v3
+        - name: Install Cargo Toolchain
+          run: rustup install nightly
+        - name: Install Tauri
+          run: cargo install tauri-cli --version "^2.0.0" --locked
+        - name: Build Frontend
+          run: cd frontend; yarn install --network-timeout 1000000000; yarn build; cd ..;
+        - name: Build UI
+          run: cargo tauri build
+        - name: Generate Commit Hash
+          run: echo ${{ github.sha }} > Release.txt
+        - name: Generate Env Vars Version
+          run: echo RUBIC_VERSION=${{ github.sha }} > .env
+        - name: Generate Env Vars Port
+          run: echo RUBIC_PORT=3000 >> .env
+        - name: Generate Env Vars Max Peers
+          run: echo RUBIC_MAX_PEERS=7 >> .env
+        - name: Generate Env Vars Min Peers
+          run: echo RUBIC_MIN_PEERS=3 >> .env
+        - name: Generate Env Vars Log Level
+          run: echo RUBIC_LOG_LEVEL=error >> .env
+        - name: Generate release tag
+          id: tag
+          run: |
+            echo "::set-output name=release_tag::Release_$(date +"%Y.%m.%d_%H-%M")"
+        - name: Publish Release
+          uses: softprops/action-gh-release@v1
+          with:
+            tag_name: ${{ steps.tag.outputs.release_tag }}
+            files: |
+              src-tauri/target/release/Rubic.exe
+              LICENSE
+              Release.txt
+        - run: echo "🍏 This job's status is ${{ job.status }}."
