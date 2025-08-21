@@ -25,9 +25,9 @@ pub fn is_wallet_unlocked() -> Result<bool, ()> {
         Ok(pass_guard) => {
             let zero_pass: [u8; 64] = [0u8; 64];
             if do_vecs_match(&pass_guard, &zero_pass.to_vec()) {
-                Ok(true)
-            } else {
                 Ok(false)
+            } else {
+                Ok(true)
             }
             /*
             let current_pass = pass_guard.borrow();
