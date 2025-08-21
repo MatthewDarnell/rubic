@@ -23,20 +23,20 @@ jobs:
         run: cargo install tauri-cli --version "^2.0.0" --locked
       - name: Build Frontend
         run: cd frontend && yarn install --network-timeout 1000000000 && yarn build && cd ..
-      - name: Build UI
+      - name: Build Rubic
         run: cargo tauri build
+      - name: Remove Quarantine Attribute
+        run: xattr -c src-tauri/target/release/bundle/macos/Rubic.app
       - name: Zip App Bundle
-        run: zip -9 -y -r -q Rubic-macos.zip src-tauri/target/release/bundle/macos/Rubic.app
+        run: cd src-tauri/target/release/bundle/macos/ && zip -9 -y -r -q Rubic-macos.zip src-tauri/target/release/bundle/macos/Rubic.app && cd ../../../../..
       - name: Generate release tag
         id: tag
         run: |
           echo "::set-output name=release_tag::Release_$(date +"%Y.%m.%d_%H-%M")"
-      - name: Publish Release
-        uses: softprops/action-gh-release@v1
+      - uses: actions/upload-artifact@v4
         with:
-          tag_name: ${{ steps.tag.outputs.release_tag }}
-          files: |
-            Rubic-macos.zip
+          name: Rubic-macos.zip
+          path: 'src-tauri/target/release/bundle/macos/Rubic-macos.zip'
       - run: echo "🍏 This job's status is ${{ job.status }}."
   windows:
       permissions:
@@ -50,7 +50,7 @@ jobs:
           run: cargo install tauri-cli --version "^2.0.0" --locked
         - name: Build Frontend
           run: cd frontend; yarn install --network-timeout 1000000000; yarn build; cd ..;
-        - name: Build UI
+        - name: Build Rubic
           run: cargo tauri build
         - name: Generate Commit Hash
           run: echo ${{ github.sha }} > Release.txt
@@ -68,12 +68,18 @@ jobs:
           id: tag
           run: |
             echo "::set-output name=release_tag::Release_$(date +"%Y.%m.%d_%H-%M")"
+        - uses: actions/checkout@v4
+        - uses: actions/download-artifact@v4
+          with:
+            name: Rubic-macos.zip
+            path: 'src-tauri/target/release/bundle/macos/Rubic-macos.zip'
         - name: Publish Release
           uses: softprops/action-gh-release@v1
           with:
             tag_name: ${{ steps.tag.outputs.release_tag }}
             files: |
               src-tauri/target/release/Rubic.exe
+              src-tauri/target/release/bundle/macos/Rubic-macos.zip
               LICENSE
               Release.txt
         - run: echo "🍏 This job's status is ${{ job.status }}."
