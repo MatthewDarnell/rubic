@@ -32,7 +32,7 @@ pub fn unlock(password: String, timeout_ms: u64) -> String {
     } else if password.len() > 64 {
         return "Password Too Long!".to_string();
     }
-    if timeout_ms > 9999 {
+    if timeout_ms > 99999 {
         return "Wallet Unlock Timeout Period Too Long!".to_string();
     }
     let timeout_ms = std::time::Duration::from_millis(timeout_ms);
@@ -56,6 +56,7 @@ pub fn set_master_password(password: &str) -> String {
                 Ok(hashed) => {
                     match store::sqlite::master_password::set_master_password(store::get_db_path().as_str(), hashed.as_str()) {
                         Ok(_) => {
+                            logger::info("Master Password Set!");
                             return format!("Master Password Set!");
                         },
                         Err(err) => {
@@ -100,6 +101,7 @@ pub fn encrypt_wallet(password: &str) -> String {
                                         }
                                     }
                                 }
+                                logger::info("Wallet Encrypted!");
                                 return format!("Wallet Encrypted!");
                             },
                             Err(err) => {return format!("{}", err);}

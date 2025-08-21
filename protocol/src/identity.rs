@@ -2,6 +2,8 @@
 #![allow(dead_code)]
 use crypto;
 use core::str::Utf8Error;
+use hex;
+use crypto::encryption::{NONCELENGTH, SALTLENGTH};
 use crate::wallet_unlock::{is_wallet_unlocked, PLAINTEXT_DECRYPT_PASSWORD};
 
 fn identity_to_address(identity: &Vec<u8>) -> Result<String, Utf8Error> {
@@ -92,7 +94,7 @@ impl Identity {
         match crypto::passwords::verify_password(password, self.hash.as_str()) {
             Ok(_) => {
                 let salt: Vec<u8> = hex::decode(&self.salt).unwrap();
-                match <[u8; 56]>::try_from(salt.as_slice()) {
+                match <[u8; SALTLENGTH + NONCELENGTH]>::try_from(salt.as_slice()) {
                     Ok(salt_bytes) => {
                         let seed_bytes: Vec<u8> = hex::decode(&self.seed).unwrap();
                         match crypto::encryption::decrypt(&salt_bytes, &seed_bytes, password) {
@@ -128,14 +130,15 @@ impl Identity {
         }
         match PLAINTEXT_DECRYPT_PASSWORD.clone().lock() {
             Ok(secret) => unsafe {
-                let s = secret.borrow();
+                //let s = secret.borrow();
+                let s = secret;
                 let password = std::str::from_utf8_unchecked(&*s).to_string();
                 match crypto::passwords::verify_password(password.as_str(), self.hash.as_str()) {
                     Ok(_) => { logger::info("Password Verified!"); },
                     Err(_) => { return Err("Unlocked Wallet but Stored Password Failed To Decrypt Stored Identity.".to_string());}
                 }
                 let salt: Vec<u8> = hex::decode(&self.salt).unwrap();
-                match <[u8; 56]>::try_from(salt.as_slice()) {
+                match <[u8; SALTLENGTH + NONCELENGTH]>::try_from(salt.as_slice()) {
                     Ok(salt_bytes) => {
                         let seed_bytes: Vec<u8> = hex::decode(&self.seed).unwrap();
                         match crypto::encryption::decrypt(&salt_bytes, &seed_bytes, password.as_str()) {
