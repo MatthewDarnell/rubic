@@ -69,8 +69,6 @@ async fn main() {
         println!("Warning! This software comes with no warranty, real or implied. Secure storage of seeds and passwords is paramount; total loss of funds may ensue otherwise.");
         info("Warning! This software comes with no warranty, real or implied. Secure storage of seeds and passwords is paramount; total loss of funds may ensue otherwise.");
 
-        rubic::crypto::initialize();
-
         let path = rubic::store::get_db_path();
         sqlite::peer::set_all_peers_disconnected(path.as_str()).unwrap();
 
