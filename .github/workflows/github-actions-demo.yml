@@ -35,8 +35,8 @@ jobs:
           echo "::set-output name=release_tag::Release_$(date +"%Y.%m.%d_%H-%M")"
       - uses: actions/upload-artifact@v4
         with:
-          name: Rubic-macos.zip
-          path: 'src-tauri/target/release/bundle/macos/Rubic-macos.zip'
+          name: Rubic-macos
+          path: src-tauri/target/release/bundle/macos/Rubic-macos.zip
       - run: echo "🍏 This job's status is ${{ job.status }}."
   windows:
       permissions:
@@ -71,15 +71,15 @@ jobs:
         - uses: actions/checkout@v4
         - uses: actions/download-artifact@v4
           with:
-            name: Rubic-macos.zip
-            path: 'src-tauri/target/release/bundle/macos/Rubic-macos.zip'
+            name: Rubic-macos
+            path: ./
         - name: Publish Release
           uses: softprops/action-gh-release@v1
           with:
             tag_name: ${{ steps.tag.outputs.release_tag }}
             files: |
               src-tauri/target/release/Rubic.exe
-              src-tauri/target/release/bundle/macos/Rubic-macos.zip
+              Rubic-macos.zip
               LICENSE
               Release.txt
         - run: echo "🍏 This job's status is ${{ job.status }}."
