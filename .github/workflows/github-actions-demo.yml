@@ -26,7 +26,7 @@ jobs:
       - name: Build Rubic
         run: cargo tauri build
       - name: Remove Quarantine Attribute
-        run: xattr -c src-tauri/target/release/bundle/macos/Rubic.app
+        run: xattr -rc src-tauri/target/release/bundle/macos/Rubic.app
       - name: Zip App Bundle
         run: cd src-tauri/target/release/bundle/macos/ && zip -9 -y -r -q Rubic-macos.zip Rubic.app && cd ../../../../..
       - name: Generate release tag
@@ -64,6 +64,8 @@ jobs:
           run: echo RUBIC_MIN_PEERS=3 >> .env
         - name: Generate Env Vars Log Level
           run: echo RUBIC_LOG_LEVEL=error >> .env
+        - name: Show current dir files
+          run: dir
         - name: Generate release tag
           id: tag
           run: |
@@ -72,14 +74,14 @@ jobs:
         - uses: actions/download-artifact@v4
           with:
             name: Rubic-macos
-            path: ./
+            path: ./mac/
         - name: Publish Release
           uses: softprops/action-gh-release@v1
           with:
             tag_name: ${{ steps.tag.outputs.release_tag }}
             files: |
-              src-tauri/target/release/Rubic.exe
-              Rubic-macos.zip
+              rubic/src-tauri/target/release/Rubic.exe
+              mac/Rubic-macos.zip
               LICENSE
               Release.txt
         - run: echo "🍏 This job's status is ${{ job.status }}."
