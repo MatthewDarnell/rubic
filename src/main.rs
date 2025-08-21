@@ -41,8 +41,6 @@ async fn main() {
   println!("Starting Rubic v{} - A Qubic Wallet", version);
   println!("Warning! This software comes with no warranty, real or implied. Secure storage of seeds and passwords is paramount; total loss of funds may ensue otherwise.");
   info("Warning! This software comes with no warranty, real or implied. Secure storage of seeds and passwords is paramount; total loss of funds may ensue otherwise.");
-  
-  crypto::initialize();  
     
   let path = store::get_db_path();
   match sqlite::create::open_database(path.as_str(), true) {

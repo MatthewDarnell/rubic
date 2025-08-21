@@ -1,73 +1,11 @@
 #![allow(dead_code, unused)]
 mod fourq;
-
+pub mod encoding;
+pub mod hash;
+pub mod random;
+pub mod passwords;
+pub mod encryption;
 const A_LOWERCASE_ASCII: u8 = 97u8;
-
-pub fn initialize() { sodiumoxide::init().expect("Failed To Initialize SodiumOxide!"); }
-
-
-pub mod encoding {
-    use sodiumoxide::hex;
-    pub fn bytes_to_hex(bytes: &Vec<u8>) -> String { hex::encode(bytes) }
-    pub fn to_hex(string: &str) -> String { hex::encode(string) }
-    pub fn from_hex_to_bytes(hex_string: &str) -> Result<Vec<u8>, ()> { hex::decode(hex_string) }
-}
-
-//#[cfg(feature = "hash")]
-pub mod hash {
-    use sodiumoxide::hex::encode;
-    use tiny_keccak::{Hasher, IntoXof, KangarooTwelve, Xof};
-
-    pub fn k12(input: &str) -> String {
-        let ret_val = k12_bytes(&input.as_bytes().to_vec());
-        let val = encode(ret_val);
-        return val;
-    }
-
-    pub fn k12_bytes(input: &Vec<u8>) -> Vec<u8> {
-        let mut digest = [0; 32];
-        let mut kangaroo = KangarooTwelve::new(b"");
-        kangaroo.update(input.as_slice());
-        kangaroo.finalize(&mut digest);
-        return Vec::from(digest);
-    }
-    
-    pub fn k12_64(input: &Vec<u8>) -> Vec<u8> {
-        let mut output = [0u8; 64];
-        let mut hasher = KangarooTwelve::new(b"");
-        hasher.update(input);
-        let mut xof = hasher.into_xof();
-        xof.squeeze(&mut output[..32]);
-        xof.squeeze(&mut output[32..]);
-        output.to_vec()
-    }
-    
-    #[cfg(test)]
-    pub mod kangaroo12_tests {
-        use crate::hash::{k12, k12_64};
-        #[test]
-        fn hash_a_value() {
-            let value = k12("inputText");
-            assert_eq!(value, "2459b095c4d5b1759a14f5e4924f26a813c020979fab5ef2cad7321af37808d3".to_string())
-        }
-        
-        #[test]
-        fn hash_64_length() {
-            let input: [u8; 4] = [0x01, 0x01, 0x01, 0x01];
-            let hashed = k12_64(&input.to_vec());
-            let expected: [u8; 64] = [
-                100, 235, 75, 154, 91, 247, 195, 9, 136,
-                147, 220, 63, 23, 226, 96, 132, 155, 107,
-                59, 67, 118, 117, 162, 17, 227, 251, 205,
-                254, 76, 238, 111, 21, 192, 78, 194, 235,
-                42, 157, 3, 130, 70, 32, 213, 124, 202,
-                89, 29, 227, 15, 207, 172, 130, 201, 118,
-                62, 69, 247, 170, 185, 2, 1, 148, 177, 160];
-            assert_eq!(hashed.as_slice(), &expected)
-        }
-    }
-}
-
 
 pub mod qubic_identities {
     use core::ptr::copy_nonoverlapping;
@@ -291,12 +229,13 @@ pub mod qubic_identities {
     #[cfg(test)]
     pub mod qubic_identity_primitive_tests {
         use crate::hash::k12_bytes;
+        use crate::encoding::bytes_to_hex;
         use crate::qubic_identities::{get_identity, get_private_key, get_public_key, get_public_key_from_identity, get_subseed, sign_raw};
         #[test]
         fn get_a_subseed() {
             let seed = "lcehvbvddggkjfnokduyjuiyvkklrvrmsaozwbvjlzvgvfipqpnkkuf";
             let subseed = get_subseed(seed).unwrap();
-            let encoded = sodiumoxide::hex::encode(subseed);
+            let encoded = bytes_to_hex(&subseed);
             assert_eq!(encoded, "d3420abb5f3e0527b588b361fa0a513335833af8b4a4aae23a2958195c3209dc".to_string())
         }
         #[test]
@@ -304,7 +243,7 @@ pub mod qubic_identities {
             let seed = "lcehvbvddggkjfnokduyjuiyvkklrvrmsaozwbvjlzvgvfipqpnkkuf";
             let subseed = get_subseed(seed).unwrap();
             let private_key = get_private_key(&subseed);
-            let encoded = sodiumoxide::hex::encode(private_key);
+            let encoded = bytes_to_hex(&private_key);
             assert_eq!(encoded, "11531fcea5e11a4a384e211165ff8bcf458595b32c5374ec76cfa1b1da102238".to_string())
         }
         #[test]
@@ -313,7 +252,7 @@ pub mod qubic_identities {
             let subseed = get_subseed(seed).unwrap();
             let private_key = get_private_key(&subseed);
             let public_key = get_public_key(&private_key);
-            let encoded = sodiumoxide::hex::encode(public_key);
+            let encoded = bytes_to_hex(&public_key.to_vec());
             assert_eq!(encoded, "aa873e4cfd37e4bf528a2aa01eecef36547c99caaabd1bbdf7253a65b041771a".to_string())
         }
         #[test]
@@ -352,210 +291,5 @@ pub mod qubic_identities {
         }
 
 
-    }
-}
-
-
-
-//#[cfg(feature = "random")]
-pub mod random {
-    use sodiumoxide::randombytes::randombytes;
-    pub fn random_bytes(length: u32) -> Vec<u8> {
-        randombytes(length as usize)
-    }
-
-
-    #[cfg(test)]
-    pub mod random_tests {
-        use std::collections::HashSet;
-        use crate::random::random_bytes;
-
-        #[test]
-        fn get_a_random_vector() {
-            let vec_one = random_bytes(32);
-            let vec_two = random_bytes(32);
-            let s1: HashSet<_> = vec_one.iter().copied().collect();
-            let s2: HashSet<_> = vec_two.iter().copied().collect();
-            let diff: Vec<_> = s1.difference(&s2).collect();
-            assert!(diff.len() > 0);
-        }
-    }
-
-
-}
-
-//#[cfg(feature = "encryption")]
-pub mod encryption {
-    use base64::{Engine as _, engine::general_purpose};
-    use crate::hash;
-    use sodiumoxide::crypto::secretbox::{Key, Nonce, NONCEBYTES};
-    use sodiumoxide::crypto::{pwhash, secretbox};
-    use sodiumoxide::crypto::pwhash::SALTBYTES;
-    use logger::error;
-    
-    pub fn encrypt(plaintext: &str, password: &str) -> Option<([u8; SALTBYTES + NONCEBYTES], Vec<u8>)> {
-        let salt = pwhash::gen_salt();
-        let nonce = secretbox::gen_nonce();
-        let mut key = Key([0; secretbox::KEYBYTES]);
-        let mut ciphertext: Vec<u8> = Vec::new();
-        {
-            let Key(ref mut kb) = key;
-            match pwhash::derive_key(kb, password.as_bytes(), &salt,
-                               pwhash::OPSLIMIT_INTERACTIVE,
-                               pwhash::MEMLIMIT_INTERACTIVE) {
-                Ok(_) => {
-                    ciphertext = secretbox::seal(plaintext.as_bytes(), &nonce, &key);
-                },
-                Err(_) => { return None; }
-            }
-        }
-        let s: [u8; SALTBYTES] = <[u8; SALTBYTES]>::try_from(salt.as_ref()).unwrap();
-        let n: [u8; NONCEBYTES] = <[u8; NONCEBYTES]>::try_from(nonce.as_ref()).unwrap();
-        
-        let mut s_n: [u8; SALTBYTES + NONCEBYTES] = [0u8; SALTBYTES + NONCEBYTES];
-        s_n[0..SALTBYTES].copy_from_slice(&s);
-        s_n[SALTBYTES..(SALTBYTES + NONCEBYTES)].copy_from_slice(&n);
-        
-        let mut ret_val: Vec<u8> = Vec::with_capacity(ciphertext.len());
-        ret_val.resize(ciphertext.len(), 0);
-        ret_val.copy_from_slice(ciphertext.as_slice());
-        Some((s_n, ret_val))
-    }
-    
-    
-    pub fn decrypt(salt_bytes: &[u8; SALTBYTES + NONCEBYTES], encrypted: &Vec<u8>, password: &str) -> Result<String, ()> {
-        if encrypted.len() < 1 {
-            return Err(());
-        }
-        let salt: pwhash::Salt = pwhash::Salt::from_slice(&salt_bytes[0..SALTBYTES]).unwrap();
-        let nonce: Nonce = Nonce::from_slice(&salt_bytes[SALTBYTES..SALTBYTES + NONCEBYTES]).unwrap();
-        let ct: &[u8] = &encrypted;
-        let mut key = Key([0; secretbox::KEYBYTES]);
-        {
-            let Key(ref mut kb) = key;
-            match pwhash::derive_key(kb, password.as_bytes(), &salt,
-                                     pwhash::OPSLIMIT_INTERACTIVE,
-                                     pwhash::MEMLIMIT_INTERACTIVE) {
-                Ok(_) => {
-                    match secretbox::open(ct, &nonce, &key) {
-                        Ok(decrypted) => {
-                            match std::str::from_utf8(decrypted.as_slice()) {
-                                Ok(decrypted_text) => Ok(decrypted_text.to_string()),
-                                Err(_) => Err(()),
-                            }
-                        },
-                        Err(_) => {
-                            error!("Error Decrypting!");
-                            Err(())
-                        }
-                    }
-                },
-                Err(_) => Err(())
-            }
-        }
-    }
-
-    #[cfg(test)]
-    pub mod encryption_tests {
-        use sodiumoxide::hex;
-        use crate::encryption::{decrypt, encrypt};
-
-        #[test]
-        fn encrypt_a_plaintext() {
-            let (salt, encrypted) = encrypt("hello", "thisisalongenoughkeytoencryptavalue").unwrap();
-            assert_eq!(salt.len(), 56);
-            assert_ne!(encrypted.len(), "hello".len());
-        }
-
-        
-        #[test]
-        fn encrypt_and_decrypt_a_text() {
-            let (salt, encrypted) = encrypt("hello", "thisisalongenoughkeytoencryptavalue").unwrap();
-            match decrypt(&salt, &encrypted, "thisisalongenoughkeytoencryptavalue") {
-                Ok(v) => {
-                    assert_eq!(v.as_str(), "hello");
-                },
-                Err(_) => {
-                    println!("Failed To Decrypt Test Value!");
-                    assert_eq!(1, 2);
-                }
-            }
-        }
-    }
-}
-
-
-pub mod passwords {
-    use sodiumoxide::crypto::{pwhash::argon2id13, secretbox};
-    use random::random_bytes;
-    use crate::random;
-
-    pub fn hash_password(password: &str) -> Result<String, String> {
-        match argon2id13::pwhash(password.as_bytes(),
-                             argon2id13::OPSLIMIT_INTERACTIVE,
-                             argon2id13::MEMLIMIT_INTERACTIVE) {
-            Ok(ph) => Ok(sodiumoxide::hex::encode(ph.as_ref())),
-            Err(_) => Err("Could not hash password".to_string())
-        }
-    }
-    pub fn verify_password(password: &str, ciphertext: &str) -> Result<bool, String> {
-            match sodiumoxide::hex::decode(ciphertext) {
-                Ok(ct_vec) => {
-                    match argon2id13::HashedPassword::from_slice(&ct_vec) {
-                        Some(ph) => {
-                            Ok(argon2id13::pwhash_verify(&ph, password.as_bytes()))
-                        },
-                        None => Err("Could Not Get Password To Verify. Memory Corruption?".to_string())
-                    }
-                },
-                Err(_) => Err("Could Not Validate Password".to_string())
-            }
-        }
-
-    #[cfg(test)]
-    pub mod password_hash_tests {
-        use crate::passwords::{hash_password, verify_password};
-
-        #[test]
-        fn hash_a_password_correct_len() {
-            let res = hash_password("superSecretPassword").unwrap();
-            assert_ne!(res.len(), "superSecretPassword".len())
-        }
-
-        #[test]
-        fn hash_a_password_ensure_unique() {
-            let res = hash_password("wrong_password_for_result").unwrap();
-            assert_ne!(res.as_str(), "$argon2id$v=19$m=19456,t=2,p=1$OGvJ/8bPLl5ReXN9h0uzZOESj6bGfv/K/6KIf9heg+s$3PDL8se7IfHxVNfIYikDxERwRtF9lNy5kxlSfwIWPJg")
-        }
-
-        #[test]
-        fn verify_a_password() {
-            match hash_password("superSecretPassword") {
-                Ok(ph) => {
-                    match verify_password("superSecretPassword", ph.as_str()) {
-                        Ok(verified) => { assert_eq!(verified, true) },
-                        Err(_) => { assert_eq!(1, 2) }
-                    }
-                },
-                Err(_) => {
-                    assert_eq!(1, 2)
-                }
-            }
-        }
-
-        #[test]
-        fn verify_a_password_invalid_hash_throws() {
-            match hash_password("superSecretPassword") {
-                Ok(ph) => {
-                    match verify_password("bogusPassword", ph.as_str()) {
-                        Ok(verified) => { assert_eq!(verified, false) },
-                        Err(_) => { assert_eq!(1, 2) }
-                    }
-                },
-                Err(_) => {
-                    assert_eq!(1, 2)
-                }
-            }
-        }
     }
 }
