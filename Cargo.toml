@@ -20,6 +20,8 @@ smart_contract = { path = './smart_contract' }
 store = { path = './store' }
 hex = "0.4.3"
 base64 = "0.21.7"
+once_cell = "1.21.3"
+secrets = "1.2.0"
 
 [profile.test]  # Disable Overflow Checks For FourQ Operations
 overflow-checks = false

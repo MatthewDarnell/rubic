@@ -4,3 +4,4 @@ pub trait AsBytes {
 
 pub mod identity;
 pub mod transfer;
+pub mod wallet_unlock;

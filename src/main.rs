@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use rocket::routes;
 
 extern crate dotenv_codegen;
-use logger::{setup_logger, info};
+use logger::{info, setup_logger};
 use std::sync::mpsc;
 mod env;
 mod routes;
@@ -41,8 +41,6 @@ async fn main() {
   println!("Starting Rubic v{} - A Qubic Wallet", version);
   println!("Warning! This software comes with no warranty, real or implied. Secure storage of seeds and passwords is paramount; total loss of funds may ensue otherwise.");
   info("Warning! This software comes with no warranty, real or implied. Secure storage of seeds and passwords is paramount; total loss of funds may ensue otherwise.");
-  
-  crypto::initialize();  
     
   let path = store::get_db_path();
   match sqlite::create::open_database(path.as_str(), true) {
@@ -158,7 +156,9 @@ async fn main() {
         routes::wallet::is_wallet_encrypted,
         routes::wallet::encrypt_wallet,
         routes::wallet::set_master_password,
-        routes::wallet::download_wallet
+        routes::wallet::download_wallet,
+        routes::wallet::is_unlocked,
+        routes::wallet::unlock
       ])
       .manage(std::sync::Mutex::new(tx))
       .manage(std::sync::Mutex::new(rx_server_route_responses_from_thread))

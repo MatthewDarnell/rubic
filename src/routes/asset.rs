@@ -96,6 +96,10 @@ pub fn transfer(asset_name: &str, issuer: &str, source: &str, dest: &str, amount
         }
     };
 
+    if source_identity.encrypted && protocol::wallet_unlock::is_wallet_unlocked().unwrap() {
+        source_identity = source_identity.decrypt_identity_unlocked_wallet().unwrap();
+    }
+    
     if source_identity.encrypted {
         if password.len() >= MINPASSWORDLEN {
             source_identity = match sqlite::master_password::get_master_password(get_db_path().as_str()) {

@@ -118,6 +118,7 @@ impl RequestAssets {
 }
 
 
+#[cfg(test)]
 mod request_assets_tests {
     use crypto::qubic_identities::get_public_key_from_identity;
     use protocol::AsBytes;
