@@ -2,6 +2,7 @@
 #![allow(dead_code)]
 use crypto;
 use core::str::Utf8Error;
+use hex;
 use crypto::encryption::{NONCELENGTH, SALTLENGTH};
 use crate::wallet_unlock::{is_wallet_unlocked, PLAINTEXT_DECRYPT_PASSWORD};
 
@@ -129,7 +130,8 @@ impl Identity {
         }
         match PLAINTEXT_DECRYPT_PASSWORD.clone().lock() {
             Ok(secret) => unsafe {
-                let s = secret.borrow();
+                //let s = secret.borrow();
+                let s = secret;
                 let password = std::str::from_utf8_unchecked(&*s).to_string();
                 match crypto::passwords::verify_password(password.as_str(), self.hash.as_str()) {
                     Ok(_) => { logger::info("Password Verified!"); },
