@@ -31,9 +31,19 @@ async fn main() {
         // This one
        // let handle = app.handle();
 
-        tauri::async_runtime::spawn(async move { // also added move here
-            println!("Local Server is running");
-        });
+        let path = rubic::store::get_db_path();
+        match rubic::store::sqlite::create::open_database(path.as_str(), true) {
+            Ok(_) => {
+                rubic::logger::info("Database successfully opened");
+                tauri::async_runtime::spawn(async move { // also added move here
+                    //println!("Local Server is running");
+                });
+            },
+            Err(error) => {
+                rubic::logger::error(format!("Database Failed To Open/Create: {}", error).as_str());
+                panic!("Failed To Open Database!");
+            }
+        }
         Ok(())
     }
     tauri::Builder::default()
