@@ -26,9 +26,9 @@ jobs:
       - name: Build Rubic
         run: cargo tauri build
       - name: Remove Quarantine Attribute
-        run: xattr -rc src-tauri/target/release/bundle/macos/Rubic.app
+        run: sudo xattr -rd com.apple.quarantine src-tauri/target/release/bundle/macos/Rubic.app
       - name: Zip App Bundle
-        run: cd src-tauri/target/release/bundle/macos/ && sudo xattr -c Rubic.app && zip -9 -y -r -q Rubic-macos.zip Rubic.app && cd ../../../../..
+        run: cd src-tauri/target/release/bundle/macos/ && zip -9 -y -r -q Rubic-macos.zip Rubic.app && cd ../../../../..
       - name: Generate release tag
         id: tag
         run: |
