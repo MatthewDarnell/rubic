@@ -113,7 +113,7 @@ jobs:
             tag_name: ${{ steps.tag.outputs.release_tag }}
             files: |
               src-tauri/target/release/Rubic.exe
-              linux/Rubic.deb
+              linux/Rubic_1.0.0_amd64.deb
               mac/Rubic-macos.zip
               LICENSE
               Release.txt
