@@ -22,7 +22,20 @@ async fn main() {
     let rt = tokio::runtime::Runtime::new().expect("Failed to create Tokio runtime");
     let _guard = rt.enter();
     let api_server_handle = rt.spawn(async move {
-        run_api_server().await;
+        let path = rubic::store::get_db_path();
+        match rubic::store::sqlite::create::open_database(path.as_str(), true) {
+            Ok(_) => {
+                rubic::logger::info("Database successfully opened");
+                //tauri::async_runtime::spawn(async move { // also added move here
+                //println!("Local Server is running");
+                run_api_server().await;
+                //});
+            },
+            Err(error) => {
+                rubic::logger::error(format!("Database Failed To Open/Create: {}", error).as_str());
+                panic!("Failed To Open Database!");
+            }
+        }
     });
     fn setup<'a>(_app: &'a mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
         let _window = _app.get_webview_window("main").unwrap();
@@ -30,20 +43,6 @@ async fn main() {
         //window.close_devtools();
         // This one
        // let handle = app.handle();
-
-        let path = rubic::store::get_db_path();
-        match rubic::store::sqlite::create::open_database(path.as_str(), true) {
-            Ok(_) => {
-                rubic::logger::info("Database successfully opened");
-                tauri::async_runtime::spawn(async move { // also added move here
-                    //println!("Local Server is running");
-                });
-            },
-            Err(error) => {
-                rubic::logger::error(format!("Database Failed To Open/Create: {}", error).as_str());
-                panic!("Failed To Open Database!");
-            }
-        }
         Ok(())
     }
     tauri::Builder::default()
