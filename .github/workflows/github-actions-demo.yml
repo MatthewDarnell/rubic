@@ -26,7 +26,9 @@ jobs:
       - name: Build Frontend
         run: cd frontend && yarn install --network-timeout 1000000000 && yarn build && cd ..
       - name: Build Rubic
-        run: cargo tauri build
+        run: cargo tauri build --no-bundle
+      - name: Bundle Rubic
+        run: cargo tauri bundle --bundles deb
       - name:  View App Artifacts Dir
         run: ls src-tauri/target/release/
       - name:  View App Artifacts Bundle Dir
@@ -53,7 +55,9 @@ jobs:
       - name: Build Frontend
         run: cd frontend && yarn install --network-timeout 1000000000 && yarn build && cd ..
       - name: Build Rubic
-        run: cargo tauri build
+        run: cargo tauri build --no-bundle
+      - name: Bundle Rubic
+        run: cargo tauri bundle --bundles app
       - name: Remove Quarantine Attribute
         run: sudo xattr -rd com.apple.quarantine src-tauri/target/release/bundle/macos/Rubic.app
       - name: Zip App Bundle
