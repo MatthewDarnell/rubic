@@ -27,8 +27,6 @@ jobs:
         run: cargo tauri build
       - name: Remove Quarantine Attribute
         run: xattr -rc src-tauri/target/release/bundle/macos/Rubic.app
-      - name: Remove Quarantine Again
-        run: cd src-tauri/target/release/bundle/macos/ && xattr -c Rubic.app && cd ../../../../..
       - name: Zip App Bundle
         run: cd src-tauri/target/release/bundle/macos/ && zip -9 -y -r -q Rubic-macos.zip Rubic.app && cd ../../../../..
       - name: Generate release tag
@@ -76,7 +74,6 @@ jobs:
           with:
             name: Rubic-macos
             path: ./mac/
-        - uses: actions/checkout@v4
         - name: Publish Release
           uses: softprops/action-gh-release@v1
           with:
@@ -85,5 +82,5 @@ jobs:
               src-tauri/target/release/Rubic.exe
               mac/Rubic-macos.zip
               LICENSE
-              ./Release.txt
+              Release.txt
         - run: echo "🍏 This job's status is ${{ job.status }}."
