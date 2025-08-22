@@ -54,10 +54,6 @@ jobs:
           run: cd frontend; yarn install --network-timeout 1000000000; yarn build; cd ..;
         - name: Build Rubic
           run: cargo tauri build
-        - uses: actions/upload-artifact@v4
-          with:
-            name: Rubic-win64
-            path: src-tauri/target/release/Rubic.exe
         - name: Generate Commit Hash
           run: echo ${{ github.sha }} > Release.txt
         - name: Generate Env Vars Version
@@ -80,17 +76,13 @@ jobs:
           with:
             name: Rubic-macos
             path: ./mac/
-        - uses: actions/download-artifact@v4
-          with:
-            name: Rubic-win64
-            path: ./win/
         - uses: actions/checkout@v4
         - name: Publish Release
           uses: softprops/action-gh-release@v1
           with:
             tag_name: ${{ steps.tag.outputs.release_tag }}
             files: |
-              win/Rubic.exe
+              src-tauri/target/release/Rubic.exe
               mac/Rubic-macos.zip
               LICENSE
               ./Release.txt
