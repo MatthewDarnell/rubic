@@ -11,6 +11,33 @@ on:
 env:
   CARGO_TERM_COLOR: always
 jobs:
+  linux:
+    permissions:
+      contents: write
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v3
+      - name: Install Cargo Toolchain
+        run: rustup install nightly
+      - name: Install Tauri
+        run: cargo install tauri-cli --version "^2.0.0" --locked
+      - name: Build Frontend
+        run: cd frontend && yarn install --network-timeout 1000000000 && yarn build && cd ..
+      - name: Build Rubic
+        run: cargo tauri build
+      - name:  View App Artifacts Dir
+        run: ls src-tauri/target/release/
+      - name:  View App Artifacts Bundle Dir
+        run: ls src-tauri/target/release/bundle/
+      - name: Generate release tag
+        id: tag
+        run: |
+          echo "::set-output name=release_tag::Release_$(date +"%Y.%m.%d_%H-%M")"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Rubic-linux
+          path: src-tauri/target/release/bundle/Rubic.deb
+      - run: echo "🍏 This job's status is ${{ job.status }}."
   mac:
     permissions:
         contents: write
@@ -74,12 +101,17 @@ jobs:
           with:
             name: Rubic-macos
             path: ./mac/
+        - uses: actions/download-artifact@v4
+          with:
+            name: Rubic-linux
+            path: ./linux/
         - name: Publish Release
           uses: softprops/action-gh-release@v1
           with:
             tag_name: ${{ steps.tag.outputs.release_tag }}
             files: |
               src-tauri/target/release/Rubic.exe
+              linux/Rubic.deb
               mac/Rubic-macos.zip
               LICENSE
               Release.txt
