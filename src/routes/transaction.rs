@@ -48,7 +48,11 @@ pub fn transfer(source: &str, dest: &str, amount: &str, expiration: &str, passwo
         }
     };
 
-    if source_identity.encrypted {
+    if source_identity.encrypted && protocol::wallet_unlock::is_wallet_unlocked().unwrap() {
+        source_identity = source_identity.decrypt_identity_unlocked_wallet().unwrap();
+    }
+
+    if source_identity.encrypted && !protocol::wallet_unlock::is_wallet_unlocked().unwrap() {
         if password.len() >= MINPASSWORDLEN {
             source_identity = match sqlite::master_password::get_master_password(get_db_path().as_str()) {
                 Ok(master_password) => {
@@ -85,11 +89,13 @@ pub fn transfer(source: &str, dest: &str, amount: &str, expiration: &str, passwo
     } else {
         debug!("Creating Transfer, Wallet Is Not Encrypted!");
     }
+    
     let amt: u64 = amount.parse().unwrap();
     let tck: u32 = expiration.parse().unwrap();
 
+    let transfer_tx = protocol::transfer::TransferTransaction::from_vars(&source_identity, &dest, amt, tck);
     info!("Creating Transfer: {} .({}) ---> {} (Expires At Tick.<{}>)", &source_identity.identity.as_str(), amt.to_string().as_str(), dest, tck.to_string().as_str());
-    let transfer_tx = api::transfer::TransferTransaction::from_vars(&source_identity, &dest, amt, tck);
+
     let txid = transfer_tx.txid();
 
     let sig = transfer_tx._signature;

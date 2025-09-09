@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use rocket::routes;
 
 extern crate dotenv_codegen;
-use logger::{setup_logger, info};
+use logger::{info, setup_logger};
 use std::sync::mpsc;
 mod env;
 mod routes;
@@ -41,10 +41,18 @@ async fn main() {
   println!("Starting Rubic v{} - A Qubic Wallet", version);
   println!("Warning! This software comes with no warranty, real or implied. Secure storage of seeds and passwords is paramount; total loss of funds may ensue otherwise.");
   info("Warning! This software comes with no warranty, real or implied. Secure storage of seeds and passwords is paramount; total loss of funds may ensue otherwise.");
-  
-  crypto::initialize();  
     
   let path = store::get_db_path();
+  match sqlite::create::open_database(path.as_str(), true) {
+      Ok(_) => info!("Database successfully opened"),
+      Err(error) => {
+          logger::error(format!("Database Failed To Open/Create: {}", error).as_str());
+          panic!("Failed To Open Database!");
+      }
+  }  
+    
+    
+    
   sqlite::peer::set_all_peers_disconnected(path.as_str()).unwrap();
 
     
@@ -114,6 +122,13 @@ async fn main() {
       .merge(("address", host.as_str()));
   rocket::custom(figment)
       .mount("/", routes![
+        
+        routes::asset::all_asset_balances,
+        routes::asset::balance,
+        routes::asset::fetch_transfers,
+        routes::asset::get_assets,
+        routes::asset::transfer,
+
         routes::identity::balance,
         routes::identity::add_identity,
         routes::identity::add_identity_with_password,
@@ -130,6 +145,10 @@ async fn main() {
         routes::peer::delete_peer,
         routes::peer::get_peer_limit,
         routes::peer::set_peer_limit,
+          
+        routes::qx::fetch_orders,  
+        routes::qx::get_orderbook,  
+        routes::qx::place_order,  
 
         routes::transaction::fetch_transfers,
         routes::transaction::transfer,
@@ -137,7 +156,9 @@ async fn main() {
         routes::wallet::is_wallet_encrypted,
         routes::wallet::encrypt_wallet,
         routes::wallet::set_master_password,
-        routes::wallet::download_wallet
+        routes::wallet::download_wallet,
+        routes::wallet::is_unlocked,
+        routes::wallet::unlock
       ])
       .manage(std::sync::Mutex::new(tx))
       .manage(std::sync::Mutex::new(rx_server_route_responses_from_thread))

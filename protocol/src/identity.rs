@@ -2,7 +2,9 @@
 #![allow(dead_code)]
 use crypto;
 use core::str::Utf8Error;
-
+use hex;
+use crypto::encryption::{NONCELENGTH, SALTLENGTH};
+use crate::wallet_unlock::{is_wallet_unlocked, PLAINTEXT_DECRYPT_PASSWORD};
 
 fn identity_to_address(identity: &Vec<u8>) -> Result<String, Utf8Error> {
     match  std::str::from_utf8(identity.as_slice()) {
@@ -92,7 +94,7 @@ impl Identity {
         match crypto::passwords::verify_password(password, self.hash.as_str()) {
             Ok(_) => {
                 let salt: Vec<u8> = hex::decode(&self.salt).unwrap();
-                match <[u8; 56]>::try_from(salt.as_slice()) {
+                match <[u8; SALTLENGTH + NONCELENGTH]>::try_from(salt.as_slice()) {
                     Ok(salt_bytes) => {
                         let seed_bytes: Vec<u8> = hex::decode(&self.seed).unwrap();
                         match crypto::encryption::decrypt(&salt_bytes, &seed_bytes, password) {
@@ -118,6 +120,48 @@ impl Identity {
             }
         }
     }
+
+    pub fn decrypt_identity_unlocked_wallet(&mut self) -> Result<Self, String> {
+        if !self.encrypted {
+            return Err("Unable To Decrypt an Unencrypted Identity!".to_string());
+        }
+        if !is_wallet_unlocked().unwrap() {
+            return Err("Cannot Decrypt Identity, Wallet Locked.".to_string());
+        }
+        match PLAINTEXT_DECRYPT_PASSWORD.clone().lock() {
+            Ok(secret) => unsafe {
+                //let s = secret.borrow();
+                let s = secret;
+                let password = std::str::from_utf8_unchecked(&*s).to_string();
+                match crypto::passwords::verify_password(password.as_str(), self.hash.as_str()) {
+                    Ok(_) => { logger::info("Password Verified!"); },
+                    Err(_) => { return Err("Unlocked Wallet but Stored Password Failed To Decrypt Stored Identity.".to_string());}
+                }
+                let salt: Vec<u8> = hex::decode(&self.salt).unwrap();
+                match <[u8; SALTLENGTH + NONCELENGTH]>::try_from(salt.as_slice()) {
+                    Ok(salt_bytes) => {
+                        let seed_bytes: Vec<u8> = hex::decode(&self.seed).unwrap();
+                        match crypto::encryption::decrypt(&salt_bytes, &seed_bytes, password.as_str()) {
+                            Ok(seed) => {
+                                Ok(Identity {
+                                    seed: seed,
+                                    hash: self.hash.to_owned(),
+                                    salt: self.salt.to_owned(),
+                                    identity: self.identity.to_owned(),
+                                    encrypted: false
+                                })
+                            },
+                            Err(_) => {
+                                Err("Failed To Decrypt Identity! (Memory Corruption?)".to_string())
+                            }
+                        }
+                    },
+                    Err(_) => Err("Error Decrypting Identity! (Db Corruption?)".to_string())
+                }
+            },
+            Err(_) => Err("Failed To Acquire Lock on Stored Password.".to_string())
+        }
+    }
 }
 
 
@@ -125,7 +169,7 @@ impl Identity {
 mod create_identity {
 
     pub mod create {
-        use crate::Identity;
+        use crate::identity::Identity;
 
         #[test]
         fn create_new_identity() {
@@ -147,7 +191,7 @@ mod create_identity {
     }
 
     pub mod encryption {
-        use crate::Identity;
+        use crate::identity::Identity;
         #[test]
         fn encrypt_an_identity() {
             let mut id: Identity = Identity::new("lcehvbvddggkjfnokduyjuiyvkklrvrmsaozwbvjlzvgvfipqpnkkuf");

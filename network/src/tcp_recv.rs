@@ -1,12 +1,15 @@
+use std::collections::HashMap;
 use std::io::Read;
 use std::net::TcpStream;
+use std::sync::{Arc, Mutex};
 use api::header::{EntityType, RequestResponseHeader};
-use api::{response, QubicApiPacket};
+use api::request::QubicApiPacket;
+use api::response;
 use store::get_db_path;
 use store::sqlite::peer::set_peer_disconnected;
 use crate::peer::Peer;
 
-pub fn qubic_tcp_receive_data (peer: &Peer, stream: &TcpStream) {
+pub fn qubic_tcp_receive_data (peer: &Peer, requests: Arc<Mutex<HashMap<u32, QubicApiPacket>>>, stream: &TcpStream) {
     let mut peeked: [u8; 8] = [0; 8];
     match stream.peek(&mut peeked) {
         Ok(_) => {
@@ -15,11 +18,11 @@ pub fn qubic_tcp_receive_data (peer: &Peer, stream: &TcpStream) {
                 true => {
                     let mut data = recv_qubic_responses_until_end_response(peer, stream, 676);
                     //println!("Received Multiple Data: {} From Peer {}", data.len(), peer.get_ip_addr());
-                    response::get_formatted_response_from_multiple(&mut data);
+                    response::get_formatted_response_from_multiple(requests, &mut data);
                 },
                 false => {
                     match recv_qubic_response(peer, stream) {
-                        Some(mut data) => response::get_formatted_response(&mut data),
+                        Some(mut data) => response::get_formatted_response(requests, &mut data),
                         None => {}
                     }
                 }

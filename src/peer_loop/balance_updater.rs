@@ -1,5 +1,6 @@
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
+use crypto::qubic_identities::get_public_key_from_identity;
 use logger::{debug, error};
 use network::peers::PeerSet;
 use store::{get_db_path, sqlite};
@@ -33,12 +34,28 @@ pub fn update_balances(peer_set: Arc<Mutex<PeerSet>>) {
                     Ok(identities) => {
                         for identity in identities {
                             let request = api::QubicApiPacket::get_identity_balance(identity.as_str());
+                            let possessed_asset_request = api::QubicApiPacket::request_possessed_assets(&get_public_key_from_identity(&identity).unwrap());
+                            let _owned_asset_request = api::QubicApiPacket::request_owned_assets(&get_public_key_from_identity(&identity).unwrap());
                             {
                                 match peer_set.lock().unwrap().make_request(request) {
                                     Ok(_) => {},
                                     Err(err) => error!("{}", err)
                                 }
                             }
+                            {
+                                match peer_set.lock().unwrap().make_request(possessed_asset_request) {
+                                    Ok(_) => {
+                                        //println!("Requested Possessed Assets For  {}", identity);
+                                    },
+                                    Err(err) => error!("{}", err)
+                                }
+                            }
+                            /*{
+                                match peer_set.lock().unwrap().make_request(_owned_asset_request) {
+                                    Ok(_) => {},
+                                    Err(err) => error!("{}", err)
+                                }
+                            }*/
                         }
                     },
                     Err(err) => {
@@ -49,7 +66,15 @@ pub fn update_balances(peer_set: Arc<Mutex<PeerSet>>) {
                 if latest_tick - last_deleted_tick > OLD_ENTITIES_DELETE_TICK {
                     debug!("Deleting Before Tick {}", latest_tick - OLD_ENTITIES_DELETE_TICK);
                     match sqlite::identity::delete_all_response_entities_before_tick(get_db_path().as_str(), latest_tick - OLD_ENTITIES_DELETE_TICK) {
-                        Ok(_) => {},
+                        Ok(_) => {
+                            match sqlite::asset::delete_all_assets_before_tick(get_db_path().as_str(), latest_tick - OLD_ENTITIES_DELETE_TICK) {
+                                Ok(_) => {
+                                },
+                                Err(err) => {
+                                    eprintln!("Error Deleting Assets! {}", err);
+                                }
+                            }
+                        },
                         Err(_err) => {
                             println!("Failed To Delete Old Entities {}", _err);
                         }

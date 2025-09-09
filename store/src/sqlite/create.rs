@@ -3,6 +3,7 @@ pub fn open_database(path: &str, create: bool) -> Result<sqlite::Connection, Str
     let query = "
     PRAGMA foreign_keys = ON;
     PRAGMA journal_mode = WAL;
+    PRAGMA busy_timeout = 1000;
     CREATE TABLE IF NOT EXISTS peer (
       id TEXT UNIQUE NOT NULL PRIMARY KEY,
       ip TEXT UNIQUE NOT NULL,
@@ -66,7 +67,7 @@ pub fn open_database(path: &str, create: bool) -> Result<sqlite::Connection, Str
         broadcast BOOLEAN DEFAULT FALSE,
         status INTEGER DEFAULT -1,
         created DATETIME DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY(source_identity) REFERENCES identities(identity)
+        FOREIGN KEY(source_identity) REFERENCES identities(identity) ON DELETE CASCADE
     );
     CREATE TABLE IF NOT EXISTS computors (
         epoch INTEGER NOT NULL UNIQUE,
@@ -75,15 +76,78 @@ pub fn open_database(path: &str, create: bool) -> Result<sqlite::Connection, Str
         created DATETIME DEFAULT CURRENT_TIMESTAMP,
         peer TEXT
     );
+    CREATE TABLE IF NOT EXISTS asset_issuance (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        pub_key TEXT NOT NULL,
+        type INTEGER NOT NULL,
+        name TEXT NOT NULL,
+        num_decimal INTEGER,
+        unit_measure TEXT,
+        created DATETIME DEFAULT CURRENT_TIMESTAMP,
+        peer TEXT,
+        UNIQUE (pub_key, type, name, num_decimal, unit_measure) ON CONFLICT IGNORE
+    );
+    CREATE TABLE IF NOT EXISTS asset_record (
+        asset_id INTEGER NOT NULL,
+        record_type TEXT CHECK( record_type IN ('O','P') ) NOT NULL,
+        identity TEXT NOT NULL,
+        managing_contract INTEGER,
+        issuance_index INTEGER,
+        num_shares INTEGER,
+        tick INTEGER NOT NULL,
+        FOREIGN KEY(asset_id) REFERENCES asset_issuance(id) ON DELETE CASCADE,
+        FOREIGN KEY(identity) REFERENCES identities(identity) ON DELETE CASCADE,
+        UNIQUE (asset_id, identity, record_type, managing_contract, issuance_index, tick) ON CONFLICT REPLACE
+    );
+    CREATE TABLE IF NOT EXISTS asset_transfer (
+        txid TEXT NOT NULL,
+        issuer TEXT NOT NULL,
+        new_owner_and_possessor TEXT NOT NULL,
+        name TEXT NOT NULL,
+        num_shares INTEGER NOT NULL,
+        input_type INTEGER NOT NULL,
+        input_size INTEGER NOT NULL,
+        FOREIGN KEY(txid) REFERENCES transfer(txid) ON DELETE CASCADE
+    );
+
+    CREATE TABLE IF NOT EXISTS qx_order (
+        txid TEXT NOT NULL,
+        issuer TEXT NOT NULL,
+        name TEXT NOT NULL,
+        price INTEGER NOT NULL,
+        num_shares INTEGER NOT NULL,
+        input_type INTEGER NOT NULL,
+        input_size INTEGER NOT NULL,
+        FOREIGN KEY(txid) REFERENCES transfer(txid) ON DELETE CASCADE
+    );
+
+    CREATE TABLE IF NOT EXISTS qx_orderbook (
+        asset TEXT NOT NULL,
+        entity TEXT NOT NULL,
+        price INTEGER NOT NULL,
+        stale INTEGER DEFAULT 0,
+        num_shares INTEGER NOT NULL,
+        offset_at_price INTEGER NOT NULL,
+        side TEXT CHECK( side IN ('A','B') ) NOT NULL,
+        created DATETIME DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY(asset, side, entity, price, num_shares)
+    );
 ";
     //        FOREIGN KEY(identity) REFERENCES identities(identity)
     match sqlite::open(path) {
-        Ok(connection) => {
+        Ok(mut connection) => {
+            match connection.set_busy_timeout(1000) {
+                Ok(_) => {},
+                Err(error) => logger::error(format!("Failed To Set DB Busy Handler {}", error.to_string()).as_str())
+            }
             match create {
                 true => {
                     match connection.execute(query) {
                         Ok(_) => Ok(connection),
-                        Err(err) => Err(String::from(err.to_string()))
+                        Err(_err) => {
+                            eprintln!("Error {}", _err);
+                            Err(String::from(_err.to_string()))
+                        }
                     }
                 },
                 false => {
@@ -91,7 +155,10 @@ pub fn open_database(path: &str, create: bool) -> Result<sqlite::Connection, Str
                 }
             }
         },
-        Err(_) => Err(String::from("Failed To Create Db!"))
+        Err(_err) => {
+            eprintln!("Error opening database: {}", _err);
+            Err(String::from("Failed To Create Db!"))
+        }
     }
 }
 

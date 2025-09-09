@@ -10,7 +10,7 @@ pub fn create_response_entity(path: &str, peer: &str, identity: &str, incoming: 
     let prep_query = "INSERT INTO response_entity (peer, identity, incoming, outgoing, balance, num_in_txs, num_out_txs, latest_in_tick, latest_out_tick, tick, spectrum_index) VALUES (
     :peer, :identity, :incoming, :outgoing, :balance, :num_in_txs, :num_out_txs, :latest_in_tick, :latest_out_tick, :tick, :spectrum_index
     );";
-    match open_database(path, true) {
+    match open_database(path, false) {
         Ok(connection) => {
             match prepare_crud_statement(&connection, prep_query) {
                 Ok(mut statement) => {
@@ -52,7 +52,7 @@ pub fn create_response_entity(path: &str, peer: &str, identity: &str, incoming: 
 pub fn fetch_response_entity_by_identity(path: &str, identity: &str) -> Result<Vec<HashMap<String, String>>, String> {
     let prep_query = "SELECT * FROM response_entity WHERE identity = :identity ORDER BY created DESC;";
     let _lock = get_db_lock().lock().unwrap();
-    match open_database(path, true) {
+    match open_database(path, false) {
         Ok(connection) => {
             match prepare_crud_statement(&connection, prep_query) {
                 Ok(mut statement) => {
@@ -95,7 +95,7 @@ pub fn fetch_response_entity_by_identity(path: &str, identity: &str) -> Result<V
 pub fn fetch_latest_response_entity_by_identity_group_peers(path: &str, identity: &str) -> Result<Vec<HashMap<String, String>>, String> {
     let prep_query = "SELECT * FROM (SELECT * FROM response_entity WHERE identity = :identity ORDER BY tick DESC) GROUP BY peer;";
     let _lock = get_db_lock().lock().unwrap();
-    match open_database(path, true) {
+    match open_database(path, false) {
         Ok(connection) => {
             match prepare_crud_statement(&connection, prep_query) {
                 Ok(mut statement) => {

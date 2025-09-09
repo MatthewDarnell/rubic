@@ -4,3 +4,5 @@ pub mod peer;
 pub mod identity;
 pub mod wallet;
 pub mod transaction;
+pub mod asset;
+pub mod qx;

@@ -1,6 +1,6 @@
 use crate::QubicApiPacket;
 use crate::response::FormatQubicResponseDataToStructure;
-use crate::transfer::TransferTransaction;
+use protocol::transfer::TransferTransaction;
 
 pub type BroadcastTransactionEntity = TransferTransaction;
 

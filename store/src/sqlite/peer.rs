@@ -12,7 +12,7 @@ pub fn create_peer(path: &str, id: &str, ip: &str, nick: &str, ping_time: u32, w
      ON CONFLICT(ip) DO NOTHING;";
     let _lock = get_db_lock().lock().unwrap();
     //let _lock =SQLITE_PEER_MUTEX.lock().unwrap();
-    match open_database(path, true) {
+    match open_database(path, false) {
         Ok(connection) => {
             match prepare_crud_statement(&connection, prep_query) {
                 Ok(mut statement) => {
@@ -60,7 +60,7 @@ pub fn blacklist(path: &str, id: &str) -> Result<(), String> {
     let prep_query = "UPDATE peer SET whitelisted = -1 WHERE id = :id";
     let _lock = get_db_lock().lock().unwrap();
     //let _lock =SQLITE_PEER_MUTEX.lock().unwrap();
-    match open_database(path, true) {
+    match open_database(path, false) {
         Ok(connection) => {
             match prepare_crud_statement(&connection, prep_query) {
                 Ok(mut statement) => {
@@ -94,7 +94,7 @@ pub fn remove_blacklist(path: &str, id: &str) -> Result<(), String> {
     let prep_query = "UPDATE peer SET whitelisted = 0 WHERE id = :id";
     let _lock = get_db_lock().lock().unwrap();
     //let _lock =SQLITE_PEER_MUTEX.lock().unwrap();
-    match open_database(path, true) {
+    match open_database(path, false) {
         Ok(connection) => {
             match prepare_crud_statement(&connection, prep_query) {
                 Ok(mut statement) => {
@@ -129,7 +129,7 @@ pub fn update_peer_last_responded(path: &str, id: &str, last_responded: SystemTi
     let prep_query = "UPDATE peer SET last_responded=:last_responded WHERE id=:id;";
     let _lock = get_db_lock().lock().unwrap();
     //let _lock =SQLITE_PEER_MUTEX.lock().unwrap();
-    match open_database(path, true) {
+    match open_database(path, false) {
         Ok(connection) => {
             match prepare_crud_statement(&connection, prep_query) {
                 Ok(mut statement) => {
@@ -169,7 +169,7 @@ pub fn set_peer_connected(path: &str, id: &str) -> Result<(), String> {
     let prep_query = "UPDATE peer SET connected = true WHERE id=:id;";
     let _lock = get_db_lock().lock().unwrap();
     //let _lock =SQLITE_PEER_MUTEX.lock().unwrap();
-    match open_database(path, true) {
+    match open_database(path, false) {
         Ok(connection) => {
             match prepare_crud_statement(&connection, prep_query) {
                 Ok(mut statement) => {
@@ -202,7 +202,7 @@ pub fn set_peer_disconnected(path: &str, id: &str) -> Result<(), String> {
     let prep_query = "UPDATE peer SET connected = false WHERE id=:id;";
     let _lock = get_db_lock().lock().unwrap();
     //let _lock =SQLITE_PEER_MUTEX.lock().unwrap();
-    match open_database(path, true) {
+    match open_database(path, false) {
         Ok(connection) => {
             match prepare_crud_statement(&connection, prep_query) {
                 Ok(mut statement) => {
@@ -236,7 +236,7 @@ pub fn set_all_peers_disconnected(path: &str) -> Result<(), String> {
     let prep_query = "UPDATE peer SET connected = false;";
     let _lock = get_db_lock().lock().unwrap();
     //let _lock =SQLITE_PEER_MUTEX.lock().unwrap();
-    match open_database(path, true) {
+    match open_database(path, false) {
         Ok(connection) => {
             match connection.execute(prep_query) {
                 Ok(_) => Ok(()),
@@ -255,7 +255,7 @@ pub fn fetch_peer_by_ip(path: &str, ip: &str) -> Result<HashMap<String, String>,
     let prep_query = "SELECT * FROM peer WHERE ip = :ip LIMIT 1;";
     let _lock = get_db_lock().lock().unwrap();
     //let _lock =SQLITE_PEER_MUTEX.lock().unwrap();
-    match open_database(path, true) {
+    match open_database(path, false) {
         Ok(connection) => {
             match prepare_crud_statement(&connection, prep_query) {
                 Ok(mut statement) => {
@@ -303,7 +303,7 @@ pub fn fetch_peer_by_id(path: &str, id: &str) -> Result<HashMap<String, String>,
     let prep_query = "SELECT * FROM peer WHERE id = :id LIMIT 1;";
     let _lock = get_db_lock().lock().unwrap();
     //let _lock =SQLITE_PEER_MUTEX.lock().unwrap();
-    match open_database(path, true) {
+    match open_database(path, false) {
         Ok(connection) => {
             match prepare_crud_statement(&connection, prep_query) {
                 Ok(mut statement) => {
@@ -351,7 +351,7 @@ pub fn fetch_non_blacklisted_peers(path: &str) -> Result<Vec<Vec<String>>, Strin
     let prep_query = "SELECT * FROM peer WHERE whitelisted > -1;";
     let _lock = get_db_lock().lock().unwrap();
     //let _lock =SQLITE_PEER_MUTEX.lock().unwrap();
-    match open_database(path, true) {
+    match open_database(path, false) {
         Ok(connection) => {
             match prepare_crud_statement(&connection, prep_query) {
                 Ok(_) => {
@@ -385,7 +385,7 @@ pub fn fetch_all_peers(path: &str) -> Result<Vec<HashMap<String, String>>, Strin
     let prep_query = "SELECT * FROM peer;";
     let _lock = get_db_lock().lock().unwrap();
     //let _lock =SQLITE_PEER_MUTEX.lock().unwrap();
-    match open_database(path, true) {
+    match open_database(path, false) {
         Ok(connection) => {
             match prepare_crud_statement(&connection, prep_query) {
                 Ok(mut statement) => {
@@ -439,7 +439,7 @@ pub fn fetch_connected_peers(path: &str) -> Result<Vec<Vec<String>>, String> {
     let prep_query = "SELECT * FROM peer WHERE connected = true;";
     let _lock = get_db_lock().lock().unwrap();
     //let _lock =SQLITE_PEER_MUTEX.lock().unwrap();
-    match open_database(path, true) {
+    match open_database(path, false) {
         Ok(connection) => {
             match prepare_crud_statement(&connection, prep_query) {
                 Ok(_) => {
@@ -473,7 +473,7 @@ pub fn fetch_disconnected_peers(path: &str) -> Result<Vec<Vec<String>>, String> 
     let prep_query = "SELECT * FROM peer WHERE connected = false AND whitelisted > -1 ORDER BY last_responded DESC;";
     let _lock = get_db_lock().lock().unwrap();
     //let _lock =SQLITE_PEER_MUTEX.lock().unwrap();
-    match open_database(path, true) {
+    match open_database(path, false) {
         Ok(connection) => {
             match prepare_crud_statement(&connection, prep_query) {
                 Ok(_) => {

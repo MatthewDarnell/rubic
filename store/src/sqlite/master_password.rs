@@ -9,7 +9,7 @@ pub fn set_master_password(path: &str, ct: &str) -> Result<(), String> {
     VALUES (:ct);";
     let _lock = get_db_lock().lock().unwrap();
     //let _lock =SQLITE_MASTER_PASSWORD_MUTEX.lock().unwrap();
-    match open_database(path, true) {
+    match open_database(path, false) {
         Ok(connection) => {
             match prepare_crud_statement(&connection, prep_query) {
                 Ok(mut statement) => {
@@ -43,7 +43,7 @@ pub fn get_master_password(path: &str) -> Result<Vec<String>, String> {
     let prep_query = "SELECT * FROM master_password LIMIT 1;";
     let _lock = get_db_lock().lock().unwrap();
     //let _lock =SQLITE_MASTER_PASSWORD_MUTEX.lock().unwrap();
-    match open_database(path, true) {
+    match open_database(path, false) {
         Ok(connection) => {
             match prepare_crud_statement(&connection, prep_query) {
                 Ok(_) => {

@@ -1,0 +1,69 @@
+{
+  "build": {
+    "beforeDevCommand": "",
+    "beforeBuildCommand": "",
+    "frontendDist": "../frontend/dist",
+    "devUrl": "http://localhost:5173"
+  },
+  "bundle": {
+    "active": true,
+    "category": "DeveloperTool",
+    "copyright": "",
+    "targets": "all",
+    "externalBin": [],
+    "icon": [
+      "icons/rubic.png",
+      "icons/icon.ico",
+      "icons/icon.icns"
+    ],
+    "windows": {
+      "certificateThumbprint": null,
+      "digestAlgorithm": "sha256",
+      "timestampUrl": ""
+    },
+    "longDescription": "",
+    "macOS": {
+      "entitlements": null,
+      "exceptionDomain": "",
+      "frameworks": [],
+      "providerShortName": null,
+      "signingIdentity": null
+    },
+    "resources": [
+      "../frontend/dist/**/*"
+    ],
+    "shortDescription": "",
+    "linux": {
+      "deb": {
+        "depends": []
+      }
+    }
+  },
+  "productName": "Rubic",
+  "mainBinaryName": "Rubic",
+  "version": "1.0.0",
+  "identifier": "com.rubic.dev",
+  "plugins": {},
+  "app": {
+    "windows": [
+      {
+        "fullscreen": false,
+        "width": 1366,
+        "height": 768,
+        "resizable": true,
+        "title": "Rubic - Qubic Wallet",
+        "visible": true,
+        "useHttpsScheme": true
+      }
+    ],
+    "security": {
+      "csp": {
+        "style-src": "'self' 'unsafe-inline'",
+        "img-src": "'self' data: asset:",
+        "connect-src": "'self' http://127.0.0.1:* ws://127.0.0.1:* http://localhost:* ws://localhost:* ipc: http://ipc.localhost",
+        "script-src": "'self' 'unsafe-inline'",
+        "default-src": "'self'"
+      }
+    }
+  }
+}

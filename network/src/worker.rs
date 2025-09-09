@@ -1,13 +1,15 @@
+use std::collections::HashMap;
 use std::io::prelude::*;
 use std::io::ErrorKind;
+use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use crate::peer::Peer;
-use api::QubicApiPacket;
+use api::request::QubicApiPacket;
 use store::get_db_path;
 use store::sqlite::peer::set_peer_disconnected;
 use crate::tcp_recv::qubic_tcp_receive_data;
 
-pub fn handle_new_peer(_id: String, peer: Peer, rx: spmc::Receiver<QubicApiPacket>) {
+pub fn handle_new_peer(_id: String, request_matcher: Arc<Mutex<HashMap<u32, QubicApiPacket>>>, peer: Peer, rx: spmc::Receiver<QubicApiPacket>) {
     if peer.get_stream().is_none() {
        println!("Peer {} Missing TcpStream! Shutting Down Worker Thread.", peer.get_id());
         return;
@@ -18,12 +20,18 @@ pub fn handle_new_peer(_id: String, peer: Peer, rx: spmc::Receiver<QubicApiPacke
         //Block until we receive work
         match rx.clone().recv() {
             Ok(mut request) => {
+                match request_matcher.lock() {
+                    Ok(mut matcher) => {
+                        matcher.insert(request.header._dejavu, request.clone());
+                    },
+                    Err(_) => {}
+                }
                 match stream.write(request.as_bytes().as_slice()) {
                     Ok(_) => {
                         stream.flush().unwrap();
                         //let response = ["Peer ", id.as_str(), " Responded At Time ", Utc::now().to_string().as_str()].join("");
                         //println!( "Worker Thread Responding");
-                        qubic_tcp_receive_data(&peer, stream);
+                        qubic_tcp_receive_data(&peer, request_matcher.clone(), stream);
                     },
                     Err(err) => {   //Probably the peer closed the tcp connection
                         let _error = match err.kind() {

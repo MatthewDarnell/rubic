@@ -27,12 +27,26 @@ pub enum EntityType {
     RequestEntity = 31,
     ResponseEntity = 32,
     ResponseEnd = 35,
+    
+    //Assets
+    RequestIssuedAssets = 36,
+    RespondIssuedAssets = 37,
+    RequestOwnedAssets = 38,
+    RespondOwnedAssets = 39,
+    RequestPossessedAssets = 40,
+    RespondPossessedAssets = 41,
+    
+    //Contracts
+    RequestContractFunction = 42,
+    RespondContractFunction = 43,
+    
+    RequestAssets = 52,
+    RespondAssets = 53,
 }
 
 impl EntityType {
     pub fn to_byte(&self) -> i8 {
         match self {
-            EntityType::ERROR => 55,
             EntityType::UNKNOWN => -1,
             EntityType::ExchangePeers => 0,
             EntityType::BroadcastComputors => 2,
@@ -46,7 +60,18 @@ impl EntityType {
             EntityType::RespondCurrentTickInfo => 28,
             EntityType::RequestEntity => 31,
             EntityType::ResponseEntity => 32,
-            EntityType::ResponseEnd => 35
+            EntityType::ResponseEnd => 35,
+            EntityType::RequestIssuedAssets => 36,
+            EntityType::RespondIssuedAssets => 37,
+            EntityType::RequestOwnedAssets => 38,
+            EntityType::RespondOwnedAssets => 39,
+            EntityType::RequestPossessedAssets => 40,
+            EntityType::RespondPossessedAssets => 41,
+            EntityType::RequestContractFunction => 42,
+            EntityType::RespondContractFunction => 43,
+            EntityType::RequestAssets => 52,
+            EntityType::RespondAssets => 53,
+            EntityType::ERROR => 55
         }
     }
 }
@@ -122,6 +147,16 @@ impl RequestResponseHeader {
             31 => EntityType::RequestEntity,
             32 => EntityType::ResponseEntity,
             35 => EntityType::ResponseEnd,
+            36 => EntityType::RequestIssuedAssets,
+            37 => EntityType::RespondIssuedAssets,
+            38 => EntityType::RequestOwnedAssets,
+            39 => EntityType::RespondOwnedAssets,
+            40 => EntityType::RequestPossessedAssets,
+            41 => EntityType::RespondPossessedAssets,
+            42 => EntityType::RequestContractFunction,
+            43 => EntityType::RespondContractFunction,
+            52 => EntityType::RequestAssets,
+            53 => EntityType::RespondAssets,
             55 => EntityType::ERROR,
             _ => EntityType::UNKNOWN
         }
@@ -129,6 +164,10 @@ impl RequestResponseHeader {
     pub fn recv_multiple_packets(&self) -> bool {   //Some Responses Send Multiple Data Packets Until End Response
         match self.get_type() {
             EntityType::BroadcastTick => true,
+            EntityType::RespondIssuedAssets => true,
+            EntityType::RespondOwnedAssets => true,
+            EntityType::RespondPossessedAssets => true,
+            EntityType::RespondAssets => true,
             _ => false
         }
     }
