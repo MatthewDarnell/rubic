@@ -46,6 +46,7 @@ async fn main() {
         Ok(())
     }
     tauri::Builder::default()
+        .plugin(tauri_plugin_shell::init())
         .setup(setup)
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

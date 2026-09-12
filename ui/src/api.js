@@ -20,11 +20,11 @@ export const apiCall = async (query) => {
     //     ? await response.json()
     //     : await response.text();
 
+    // The Rocket API answers with either JSON or a plain-text status message.
     try {
       const json = await response.clone().json();
       return { success: true, data: json };
-    } catch (err) {
-      console.warn('Invalid JSON received:', err);
+    } catch {
       const text = await response.text();
       return { success: true, data: text };
     }

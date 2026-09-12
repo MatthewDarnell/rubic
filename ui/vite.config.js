@@ -8,7 +8,11 @@ export default defineConfig({
   },
   plugins: [react()],
   server: {
-    port: 5173, // Default Vite port
+    // Tauri's devUrl is http://localhost:5173 and WebView2 resolves that to IPv4;
+    // Node binds "localhost" to ::1 by default, so pin the address.
+    host: '127.0.0.1',
+    port: 5173,
+    strictPort: true,
     proxy: {
       '/api': {
         // If your frontend requests /api/qubic-price

@@ -27,9 +27,21 @@ cargo run
 Rubic will run a server at `localhost:3000`. You have the option to change this (as well as override several other options) in `.env`
 ### How to use?
 
-Open `ui/index.html` in your browser. Incognito mode is recommended to avoid possible malicious extensions accessing your seeds.
+Rubic ships as a Tauri desktop app. The UI lives in `ui/` (Vite + React + MUI) and is bundled into the app from `ui/dist`:
 
-In the browser, you have several options:
+```
+cd ui && yarn install && yarn build && cd ..
+cargo tauri build
+```
+
+For UI development run the API server and the Vite dev server side by side, then open `http://localhost:5173`:
+
+```
+cargo run              # API server on localhost:3000
+cd ui && yarn dev      # hot-reloading UI on localhost:5173
+```
+
+In the app, you have several options:
 
 1. Create Random / Import Qubic Identities (Addresses)
 2. Add Trusted Network Peers (Several Defaults Are Hardcoded)

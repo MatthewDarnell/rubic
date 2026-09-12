@@ -1,6 +1,5 @@
 .idea
 src-tauri/gen
-src-tauri/capabilities
 dist
 node_modules
 
