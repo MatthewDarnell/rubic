@@ -11,7 +11,7 @@ pub fn handle_tick_data(response: &mut QubicApiPacket) -> Option<TickData> {
     let data: &Vec<u8> = &response.as_bytes();
     //println!("{:?}", data);
     if data.len() != size_of::<RequestResponseHeader>() + size_of::<TickData>() {
-        println!("Tick data length mismatch");
+        //println!("Tick data length mismatch");
         return None;
     }
     let (_, right) = data.split_at(std::mem::size_of::<RequestResponseHeader>());
