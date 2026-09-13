@@ -42,6 +42,7 @@ export const KEYS = {
   balanceHistory: 'rubic.balanceHistory',
   lastKnownBalances: 'rubic.lastKnownBalances',
   txNotes: 'rubic.txNotes',
+  tickOffset: 'rubic.tickOffset',
 };
 
 export const readStored = (key, fallback) => read(key, fallback);

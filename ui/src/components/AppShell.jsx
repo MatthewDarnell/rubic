@@ -33,7 +33,7 @@ export const NAV = [
   { key: 'wallet', label: 'Wallet', icon: WalletIcon },
   { key: 'activity', label: 'Activity', icon: HistoryIcon },
   { key: 'assets', label: 'Assets', icon: TokenIcon },
-  { key: 'exchange', label: 'Exchange', icon: SwapHorizIcon },
+  { key: 'exchange', label: 'QX Exchange', icon: SwapHorizIcon },
   { key: 'network', label: 'Network', icon: HubIcon },
   { key: 'settings', label: 'Settings', icon: SettingsIcon },
 ];
@@ -213,9 +213,11 @@ export default function AppShell({
   const fiat = formatFiat(totalBalance, price, currency);
   const staleAge = balanceStaleSince ? formatAge((now || Date.now()) - balanceStaleSince) : null;
   return (
-    <Box sx={{ display: 'flex', minHeight: '100vh', bgcolor: 'background.default' }}>
+    // The window never scrolls as a whole: sidebar and header stay put and each
+    // section scrolls its own long content (tables, ladders, timelines).
+    <Box sx={{ display: 'flex', height: '100vh', overflow: 'hidden', bgcolor: 'background.default' }}>
       <Sidebar nav={nav} onNav={onNav} badges={badges} />
-      <Box sx={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
+      <Box sx={{ flex: 1, minWidth: 0, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
         <Box
           component='header'
           sx={{
@@ -227,9 +229,7 @@ export default function AppShell({
             borderBottom: 1,
             borderColor: 'divider',
             bgcolor: 'background.paper',
-            position: 'sticky',
-            top: 0,
-            zIndex: 5,
+            flexShrink: 0,
           }}
         >
           <Box sx={{ minWidth: 0 }}>
@@ -280,7 +280,22 @@ export default function AppShell({
             </IconButton>
           </Tooltip>
         </Box>
-        <Box component='main' sx={{ flex: 1, p: 3, maxWidth: 1400, width: '100%', mx: 'auto' }}>
+        <Box
+          component='main'
+          sx={{
+            flex: 1,
+            minHeight: 0,
+            display: 'flex',
+            flexDirection: 'column',
+            p: 3,
+            maxWidth: 1400,
+            width: '100%',
+            mx: 'auto',
+            // Sections size themselves to the window; this only kicks in when a
+            // section's fixed part alone is taller than the window.
+            overflow: 'auto',
+          }}
+        >
           {children}
         </Box>
       </Box>

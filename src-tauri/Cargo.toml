@@ -32,3 +32,8 @@ overflow-checks = false
 
 [profile.dev]
 overflow-checks = false
+
+# `cargo tauri dev` is a debug build: keep the rubic crates and their crypto deps
+# (argon2, pbkdf2/sha2, chacha20poly1305) optimized or every unlock takes seconds.
+[profile.dev.package."*"]
+opt-level = 3

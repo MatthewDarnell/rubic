@@ -22,7 +22,7 @@ export const isExpired = (status, tick, latestTick) =>
   status === '-1' && txState(status, tick, latestTick) === 'failed';
 
 const failedTitle = (status, tick, latestTick) =>
-  isExpired(status, tick, latestTick) ? 'Tick passed without confirmation' : 'Failed';
+  isExpired(status, tick, latestTick) ? 'Failed to Confirm' : 'Failed';
 
 export default function TxStatus({ status, tick, latestTick, onRetry, retryLabel = 'Resend' }) {
   const state = txState(status, tick, latestTick);

@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, Box, CssBaseline, ThemeProvider, Typography } from '@mui/material';
 
-import { apiCall } from './api';
+import { apiCall, apiPost, backgroundCall } from './api';
 import { serverIp } from './api_config';
 import { doArrayElementsAgree } from './api_helper';
 import { getTheme } from './theme';
@@ -30,7 +30,12 @@ import { recordBalances, readHistory, sliceSince, RANGES } from './utils/balance
 
 const POLLING_INTERVAL = 3000;
 const TICK_INTERVAL = 1000;
-const TICK_OFFSET = 10;
+// Transactions expire this many ticks after the current one unless the user
+// overrides it in Settings ("Transfer Ticks Offset").
+const DEFAULT_TICK_OFFSET = 10;
+const UNLOCK_CHECK_INTERVAL = 5000;
+const OPEN_ORDERS_INTERVAL = 15000;
+const OPEN_ORDERS_FULL_SCAN = 5 * 60 * 1000;
 
 const INVALID_PASSWORD_RESPONSES = [
   'Invalid Password',
@@ -65,6 +70,7 @@ const MainView = () => {
   const [orderTick, setOrderTick] = useState(0);
   const [showProgress, setShowProgress] = useState(false);
   const [price, setPrice] = useState(0);
+  const [priceStatus, setPriceStatus] = useState('loading'); // loading | ok | error
   const [now, setNow] = useState(() => Date.now());
 
   // Wallet data
@@ -78,11 +84,13 @@ const MainView = () => {
   const [assetsNIssuer, setAssetsNIssuer] = useState(new Map());
   const [askOrders, setAskOrders] = useState([]);
   const [bidOrders, setBidOrders] = useState([]);
+  const [bookAsset, setBookAsset] = useState(null); // asset the ask/bid arrays belong to
   const [selectedAsset, setSelectedAsset] = useState(null);
   const [selectedId, setSelectedId] = useState('');
 
   // Settings & local preferences
   const [unlockTimer, setUnlockTimer] = useState('60000');
+  const [tickOffset, setTickOffset] = useStoredValue(KEYS.tickOffset, DEFAULT_TICK_OFFSET);
   const [allowNonEncrypted, setAllowNonEncrypted] = useState(false);
   const [peerLimits, setPeerLimits] = useState({ min: 3, max: 8 });
   const [labels, setLabels] = useStoredValue(KEYS.identityLabels, {});
@@ -95,7 +103,6 @@ const MainView = () => {
 
   // Password-gated action flow
   const [action, setAction] = useState('');
-  const [password, setPassword] = useState('');
   const [invalidPassword, setInvalidPassword] = useState('');
   const [actionBusy, setActionBusy] = useState(false);
   const [confirm, setConfirm] = useState(null);
@@ -135,14 +142,21 @@ const MainView = () => {
     return res;
   }, []);
 
-  const fetchOrderbook = useCallback(async (asset) => {
+  // The asset the user is looking at right now. Book responses are only applied
+  // if they belong to it, so a slow reply for the previous asset can never
+  // overwrite the book after a switch.
+  const viewedAssetRef = useRef(null);
+  const fetchOrderbook = useCallback(async (asset, { interactive = false } = {}) => {
     if (!asset) return;
+    const call = interactive ? apiCall : backgroundCall;
     const [ask, bid] = await Promise.all([
-      apiCall(`qx/orderbook/${asset}/ASK/1000/0`),
-      apiCall(`qx/orderbook/${asset}/BID/1000/0`),
+      call(`qx/orderbook/${asset}/ASK/1000/0`),
+      call(`qx/orderbook/${asset}/BID/1000/0`),
     ]);
+    if (viewedAssetRef.current !== asset) return;
     setAskOrders(asList(ask));
     setBidOrders(asList(bid));
+    setBookAsset(asset);
   }, []);
 
   const fetchPeerLimits = useCallback(async () => {
@@ -180,9 +194,13 @@ const MainView = () => {
           `https://api.coingecko.com/api/v3/simple/price?ids=qubic-network&vs_currencies=${vs}`
         );
         const data = await response.json();
-        if (!cancelled) setPrice(data['qubic-network']?.[vs] ?? 0);
+        const next = Number(data['qubic-network']?.[vs]) || 0;
+        if (cancelled) return;
+        setPrice(next);
+        setPriceStatus(next > 0 ? 'ok' : 'error');
       } catch {
-        // Price is decorative; ignore failures.
+        // Price is decorative: fiat values simply stay hidden. Settings shows why.
+        if (!cancelled) setPriceStatus('error');
       }
     };
     fetchPrice();
@@ -220,63 +238,126 @@ const MainView = () => {
     return () => window.removeEventListener('keydown', onKey);
   }, [setNav]);
 
+  // Pollers reschedule themselves after each cycle completes, so a slow cycle
+  // never overlaps the next one and requests cannot pile up.
   useEffect(() => {
-    const intervalId = setInterval(async () => {
+    let cancelled = false;
+    let timer;
+    const run = async () => {
+      // One request a second that drives the tick display: skip the background queue.
       const tick = await apiCall('tick');
+      if (cancelled) return;
       setConnected(tick.success);
       setLatestTick(tick.data);
       latestTickRef.current = tick.data;
       setShowProgress(orderTick >= tick.data);
       setNow(Date.now());
-    }, TICK_INTERVAL);
-    return () => clearInterval(intervalId);
+      timer = setTimeout(run, TICK_INTERVAL);
+    };
+    run();
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
   }, [orderTick]);
 
   // Keep the unlock indicator honest if the server locked earlier than expected.
   useEffect(() => {
     if (!unlockedUntil) return undefined;
-    const intervalId = setInterval(async () => {
-      const res = await apiCall('wallet/unlocked');
+    let cancelled = false;
+    let timer;
+    const run = async () => {
+      const res = await backgroundCall('wallet/unlocked');
+      if (cancelled) return;
       if (res.success && res.data !== true) setUnlockedUntil(0);
-    }, 5000);
-    return () => clearInterval(intervalId);
+      else timer = setTimeout(run, UNLOCK_CHECK_INTERVAL);
+    };
+    timer = setTimeout(run, UNLOCK_CHECK_INTERVAL);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
   }, [unlockedUntil]);
 
   useEffect(() => {
-    fetchOrderbook(selectedAsset);
+    viewedAssetRef.current = selectedAsset;
+    // Drop the previous asset's book at once and load the new one ahead of the polls.
+    setAskOrders([]);
+    setBidOrders([]);
+    fetchOrderbook(selectedAsset, { interactive: true });
   }, [selectedAsset, fetchOrderbook]);
 
-  // Resting orders of our own identities across every known asset.
+  // Resting orders of our own identities. Scanning every issued asset's book is
+  // ~300 requests, so that happens rarely; in between only re-check the assets
+  // we hold, have ordered from this wallet, are viewing, or already found orders on.
+  const openOrdersInputRef = useRef({ identities: [], qxOrders: [], selectedAsset: null });
   useEffect(() => {
-    const assets = [...assetsNIssuer.keys()];
-    if (assets.length === 0 || ownIds.size === 0) return undefined;
+    openOrdersInputRef.current = { identities, qxOrders, selectedAsset };
+  }, [identities, qxOrders, selectedAsset]);
+  const ownKey = useMemo(() => [...ownIds].sort().join(','), [ownIds]);
+  const assetKey = useMemo(() => [...assetsNIssuer.keys()].join(','), [assetsNIssuer]);
+  useEffect(() => {
+    const allAssets = assetKey ? assetKey.split(',') : [];
+    const own = new Set(ownKey ? ownKey.split(',') : []);
+    if (allAssets.length === 0 || own.size === 0) return undefined;
     let cancelled = false;
-    const load = async () => {
-      const found = [];
+    let timer;
+    let lastFullScan = 0;
+    const found = new Map(); // asset -> our resting orders on it
+
+    const scan = async (assets) => {
       for (const asset of assets) {
+        if (cancelled) return;
         const [ask, bid] = await Promise.all([
-          apiCall(`qx/orderbook/${asset}/ASK/1000/0`),
-          apiCall(`qx/orderbook/${asset}/BID/1000/0`),
+          backgroundCall(`qx/orderbook/${asset}/ASK/1000/0`),
+          backgroundCall(`qx/orderbook/${asset}/BID/1000/0`),
         ]);
-        asList(ask).filter((o) => ownIds.has(o.entity)).forEach((o) => found.push({ ...o, asset, side: 'ASK' }));
-        asList(bid).filter((o) => ownIds.has(o.entity)).forEach((o) => found.push({ ...o, asset, side: 'BID' }));
+        const mine = [
+          ...asList(ask).filter((o) => own.has(o.entity)).map((o) => ({ ...o, asset, side: 'ASK' })),
+          ...asList(bid).filter((o) => own.has(o.entity)).map((o) => ({ ...o, asset, side: 'BID' })),
+        ];
+        if (mine.length > 0) found.set(asset, mine);
+        else found.delete(asset);
       }
-      if (!cancelled) setOpenOrders(found);
     };
-    load();
-    const intervalId = setInterval(load, 10000);
+
+    const run = async () => {
+      const now = Date.now();
+      const fullScan = now - lastFullScan >= OPEN_ORDERS_FULL_SCAN;
+      if (fullScan) lastFullScan = now;
+      const { identities: ids, qxOrders: orders, selectedAsset: viewing } = openOrdersInputRef.current;
+      const targets = fullScan
+        ? allAssets
+        : [
+            ...new Set(
+              [
+                ...found.keys(),
+                ...orders.map((o) => o.name),
+                ...ids.flatMap((i) => (i.assets || []).map((a) => a?.name)),
+                viewing,
+              ].filter((a) => a && allAssets.includes(a))
+            ),
+          ];
+      await scan(targets);
+      if (cancelled) return;
+      setOpenOrders([...found.values()].flat());
+      timer = setTimeout(run, OPEN_ORDERS_INTERVAL);
+    };
+    run();
     return () => {
       cancelled = true;
-      clearInterval(intervalId);
+      clearTimeout(timer);
     };
-  }, [assetsNIssuer, ownIds, orderTick]);
+  }, [assetKey, ownKey]);
 
   useEffect(() => {
+    let cancelled = false;
+    let timer;
     const poll = async () => {
-      const peersRes = await apiCall('peers');
+      const peersRes = await backgroundCall('peers');
       if (Array.isArray(peersRes.data)) setPeers(peersRes.data);
 
-      const ids = await apiCall('identities');
+      const ids = await backgroundCall('identities');
       if (!ids.success || !Array.isArray(ids.data)) return;
       const merged = [];
       for (let i = 0; i + 1 < ids.data.length; i += 2) {
@@ -286,8 +367,8 @@ const MainView = () => {
       const reported = await Promise.all(
         merged.map(async (item) => {
           const [balanceRes, assetsRes] = await Promise.all([
-            apiCall(`balance/${item.id}`),
-            apiCall(`asset/balance/${item.id}`),
+            backgroundCall(`balance/${item.id}`),
+            backgroundCall(`asset/balance/${item.id}`),
           ]);
           const res = asList(balanceRes);
           if (res.length < 3) return { ...item, balance: 'Not Yet Reported', assets: asList(assetsRes) };
@@ -334,9 +415,9 @@ const MainView = () => {
       else stableTotalRef.current = { total: fresh ? sum : null, count: fresh ? 1 : 0 };
 
       const [transferRes, assetTransferRes, qxRes] = await Promise.all([
-        apiCall('transfer/0/0/0'),
-        apiCall('asset/transfer/0/0/0'),
-        apiCall('qx/orders/1/1000/0'),
+        backgroundCall('transfer/0/0/0'),
+        backgroundCall('asset/transfer/0/0/0'),
+        backgroundCall('qx/orders/1/1000/0'),
       ]);
       const transfersNow = asList(transferRes);
       const assetTransfersNow = asList(assetTransferRes);
@@ -370,41 +451,124 @@ const MainView = () => {
           const was = prev.get(txid);
           if (!was || was.state !== 'pending' || cur.state === 'pending') return;
           if (cur.state === 'confirmed') toast.success(`Confirmed: ${cur.title}`);
-          else toast.error(`Failed: ${cur.title} — tick passed without confirmation`);
+          else toast.error(`Failed to Confirm: ${cur.title}`);
         });
       }
       txStatusRef.current = next;
 
       await fetchOrderbook(selectedAsset);
     };
-    poll();
-    const intervalId = setInterval(poll, POLLING_INTERVAL);
-    return () => clearInterval(intervalId);
+    const run = async () => {
+      try {
+        await poll();
+      } finally {
+        if (!cancelled) timer = setTimeout(run, POLLING_INTERVAL);
+      }
+    };
+    run();
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
   }, [selectedAsset, fetchOrderbook]);
 
   // ---------- actions ----------
 
-  const actionHandler = async (pendingAction, unlocked) => {
-    const actionPassword = password || '0';
+  // Locked, encrypted wallet: unlock once (a single argon2 verify on the server),
+  // then run the action through the unlocked path, which skips the second verify.
+  // Returns the password to use for the action, or null if the dialog should stay open.
+  const unlockFirst = async (password) => {
+    const res = await apiPost('wallet/unlock', { password, timeout_ms: Number(unlockTimer) });
+    const text = String(res.data ?? '');
+    if (!res.success) {
+      toast.error(`Unlock failed: ${res.error || 'no response from server'}`);
+      return null;
+    }
+    if (/already unlocked/i.test(text)) return '';
+    if (looksLikeFailure(text)) {
+      setInvalidPassword(/invalid|incorrect/i.test(text) ? 'Invalid password — try again' : text);
+      return null;
+    }
+    setUnlockedUntil(Date.now() + Number(unlockTimer));
+    return '';
+  };
+
+  // `password` is only supplied when the user typed one into the unlock dialog;
+  // an empty password means "use the unlocked wallet / the seed is not encrypted".
+  const actionHandler = async (pendingAction, unlocked, password = '') => {
+    let actionPassword = password;
     let result;
+
+    if (!unlocked && isEncrypted) {
+      const unlockedPassword = await unlockFirst(password);
+      if (unlockedPassword === null) return;
+      // The export route decrypts with the password it is given, so keep the real one.
+      if (pendingAction !== '/wallet/download/') actionPassword = unlockedPassword;
+    }
 
     const tick = await apiCall('tick');
     setConnected(tick.success);
     setLatestTick(tick.data);
-    const targetTick = Number(tick.data) + TICK_OFFSET;
+    const offset = Number.isInteger(Number(tickOffset)) && Number(tickOffset) > 0 ? Number(tickOffset) : DEFAULT_TICK_OFFSET;
+    const targetTick = Number(tick.data) + offset;
 
     const isTx = pendingAction.includes('transfer') || pendingAction.startsWith('qx/order');
+    if (isTx && !isNumeric(tick.data)) {
+      // Without a tick there is nothing to target; the server would reject (or choke on) NaN.
+      setAction('');
+      setInvalidPassword('');
+      toast.error('No tick from peers yet — wait until Rubic is connected, then try again');
+      return;
+    }
     if (pendingAction.startsWith('qx/order')) {
-      result = await apiCall(`${pendingAction.replace('<tick>', targetTick)}/${actionPassword}`);
+      // qx/order/<tick>/<issuer>/<asset>/<side>/<address>/<price>/<amount>/
+      const [, , , issuer, asset, side, address, orderPrice, amount] = pendingAction.split('/');
+      result = await apiPost('qx/order', {
+        tick: targetTick,
+        issuer,
+        asset,
+        side,
+        address,
+        price: Number(orderPrice),
+        amount: Number(amount),
+        password: actionPassword,
+      });
       setQxOrders(asList(await apiCall('qx/orders/1/1000/0')));
-    } else if (pendingAction.includes('transfer')) {
-      result = await apiCall(`${pendingAction}${targetTick}/${actionPassword}`);
+    } else if (pendingAction.startsWith('asset/transfer/')) {
+      // asset/transfer/<asset>/<issuer>/<source>/<dest>/<amount>/
+      const [, , asset, issuer, source, dest, amount] = pendingAction.split('/');
+      result = await apiPost('asset/transfer', {
+        asset,
+        issuer,
+        source,
+        dest,
+        amount: Number(amount),
+        expiration: targetTick,
+        password: actionPassword,
+      });
+    } else if (pendingAction.startsWith('transfer/')) {
+      // QU transfers go as JSON: POST /transfer {source, dest, amount, expiration, password}
+      const [, source, dest, amount] = pendingAction.split('/');
+      result = await apiPost('transfer', {
+        source,
+        dest,
+        amount: Number(amount),
+        expiration: targetTick,
+        password: actionPassword,
+      });
+    } else if (pendingAction.startsWith('identity/delete/')) {
+      result = await apiPost('identity/delete', { identity: pendingAction.split('/')[2], password: actionPassword });
+    } else if (pendingAction.startsWith('identity/add/')) {
+      result = await apiPost('identity/add', { seed: pendingAction.split('/')[2], password: actionPassword });
+    } else if (pendingAction.startsWith('identity/new')) {
+      result = await apiPost('identity/new', { password: actionPassword });
+    } else if (pendingAction === '/wallet/download/') {
+      result = await apiPost('wallet/download', { password: actionPassword });
     } else {
       result = await apiCall(`${pendingAction}${actionPassword}`);
     }
 
     const invalid = INVALID_PASSWORD_RESPONSES.includes(result.data);
-    setPassword('');
 
     if (invalid) {
       setShowProgress(false);
@@ -412,15 +576,9 @@ const MainView = () => {
       return;
     }
 
-    // The server has answered: close the password modal now. The unlock call below
-    // (argon2, seconds in debug builds) runs in the background.
+    // The server has answered: close the password modal now.
     setAction('');
     setInvalidPassword('');
-    if (!unlocked) {
-      apiCall(`wallet/unlock/${actionPassword}/${unlockTimer}`).then((res) => {
-        if (res.success && !looksLikeFailure(res.data)) setUnlockedUntil(Date.now() + Number(unlockTimer));
-      });
-    }
 
     if (pendingAction === '/wallet/download/') {
       const csv = String(result.data ?? '');
@@ -451,24 +609,40 @@ const MainView = () => {
     }
   };
 
+  // The identity whose seed signs this action, if the action has one.
+  const signerOf = (pendingAction) => {
+    const parts = pendingAction.split('/');
+    if (pendingAction.startsWith('transfer/')) return parts[1];
+    if (pendingAction.startsWith('asset/transfer/')) return parts[4];
+    if (pendingAction.startsWith('qx/order/')) return parts[6];
+    if (pendingAction.startsWith('identity/delete/')) return parts[2];
+    return null;
+  };
+
   const commitAction = async (pendingAction) => {
+    // A seed stored without encryption needs no master password to sign.
+    const signer = identities.find((i) => i.id === signerOf(pendingAction));
+    if (signer && signer.encrypted !== 'true') {
+      actionHandler(pendingAction, true);
+      return;
+    }
     const unlocked = await apiCall('wallet/unlocked');
     if (unlocked.success && unlocked.data === true) actionHandler(pendingAction, true);
     else setAction(pendingAction);
   };
 
-  const submitPasswordAction = async () => {
+  const submitPasswordAction = async (password) => {
     if (!password || actionBusy) return;
     setActionBusy(true);
+    setInvalidPassword('');
     try {
-      await actionHandler(action, false);
+      await actionHandler(action, false, password);
     } finally {
       setActionBusy(false);
     }
   };
 
   const cancelPasswordAction = () => {
-    setPassword('');
     setAction('');
     setInvalidPassword('');
   };
@@ -502,12 +676,12 @@ const MainView = () => {
   };
 
   const setMasterPassword = async (newPassword) => {
-    const set = await apiCall(`wallet/set_master_password/${newPassword}`);
+    const set = await apiPost('wallet/set_master_password', { password: newPassword });
     if (!set.success || looksLikeFailure(set.data)) {
       toast.error(String(set.data || set.error || 'Could not set the master password'));
       return;
     }
-    const encrypt = await apiCall(`wallet/encrypt/${newPassword}`);
+    const encrypt = await apiPost('wallet/encrypt', { password: newPassword });
     if (!encrypt.success || looksLikeFailure(encrypt.data)) {
       toast.error(String(encrypt.data || encrypt.error || 'Could not encrypt the wallet'));
       return;
@@ -624,6 +798,7 @@ const MainView = () => {
         onSelectId={setSelectedId}
         askOrders={askOrders}
         bidOrders={bidOrders}
+        bookLoading={Boolean(selectedAsset) && bookAsset !== selectedAsset}
         busy={showProgress}
         onAction={commitAction}
         requestConfirm={setConfirm}
@@ -634,6 +809,8 @@ const MainView = () => {
       <SettingsPanel
         unlockTimerMs={unlockTimer}
         onUnlockTimerChange={setUnlockTimer}
+        tickOffset={tickOffset}
+        onTickOffsetChange={setTickOffset}
         allowNonEncrypted={allowNonEncrypted}
         onAllowNonEncryptedChange={setAllowNonEncrypted}
         unencryptedCount={unencryptedCount}
@@ -643,6 +820,8 @@ const MainView = () => {
         latestTick={latestTick}
         currency={currency}
         onCurrencyChange={setCurrency}
+        price={price}
+        priceStatus={priceStatus}
         addressBook={addressBook}
         onAddressBookChange={setAddressBook}
         identities={identities}
@@ -651,7 +830,15 @@ const MainView = () => {
     ),
   }[nav] ?? null;
 
-  const dimWhileLocked = { pointerEvents: action ? 'none' : 'all', opacity: action ? 0.4 : 1 };
+  const dimWhileLocked = {
+    pointerEvents: action ? 'none' : 'all',
+    opacity: action ? 0.4 : 1,
+    // Let the section fill the window so its tables can scroll internally.
+    flex: 1,
+    minHeight: 0,
+    display: 'flex',
+    flexDirection: 'column',
+  };
 
   return (
     <ThemeProvider theme={theme}>
@@ -700,8 +887,6 @@ const MainView = () => {
 
       <PasswordDialog
         open={Boolean(action)}
-        password={password}
-        onPasswordChange={setPassword}
         error={invalidPassword}
         busy={actionBusy}
         unlockTimerMs={unlockTimer}

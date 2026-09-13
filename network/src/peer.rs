@@ -1,3 +1,5 @@
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use std::net::TcpStream;
 use std::io::prelude::*;
@@ -15,6 +17,9 @@ pub struct Peer {
     whitelisted: bool,
     last_responded: SystemTime,
     id: String,
+    // Shared between the PeerSet's copy and the worker thread's copy, so a dead
+    // socket is visible to make_request without a database round trip.
+    connected: Arc<AtomicBool>,
 }
 
 
@@ -28,6 +33,7 @@ impl Clone for Peer {
             whitelisted: self.get_whitelisted(),
             last_responded: self.get_last_responded(),
             id: self.get_id().to_owned(),
+            connected: Arc::clone(&self.connected),
         }
     }
 }
@@ -45,6 +51,7 @@ impl Peer {
             whitelisted: false,
             last_responded: UNIX_EPOCH,
             id: Uuid::new_v4().to_string(),
+            connected: Arc::new(AtomicBool::new(false)),
         };
         match create_peer(get_db_path().as_str(),
             id.as_str(),
@@ -108,6 +115,8 @@ impl Peer {
     pub fn get_ip_addr(&self  ) -> &String { &self.ip_addr }
     pub fn get_last_responded(&self  ) -> SystemTime { self.last_responded }
     pub fn get_whitelisted(&self  ) -> bool { self.whitelisted }
+    pub fn is_connected(&self) -> bool { self.connected.load(Ordering::Relaxed) }
+    pub fn set_connected(&self, connected: bool) { self.connected.store(connected, Ordering::Relaxed) }
 
 
     pub fn set_stream(&mut self, stream: TcpStream) { self.stream = Some(stream) }

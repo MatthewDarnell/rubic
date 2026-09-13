@@ -391,8 +391,8 @@ export default function PeersPanel({ peers, onChanged }) {
   };
 
   return (
-    <Box>
-      <Paper variant='outlined' sx={{ p: 2, mb: 2 }}>
+    <Box sx={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+      <Paper variant='outlined' sx={{ p: 2, mb: 2, flexShrink: 0 }}>
         <Typography variant='subtitle2' sx={{ mb: 1.5 }}>
           Add a peer
         </Typography>
@@ -456,9 +456,7 @@ export default function PeersPanel({ peers, onChanged }) {
             gap: 2,
             flexWrap: 'wrap',
             bgcolor: 'action.selected',
-            position: 'sticky',
-            top: 0,
-            zIndex: 2,
+            flexShrink: 0,
           }}
         >
           <Typography variant='body2' sx={{ fontWeight: 600 }}>
@@ -480,6 +478,8 @@ export default function PeersPanel({ peers, onChanged }) {
         </Paper>
       )}
 
+      {/* Peer lists scroll here; the add form and selection bar above stay put. */}
+      <Box sx={{ flex: 1, minHeight: 0, overflow: 'auto', pr: 0.5 }}>
       <Paper variant='outlined' sx={{ mb: 2, overflow: 'hidden' }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, px: 2, py: 1.25 }}>
           <WifiIcon fontSize='small' color={connected.length > 0 ? 'success' : 'disabled'} />
@@ -599,6 +599,7 @@ export default function PeersPanel({ peers, onChanged }) {
           </TableContainer>
         </SectionCard>
       )}
+      </Box>
 
       <ConfirmDialog
         open={bulkConfirm}

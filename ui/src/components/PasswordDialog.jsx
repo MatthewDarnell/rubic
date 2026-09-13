@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   Button,
   CircularProgress,
@@ -11,16 +11,31 @@ import {
 } from '@mui/material';
 import LockIcon from '@mui/icons-material/Lock';
 
+// The typed password is local state so each keystroke re-renders only this
+// dialog, not the whole app behind it. It is handed to `onSubmit(password)`.
 export default function PasswordDialog({
   open,
-  password,
-  onPasswordChange,
   error,
   busy,
   unlockTimerMs,
   onSubmit,
   onCancel,
 }) {
+  const [password, setPassword] = useState('');
+
+  useEffect(() => {
+    if (!open) setPassword('');
+  }, [open]);
+
+  // A rejected password is cleared so the user retypes it.
+  useEffect(() => {
+    if (error) setPassword('');
+  }, [error]);
+
+  const submit = () => {
+    if (password && !busy) onSubmit(password);
+  };
+
   return (
     <Dialog open={open} onClose={busy ? undefined : onCancel} maxWidth='xs' fullWidth>
       <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
@@ -40,11 +55,11 @@ export default function PasswordDialog({
           value={password}
           error={Boolean(error)}
           helperText={error || ' '}
-          onChange={(e) => onPasswordChange(e.target.value)}
+          onChange={(e) => setPassword(e.target.value)}
           onKeyDown={(e) => {
             if (e.key === 'Enter') {
               e.preventDefault();
-              onSubmit();
+              submit();
             }
           }}
           autoComplete='current-password'
@@ -57,7 +72,7 @@ export default function PasswordDialog({
         <Button
           variant='contained'
           disabled={!password || busy}
-          onClick={onSubmit}
+          onClick={submit}
           startIcon={busy ? <CircularProgress size={16} color='inherit' /> : null}
         >
           Confirm

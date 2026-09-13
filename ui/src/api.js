@@ -37,6 +37,57 @@ export const apiCall = async (query) => {
   }
 };
 
+// POST with a JSON body. Same response handling as `apiCall`: the server answers
+// with JSON or a plain-text status message.
+export const apiPost = async (query, body) => {
+  try {
+    const response = await fetch(`${serverIp}/${query}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    if (!response.ok) {
+      return { success: false, error: `HTTP error! status: ${response.status}` };
+    }
+    try {
+      const json = await response.clone().json();
+      return { success: true, data: json };
+    } catch {
+      const text = await response.text();
+      return { success: true, data: text };
+    }
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+};
+
+// Browsers allow ~6 connections per host. Background polling must never fill
+// them all, or a user action (unlock, send) queues behind dozens of polls.
+// Pollers go through this limiter; user actions call `apiCall` directly.
+const MAX_BACKGROUND_REQUESTS = 3;
+let activeBackground = 0;
+const backgroundQueue = [];
+
+const drainBackground = () => {
+  while (activeBackground < MAX_BACKGROUND_REQUESTS && backgroundQueue.length > 0) {
+    activeBackground += 1;
+    backgroundQueue.shift()();
+  }
+};
+
+export const backgroundCall = (query) =>
+  new Promise((resolve) => {
+    backgroundQueue.push(() => {
+      apiCall(query)
+        .then(resolve)
+        .finally(() => {
+          activeBackground -= 1;
+          drainBackground();
+        });
+    });
+    drainBackground();
+  });
+
 // export const getNumConnectedPeers = async () => {
 //   try {
 //     const response = await fetch(`${serverIp}/info`, { method: 'GET' });

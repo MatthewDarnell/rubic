@@ -27,13 +27,15 @@ import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import DriveFileRenameOutlineIcon from '@mui/icons-material/DriveFileRenameOutline';
 import Identicon from './Identicon';
 import IdText from './IdText';
-import { CURRENCIES, digitsOnly, formatNumber, isNumeric, upperOnly } from '../utils/format';
+import { CURRENCIES, currencyLabel, digitsOnly, formatFiat, formatNumber, isNumeric, upperOnly } from '../utils/format';
 import { serverIp } from '../api_config';
 import pkg from '../../package.json';
 
 // The server rejects unlock timeouts above 99,999 ms.
 const MAX_UNLOCK_SECONDS = 99;
 const PRESETS = [15, 30, 60, 90];
+const DEFAULT_TICK_OFFSET = 10;
+const MAX_TICK_OFFSET = 1000;
 
 const AddressBook = ({ entries, onChange, identities, labels }) => {
   const [label, setLabel] = useState('');
@@ -79,7 +81,7 @@ const AddressBook = ({ entries, onChange, identities, labels }) => {
             duplicate ? 'Already in the address book' : ownIdentity ? `This is your own identity${labels[id] ? ` (${labels[id]})` : ''}` : id.length > 0 && !idValid ? `${id.length}/60` : ' '
           }
           slotProps={{ htmlInput: { className: 'mono', spellCheck: false } }}
-          sx={{ flex: 1, minWidth: 420 }}
+          sx={{ flex: 1, minWidth: 260 }}
         />
         <Button type='submit' variant='contained' startIcon={<AddIcon />} disabled={!canAdd} sx={{ height: 40 }}>
           Add
@@ -135,10 +137,15 @@ const AddressBook = ({ entries, onChange, identities, labels }) => {
   );
 };
 
-const Section = ({ title, description, children, danger }) => (
+// `grow` lets the last card of a column stretch so all column bottoms line up.
+const Section = ({ title, description, children, danger, grow }) => (
   <Paper
     variant='outlined'
-    sx={{ p: 2.5, mb: 2, ...(danger && { borderColor: 'error.main', bgcolor: 'rgba(255, 92, 108, 0.04)' }) }}
+    sx={{
+      p: 2,
+      ...(grow && { flex: 1 }),
+      ...(danger && { borderColor: 'error.main', bgcolor: 'rgba(255, 92, 108, 0.04)' }),
+    }}
   >
     <Typography variant='subtitle1' sx={{ fontWeight: 600, display: 'flex', alignItems: 'center', gap: 1 }}>
       {danger && <WarningAmberIcon fontSize='small' color='error' />}
@@ -156,6 +163,8 @@ const Section = ({ title, description, children, danger }) => (
 export default function SettingsPanel({
   unlockTimerMs,
   onUnlockTimerChange,
+  tickOffset = DEFAULT_TICK_OFFSET,
+  onTickOffsetChange,
   allowNonEncrypted,
   onAllowNonEncryptedChange,
   unencryptedCount,
@@ -165,6 +174,8 @@ export default function SettingsPanel({
   latestTick,
   currency,
   onCurrencyChange,
+  price = 0,
+  priceStatus = 'loading',
   addressBook = [],
   onAddressBookChange,
   identities = [],
@@ -173,6 +184,20 @@ export default function SettingsPanel({
   const [min, setMin] = useState(String(peerLimits.min));
   const [max, setMax] = useState(String(peerLimits.max));
   const [saving, setSaving] = useState(false);
+  // Typed offset is kept as text so the field can be emptied while editing; the
+  // saved value only changes when the text is a valid number.
+  const [offsetText, setOffsetText] = useState(String(tickOffset));
+  useEffect(() => {
+    setOffsetText(String(tickOffset));
+  }, [tickOffset]);
+  const offsetNum = Number(offsetText);
+  const offsetValid = offsetText !== '' && Number.isInteger(offsetNum) && offsetNum >= 1 && offsetNum <= MAX_TICK_OFFSET;
+  const changeOffset = (text) => {
+    if (!digitsOnly(text)) return;
+    setOffsetText(text);
+    const n = Number(text);
+    if (text !== '' && Number.isInteger(n) && n >= 1 && n <= MAX_TICK_OFFSET) onTickOffsetChange(n);
+  };
 
   useEffect(() => {
     setMin(String(peerLimits.min));
@@ -202,7 +227,19 @@ export default function SettingsPanel({
   };
 
   return (
-    <Box sx={{ maxWidth: 820 }}>
+    // Three columns on a normal desktop window (two on medium, one on narrow) so
+    // the whole page fits without scrolling.
+    <Box
+      sx={{
+        display: 'grid',
+        gridTemplateColumns: { xs: '1fr', md: 'repeat(2, minmax(0, 1fr))', lg: 'repeat(3, minmax(0, 1fr))' },
+        gap: 1.5,
+        // Columns stretch to the tallest one; each column's last card grows to fill.
+        alignItems: 'stretch',
+        '& > div': { minWidth: 0, display: 'flex', flexDirection: 'column', gap: 1.5 },
+      }}
+    >
+      <Box>
       <Section
         title='Wallet unlock'
         description='After a correct password the wallet stays unlocked for this long, so follow-up actions do not prompt again.'
@@ -232,22 +269,85 @@ export default function SettingsPanel({
         </Stack>
       </Section>
 
-      <Section title='Display' description='Fiat values are indicative only, from the CoinGecko public price feed.'>
-        <FormControl size='small' sx={{ minWidth: 200 }}>
-          <InputLabel id='currency-label'>Fiat currency</InputLabel>
-          <Select labelId='currency-label' label='Fiat currency' value={currency} onChange={(e) => onCurrencyChange(e.target.value)}>
-            {CURRENCIES.map((c) => (
-              <MenuItem key={c} value={c}>{c}</MenuItem>
-            ))}
-          </Select>
-        </FormControl>
+      <Section title='Transactions'>
+        <Stack direction='row' spacing={2} alignItems='flex-start' flexWrap='wrap' useFlexGap>
+          <TextField
+            label='Transfer Ticks Offset'
+            size='small'
+            value={offsetText}
+            onChange={(e) => changeOffset(e.target.value)}
+            onBlur={() => !offsetValid && setOffsetText(String(tickOffset))}
+            error={!offsetValid}
+            helperText={
+              !offsetValid
+                ? `1–${MAX_TICK_OFFSET} ticks`
+                : offsetNum === DEFAULT_TICK_OFFSET
+                ? 'Default'
+                : `Default is ${DEFAULT_TICK_OFFSET}`
+            }
+            inputProps={{ maxLength: 4, inputMode: 'numeric' }}
+            sx={{ width: 200 }}
+          />
+          {tickOffset !== DEFAULT_TICK_OFFSET && (
+            <Button size='small' onClick={() => onTickOffsetChange(DEFAULT_TICK_OFFSET)} sx={{ height: 40 }}>
+              Reset to default
+            </Button>
+          )}
+        </Stack>
+      </Section>
+
+      <Section grow title='Display' description='Fiat values are indicative only, from the CoinGecko public price feed.'>
+        <Stack direction='row' spacing={2} alignItems='center' flexWrap='wrap' useFlexGap>
+          <FormControl size='small' sx={{ minWidth: 160 }}>
+            <InputLabel id='currency-label'>Fiat currency</InputLabel>
+            <Select
+              labelId='currency-label'
+              label='Fiat currency'
+              value={currency}
+              onChange={(e) => onCurrencyChange(e.target.value)}
+              renderValue={(c) => currencyLabel(c)}
+            >
+              {CURRENCIES.map((c) => (
+                <MenuItem key={c} value={c}>
+                  {currencyLabel(c)}
+                  {currencyLabel(c) !== c && (
+                    <Box component='span' sx={{ ml: 1, color: 'text.secondary' }}>{c}</Box>
+                  )}
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+          {priceStatus === 'ok' && price > 0 ? (
+            <Typography variant='body2' color='text.secondary'>
+              1,000,000 QU {formatFiat(1000000, price, currency)}
+            </Typography>
+          ) : priceStatus === 'error' ? (
+            <Typography variant='body2' sx={{ color: 'warning.main' }}>
+              Price feed unreachable — fiat values are hidden until it answers.
+            </Typography>
+          ) : (
+            <Typography variant='body2' color='text.secondary'>
+              Fetching price…
+            </Typography>
+          )}
+        </Stack>
+      </Section>
+      </Box>
+
+      <Box>
+      <Section
+        title='Address book'
+        description='Recipients you send to often. Names are stored in this app only and never leave your machine.'
+      >
+        <AddressBook entries={addressBook} onChange={onAddressBookChange} identities={identities} labels={labels} />
       </Section>
 
       <Section
+        grow
         title='Peer limits'
         description='Rubic keeps at least the minimum and at most the maximum number of peers connected. Changes apply after you save.'
       >
-        <Stack direction='row' spacing={2} alignItems='flex-start'>
+        <Stack direction='row' spacing={2} alignItems='flex-start' flexWrap='wrap' useFlexGap>
           <TextField
             label='Min peers'
             size='small'
@@ -255,7 +355,7 @@ export default function SettingsPanel({
             onChange={(e) => digitsOnly(e.target.value) && setMin(e.target.value)}
             error={!minValid || !ordered}
             helperText={!minValid ? '1–255' : !ordered ? 'Must be ≤ max' : ' '}
-            sx={{ width: 140 }}
+            sx={{ width: 120 }}
           />
           <TextField
             label='Max peers'
@@ -264,7 +364,7 @@ export default function SettingsPanel({
             onChange={(e) => digitsOnly(e.target.value) && setMax(e.target.value)}
             error={!maxValid}
             helperText={!maxValid ? '1–255' : ' '}
-            sx={{ width: 140 }}
+            sx={{ width: 120 }}
           />
           <Button
             variant='contained'
@@ -277,14 +377,9 @@ export default function SettingsPanel({
           </Button>
         </Stack>
       </Section>
+      </Box>
 
-      <Section
-        title='Address book'
-        description='Recipients you send to often. Names are stored in this app only and never leave your machine.'
-      >
-        <AddressBook entries={addressBook} onChange={onAddressBookChange} identities={identities} labels={labels} />
-      </Section>
-
+      <Box>
       <Section
         danger
         title='Danger zone'
@@ -326,7 +421,7 @@ export default function SettingsPanel({
         </Stack>
       </Section>
 
-      <Section title='About'>
+      <Section grow title='About'>
         <Stack spacing={0.5}>
           <Typography variant='body2'>
             Rubic UI <b>v{pkg.version}</b>
@@ -340,6 +435,7 @@ export default function SettingsPanel({
           </Typography>
         </Stack>
       </Section>
+      </Box>
     </Box>
   );
 }

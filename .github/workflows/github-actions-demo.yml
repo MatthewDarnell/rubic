@@ -4,10 +4,6 @@ on:
   push:
     branches:
       - main
-      - develop
-  pull_request:
-    branches:
-      - main
 env:
   CARGO_TERM_COLOR: always
 jobs:
@@ -72,6 +68,9 @@ jobs:
           path: src-tauri/target/release/bundle/macos/Rubic-macos.zip
       - run: echo "🍏 This job's status is ${{ job.status }}."
   windows:
+      # Downloads the Linux and macOS artifacts and publishes the release, so it
+      # must wait for those builds to finish.
+      needs: [linux, mac]
       permissions:
         contents: write
       runs-on: windows-latest

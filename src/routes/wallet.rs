@@ -1,7 +1,24 @@
-use rocket::get;
+use rocket::{get, post};
+use rocket::serde::{Deserialize, json::Json};
 use logger::{debug, error, info};
 use store;
 use crate::routes::MINPASSWORDLEN;
+
+/// JSON body carrying just the master password (never in the URL).
+#[derive(Deserialize)]
+#[serde(crate = "rocket::serde")]
+pub struct PasswordRequest {
+    #[serde(default)]
+    pub password: String,
+}
+
+/// Body of `POST /wallet/unlock`.
+#[derive(Deserialize)]
+#[serde(crate = "rocket::serde")]
+pub struct UnlockRequest {
+    pub password: String,
+    pub timeout_ms: u64,
+}
 
 #[get("/wallet/is_encrypted")]
 pub fn is_wallet_encrypted() -> String {
@@ -25,8 +42,10 @@ pub fn is_unlocked() -> String {
     }
 }
 
-#[get("/wallet/unlock/<password>/<timeout_ms>")]
-pub fn unlock(password: String, timeout_ms: u64) -> String {
+// POST /wallet/unlock  {"password": "...", "timeout_ms": 60000}
+#[post("/wallet/unlock", format = "json", data = "<body>")]
+pub fn unlock(body: Json<UnlockRequest>) -> String {
+    let UnlockRequest { password, timeout_ms } = body.into_inner();
     if password.len() < MINPASSWORDLEN {
         return "Password Too Short!".to_string();
     } else if password.len() > 64 {
@@ -44,8 +63,10 @@ pub fn unlock(password: String, timeout_ms: u64) -> String {
     }
 }
 
-#[get("/wallet/set_master_password/<password>")]
-pub fn set_master_password(password: &str) -> String {
+// POST /wallet/set_master_password  {"password": "..."}
+#[post("/wallet/set_master_password", format = "json", data = "<body>")]
+pub fn set_master_password(body: Json<PasswordRequest>) -> String {
+    let password: &str = body.password.as_str();
     if password.len() < MINPASSWORDLEN {
         return format!("Password Too Short!");
     }
@@ -72,8 +93,10 @@ pub fn set_master_password(password: &str) -> String {
     }
 }
 
-#[get("/wallet/encrypt/<password>")]
-pub fn encrypt_wallet(password: &str) -> String {
+// POST /wallet/encrypt  {"password": "..."}
+#[post("/wallet/encrypt", format = "json", data = "<body>")]
+pub fn encrypt_wallet(body: Json<PasswordRequest>) -> String {
+    let password: &str = body.password.as_str();
     match store::sqlite::master_password::get_master_password(store::get_db_path().as_str()) {
         Ok(pass) => {
             if pass.len() == 0 {
@@ -122,8 +145,10 @@ pub fn encrypt_wallet(password: &str) -> String {
     }
 }
 
-#[get("/wallet/download/<password>")]
-pub fn download_wallet(password: &str) -> String {
+// POST /wallet/download  {"password": "..."}  — an empty/short password dumps seeds still encrypted
+#[post("/wallet/download", format = "json", data = "<body>")]
+pub fn download_wallet(body: Json<PasswordRequest>) -> String {
+    let password: &str = body.password.as_str();
     let mut ret_val: String = String::from("");
     match store::sqlite::identity::fetch_all_identities_full(store::get_db_path().as_str()) {
         Ok(mut identities) => {

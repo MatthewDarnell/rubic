@@ -122,7 +122,8 @@ async fn main() {
       .merge(("address", host.as_str()));
   rocket::custom(figment)
       .mount("/", routes![
-        
+        routes::cors_preflight,
+
         routes::asset::all_asset_balances,
         routes::asset::balance,
         routes::asset::fetch_transfers,
@@ -131,7 +132,6 @@ async fn main() {
 
         routes::identity::balance,
         routes::identity::add_identity,
-        routes::identity::add_identity_with_password,
         routes::identity::create_random_identity,
         routes::identity::delete_identity,
         routes::identity::get_identities,

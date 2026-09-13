@@ -68,14 +68,21 @@ const relative = (created) => {
   return `${d} d ago`;
 };
 
-const dayKey = (created) => parseCreated(created).toISOString().slice(0, 10);
+// Group by the user's local calendar day (timestamps are stored in UTC, so a
+// UTC day boundary would put an evening transaction under "tomorrow").
+const localDayKey = (date) =>
+  `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+const dayKey = (created) => localDayKey(parseCreated(created));
 const dayLabel = (key) => {
-  const today = new Date().toISOString().slice(0, 10);
-  const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
-  if (key === today) return 'Today';
-  if (key === yesterday) return 'Yesterday';
-  return new Date(key + 'T00:00:00Z').toLocaleDateString(undefined, { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' });
+  const now = new Date();
+  const yesterday = new Date(now);
+  yesterday.setDate(now.getDate() - 1);
+  if (key === localDayKey(now)) return 'Today';
+  if (key === localDayKey(yesterday)) return 'Yesterday';
+  const [y, m, d] = key.split('-').map(Number);
+  return new Date(y, m - 1, d).toLocaleDateString(undefined, { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' });
 };
+const localTime = (created) => parseCreated(created).toLocaleString();
 
 export const normalizeActivity = ({ transfers, assetTransfers, qxOrders, ownIds, assetsNIssuer }) => {
   const taken = new Set([...assetTransfers, ...qxOrders].map((t) => t.txid).filter(Boolean));
@@ -202,7 +209,7 @@ const TxDetailDialog = ({ item, labels, latestTick, note, onSaveNote, onRetry, o
         </Box>
         <Box sx={{ flex: 1, minWidth: 0 }}>
           <Typography variant='h6' sx={{ lineHeight: 1.2 }}>{item.title}</Typography>
-          <Typography variant='caption' color='text.secondary'>{item.created} UTC</Typography>
+          <Typography variant='caption' color='text.secondary'>{localTime(item.created)}</Typography>
         </Box>
         <TxStatusChip status={item.status} tick={item.tick} latestTick={latestTick} />
       </DialogTitle>
@@ -233,7 +240,7 @@ const TxDetailDialog = ({ item, labels, latestTick, note, onSaveNote, onRetry, o
                 </Typography>
               )}
               {state === 'failed' && item.status === '-1' && (
-                <Typography variant='caption' sx={{ color: 'error.main' }}>tick passed without confirmation</Typography>
+                <Typography variant='caption' sx={{ color: 'error.main' }}>Failed to Confirm</Typography>
               )}
             </Box>
           ) : (
@@ -331,7 +338,7 @@ const ActivityRow = ({ item, labels, latestTick, note, onRetry, onOpen }) => {
           )}
         </Typography>
         <Typography variant='caption' color='text.secondary' sx={{ display: 'flex', gap: 1.5, alignItems: 'center', flexWrap: 'wrap' }}>
-          <Tooltip title={item.created + ' UTC'}>
+          <Tooltip title={`${localTime(item.created)} (${item.created} UTC)`}>
             <span>{relative(item.created)}</span>
           </Tooltip>
           {item.txid && (
@@ -347,7 +354,7 @@ const ActivityRow = ({ item, labels, latestTick, note, onRetry, onOpen }) => {
           )}
           {state === 'failed' && item.status === '-1' && (
             <Box component='span' sx={{ color: 'error.main' }}>
-              tick passed without confirmation
+              Failed to Confirm
             </Box>
           )}
           {note && (
@@ -508,8 +515,8 @@ export default function ActivityPanel({
   );
 
   return (
-    <Box>
-      <Stack direction='row' spacing={2} alignItems='center' flexWrap='wrap' useFlexGap sx={{ mb: 2 }}>
+    <Box sx={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+      <Stack direction='row' spacing={2} alignItems='center' flexWrap='wrap' useFlexGap sx={{ mb: 2, flexShrink: 0 }}>
         <Stack direction='row' spacing={1}>
           {KINDS.map((k) => (
             <Chip
@@ -564,6 +571,8 @@ export default function ActivityPanel({
       </Stack>
       <TimeFilterChips value={minutes} onChange={setMinutes} />
 
+      {/* Filters stay put; the timeline scrolls on its own. */}
+      <Box sx={{ flex: 1, minHeight: 0, overflow: 'auto', pr: 0.5 }}>
       {loading && (
         <Paper variant='outlined' sx={{ p: 2 }}>
           {[0, 1, 2, 3].map((i) => (
@@ -597,6 +606,7 @@ export default function ActivityPanel({
         .map((key) => (
           <Group key={key} title={dayLabel(key)} list={groups[key]} />
         ))}
+      </Box>
 
       <TxDetailDialog
         item={detail}

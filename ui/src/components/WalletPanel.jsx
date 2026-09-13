@@ -36,7 +36,7 @@ import DriveFileRenameOutlineIcon from '@mui/icons-material/DriveFileRenameOutli
 import MoreVertIcon from '@mui/icons-material/MoreVert';
 import SearchIcon from '@mui/icons-material/Search';
 import WalletIcon from '@mui/icons-material/Wallet';
-import { apiCall } from '../api';
+import { apiPost } from '../api';
 import { useToast } from './ToastProvider';
 import IdText from './IdText';
 import Identicon from './Identicon';
@@ -64,7 +64,7 @@ const AddIdentity = ({ allowNonEncrypted, onAction, seedInputRef }) => {
     }
     let cancelled = false;
     const timer = setTimeout(async () => {
-      const res = await apiCall(`identity/from_seed/${seed}`);
+      const res = await apiPost('identity/from_seed', { seed });
       if (cancelled) return;
       const ok = res.success && res.data && res.data !== INVALID_SEED_ID;
       setDerived(ok ? { id: res.data } : { invalid: true });
@@ -80,10 +80,11 @@ const AddIdentity = ({ allowNonEncrypted, onAction, seedInputRef }) => {
     setDerived(null);
   };
 
-  const plain = async (path, successMessage) => {
+  // Stores a seed without encryption: same routes as the encrypted path, no password.
+  const plain = async (query, body, successMessage) => {
     setBusy(true);
     try {
-      const res = await apiCall(path);
+      const res = await apiPost(query, body);
       if (res.success && String(res.data) === '200') {
         toast.success(successMessage);
         reset();
@@ -96,7 +97,7 @@ const AddIdentity = ({ allowNonEncrypted, onAction, seedInputRef }) => {
   const canImport = seedValid && derived?.id && !busy;
 
   return (
-    <Stack direction='row' spacing={2} sx={{ mb: 3 }} flexWrap='wrap' useFlexGap>
+    <Stack direction='row' spacing={2} sx={{ mb: 3, flexShrink: 0 }} flexWrap='wrap' useFlexGap>
       <Paper variant='outlined' sx={{ p: 2, flex: '1 1 300px', display: 'flex', flexDirection: 'column' }}>
         <Typography variant='subtitle1' sx={{ fontWeight: 600 }}>
           Create a new identity
@@ -114,7 +115,7 @@ const AddIdentity = ({ allowNonEncrypted, onAction, seedInputRef }) => {
               color='warning'
               startIcon={<LockOpenIcon />}
               disabled={busy}
-              onClick={() => plain('identity/new/0', 'Identity created — seed stored without encryption')}
+              onClick={() => plain('identity/new', {}, 'Identity created — seed stored without encryption')}
             >
               Create without encryption
             </Button>
@@ -193,7 +194,7 @@ const AddIdentity = ({ allowNonEncrypted, onAction, seedInputRef }) => {
               color='warning'
               startIcon={<LockOpenIcon />}
               disabled={!canImport}
-              onClick={() => plain(`identity/add/${seed}`, 'Identity imported — seed stored without encryption')}
+              onClick={() => plain('identity/add', { seed }, 'Identity imported — seed stored without encryption')}
             >
               Import without encryption
             </Button>
@@ -382,7 +383,7 @@ export default function WalletPanel({
   if (totals.stale > 0) summaryParts.push(`${totals.stale} showing last known balance`);
 
   return (
-    <Box>
+    <Box sx={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
       <AddIdentity allowNonEncrypted={allowNonEncrypted} onAction={onAction} seedInputRef={seedInputRef} />
 
       {loading ? (
@@ -391,7 +392,7 @@ export default function WalletPanel({
         <EmptyState onCreate={() => onAction('identity/new/')} onImport={focusImport} />
       ) : (
         <>
-          <Stack direction='row' spacing={2} alignItems='center' sx={{ mb: 1.5 }}>
+          <Stack direction='row' spacing={2} alignItems='center' sx={{ mb: 1.5, flexShrink: 0 }}>
             <TextField
               size='small'
               placeholder='Filter by ID or nickname  ( / )'
@@ -414,8 +415,10 @@ export default function WalletPanel({
             </Typography>
           </Stack>
 
-          <TableContainer component={Paper} variant='outlined'>
-            <Table size='small'>
+          {/* The list scrolls inside the card; header and Total stay in view. */}
+          <Paper variant='outlined' sx={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+          <TableContainer sx={{ flex: 1, minHeight: 0, overflow: 'auto' }}>
+            <Table size='small' stickyHeader>
               <TableHead>
                 <TableRow>
                   <TableCell sx={{ width: 56 }} />
@@ -522,21 +525,27 @@ export default function WalletPanel({
                   );
                 })}
               </TableBody>
-              <TableBody>
-                <TableRow>
-                  <TableCell colSpan={3} sx={{ fontWeight: 600, borderBottom: 0 }}>
-                    Total
-                  </TableCell>
-                  <TableCell align='right' sx={{ borderBottom: 0 }}>
-                    <Box sx={{ display: 'flex', justifyContent: 'flex-end' }}>
-                      <BalanceCell balance={String(totals.sum)} price={price} currency={currency} />
-                    </Box>
-                  </TableCell>
-                  <TableCell sx={{ borderBottom: 0 }} />
-                </TableRow>
-              </TableBody>
             </Table>
           </TableContainer>
+          <Box
+            sx={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              px: 2,
+              py: 1,
+              borderTop: 1,
+              borderColor: 'divider',
+              bgcolor: 'background.paper',
+              flexShrink: 0,
+            }}
+          >
+            <Typography sx={{ fontWeight: 600 }}>Total</Typography>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, pr: 12.5 }}>
+              <BalanceCell balance={String(totals.sum)} price={price} currency={currency} />
+            </Box>
+          </Box>
+          </Paper>
         </>
       )}
 

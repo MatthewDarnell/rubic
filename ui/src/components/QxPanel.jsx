@@ -29,19 +29,20 @@ import Identicon from './Identicon';
 import DepthChart from './DepthChart';
 import { digitsOnly, formatNumber, shortenId } from '../utils/format';
 
-const LADDER_HEIGHT = 240;
 const CHART_LEVELS = 40; // price levels per side shown in the depth chart
+const SIDE_WIDTH = 380; // depth chart + open orders column
 
 const toNum = (v) => Number(v) || 0;
 
 // Rows of one side of the book. Each row carries a background bar proportional
-// to cumulative depth, like a classic exchange ladder.
+// to cumulative depth, like a classic exchange ladder. Each side takes half of
+// the book's height and scrolls on its own.
 const Ladder = ({ side, orders, ownId, busy, onCancel, onFill, containerRef, emptyText }) => {
   const theme = useTheme();
   const color = side === 'ASK' ? theme.palette.error.main : theme.palette.success.main;
   const maxCum = orders.length ? Math.max(...orders.map((o) => o.cumulative)) : 1;
   return (
-    <TableContainer ref={containerRef} sx={{ maxHeight: LADDER_HEIGHT, overflow: 'auto' }}>
+    <TableContainer ref={containerRef} sx={{ flex: '1 1 0', minHeight: 0, overflow: 'auto' }}>
       <Table size='small' stickyHeader sx={{ '& td, & th': { py: 0.4 } }}>
         <TableHead>
           <TableRow>
@@ -106,36 +107,38 @@ const Ladder = ({ side, orders, ownId, busy, onCancel, onFill, containerRef, emp
 };
 
 const OpenOrders = ({ orders, labels, busy, onCancel }) => (
-  <Paper variant='outlined' sx={{ mb: 3, overflow: 'hidden' }}>
-    <Box sx={{ px: 2, py: 1, display: 'flex', alignItems: 'center', gap: 1.5 }}>
+  <Paper variant='outlined' sx={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+    <Box sx={{ px: 2, py: 1, display: 'flex', alignItems: 'center', gap: 1.5, flexShrink: 0 }}>
       <Typography variant='subtitle2' sx={{ fontWeight: 600 }}>
         My open orders
       </Typography>
       <Chip size='small' label={orders.length} />
     </Box>
-    <TableContainer sx={{ borderTop: 1, borderColor: 'divider', maxHeight: 220, overflow: 'auto' }}>
+    <TableContainer sx={{ borderTop: 1, borderColor: 'divider', flex: 1, minHeight: 0, overflow: 'auto' }}>
       <Table size='small' stickyHeader>
         <TableHead>
           <TableRow>
             <TableCell>Asset</TableCell>
             <TableCell>Side</TableCell>
-            <TableCell align='right'>Price (QU)</TableCell>
+            <TableCell align='right'>Price</TableCell>
             <TableCell align='right'>Shares</TableCell>
-            <TableCell align='right'>Total (QU)</TableCell>
-            <TableCell>Identity</TableCell>
             <TableCell sx={{ width: 40 }} />
           </TableRow>
         </TableHead>
         <TableBody>
           {orders.length === 0 && (
             <TableRow>
-              <TableCell colSpan={7} align='center' sx={{ py: 2.5, color: 'text.secondary' }}>
+              <TableCell colSpan={5} align='center' sx={{ py: 2.5, color: 'text.secondary' }}>
                 You have no resting orders on QX.
               </TableCell>
             </TableRow>
           )}
           {orders.map((o, index) => (
-            <TableRow key={`${o.asset}-${o.side}-${o.entity}-${o.price}-${index}`} hover>
+            <TableRow
+              key={`${o.asset}-${o.side}-${o.entity}-${o.price}-${index}`}
+              hover
+              title={`${labels?.[o.entity] ? `${labels[o.entity]} · ` : ''}${o.entity} · total ${formatNumber(Number(o.price) * Number(o.num_shares))} QU`}
+            >
               <TableCell sx={{ fontWeight: 600 }}>{o.asset}</TableCell>
               <TableCell>
                 <Chip
@@ -147,18 +150,6 @@ const OpenOrders = ({ orders, labels, busy, onCancel }) => (
               </TableCell>
               <TableCell align='right' className='mono'>{formatNumber(o.price)}</TableCell>
               <TableCell align='right' className='mono'>{formatNumber(o.num_shares)}</TableCell>
-              <TableCell align='right' className='mono' sx={{ color: 'text.secondary' }}>
-                {formatNumber(Number(o.price) * Number(o.num_shares))}
-              </TableCell>
-              <TableCell>
-                {labels?.[o.entity] ? (
-                  <Tooltip title={o.entity}>
-                    <Typography variant='body2' sx={{ fontWeight: 600 }}>{labels[o.entity]}</Typography>
-                  </Tooltip>
-                ) : (
-                  <IdText id={o.entity} head={6} tail={6} />
-                )}
-              </TableCell>
               <TableCell>
                 <Tooltip title='Cancel order'>
                   <span>
@@ -186,6 +177,7 @@ export default function QxPanel({
   onSelectId,
   askOrders,
   bidOrders,
+  bookLoading,
   openOrders,
   busy,
   onAction,
@@ -325,10 +317,11 @@ export default function QxPanel({
     });
 
   return (
-    <Box>
-      <Paper variant='outlined' sx={{ p: 2, mb: 3 }}>
-        <Stack direction='row' spacing={2} flexWrap='wrap' useFlexGap alignItems='flex-start'>
-          <FormControl size='small' sx={{ minWidth: 260, flex: 2 }}>
+    <Box sx={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+      {/* One-line order ticket: nothing wraps, so the book below gets the rest of the window. */}
+      <Paper variant='outlined' sx={{ px: 2, py: 1.5, mb: 2, flexShrink: 0 }}>
+        <Stack direction='row' spacing={1.5} alignItems='center' useFlexGap>
+          <FormControl size='small' sx={{ minWidth: 220, flex: 1 }}>
             <InputLabel id='qx-id-label'>Identity</InputLabel>
             <Select
               labelId='qx-id-label'
@@ -340,7 +333,7 @@ export default function QxPanel({
                 <MenuItem key={item.id} value={item.id}>
                   <Identicon id={item.id} size={18} sx={{ mr: 1 }} />
                   {labels?.[item.id] && <Box component='span' sx={{ fontWeight: 600, mr: 1 }}>{labels[item.id]}</Box>}
-                  <Box component='span' sx={{ fontFamily: 'monospace' }}>{shortenId(item.id, 8, 8)}</Box>
+                  <Box component='span' sx={{ fontFamily: 'monospace' }}>{shortenId(item.id, 6, 6)}</Box>
                   <Box component='span' sx={{ ml: 1, color: 'text.secondary' }}>
                     {formatNumber(item.balance)} QU
                   </Box>
@@ -348,7 +341,7 @@ export default function QxPanel({
               ))}
             </Select>
           </FormControl>
-          <FormControl size='small' sx={{ minWidth: 160, flex: 1 }}>
+          <FormControl size='small' sx={{ width: 150, flexShrink: 0 }}>
             <InputLabel id='qx-asset-label'>Asset</InputLabel>
             <Select
               labelId='qx-asset-label'
@@ -361,58 +354,61 @@ export default function QxPanel({
               ))}
             </Select>
           </FormControl>
-          <TextField
-            label='Shares'
-            size='small'
-            value={amount}
-            onChange={(e) => digitsOnly(e.target.value) && setAmount(e.target.value)}
-            helperText={amount ? formatNumber(amount) : ' '}
-            sx={{ width: 160 }}
-          />
-          <TextField
-            label='Price (QU)'
-            size='small'
-            value={price}
-            onChange={(e) => digitsOnly(e.target.value) && setPrice(e.target.value)}
-            helperText={price ? formatNumber(price) : ' '}
-            sx={{ width: 180 }}
-          />
-          <Box sx={{ alignSelf: 'center', minWidth: 160 }}>
-            <Typography variant='body2' color='text.secondary'>Total</Typography>
-            <Typography sx={{ fontWeight: 600 }}>{formatNumber(total)} QU</Typography>
+          <Tooltip title={amount ? formatNumber(amount) : ''} placement='top'>
+            <TextField
+              label='Shares'
+              size='small'
+              value={amount}
+              onChange={(e) => digitsOnly(e.target.value) && setAmount(e.target.value)}
+              sx={{ width: 130, flexShrink: 0 }}
+            />
+          </Tooltip>
+          <Tooltip title={price ? formatNumber(price) : ''} placement='top'>
+            <TextField
+              label='Price (QU)'
+              size='small'
+              value={price}
+              onChange={(e) => digitsOnly(e.target.value) && setPrice(e.target.value)}
+              sx={{ width: 150, flexShrink: 0 }}
+            />
+          </Tooltip>
+          <Box sx={{ flexShrink: 0, minWidth: 100, lineHeight: 1.1 }}>
+            <Typography variant='caption' color='text.secondary' sx={{ display: 'block' }}>Total</Typography>
+            <Typography variant='body2' sx={{ fontWeight: 600, whiteSpace: 'nowrap' }}>{formatNumber(total)} QU</Typography>
           </Box>
-          <Button
-            variant='contained'
-            disabled={!valid || busy}
-            startIcon={<ShoppingCartIcon />}
-            onClick={() => place('BID')}
-            sx={{ height: 40 }}
-          >
-            Buy
-          </Button>
-          <Button
-            variant='contained'
-            color='secondary'
-            disabled={!valid || busy}
-            startIcon={<SellIcon />}
-            onClick={() => place('ASK')}
-            sx={{ height: 40 }}
-          >
-            Sell
-          </Button>
+          <Tooltip title={busy ? 'An order is waiting for its tick — new orders are enabled once it lands.' : ''}>
+            <Stack direction='row' spacing={1} sx={{ flexShrink: 0 }}>
+              <Button
+                variant='contained'
+                disabled={!valid || busy}
+                startIcon={<ShoppingCartIcon />}
+                onClick={() => place('BID')}
+                sx={{ height: 40 }}
+              >
+                Buy
+              </Button>
+              <Button
+                variant='contained'
+                color='secondary'
+                disabled={!valid || busy}
+                startIcon={<SellIcon />}
+                onClick={() => place('ASK')}
+                sx={{ height: 40 }}
+              >
+                Sell
+              </Button>
+            </Stack>
+          </Tooltip>
         </Stack>
-        {busy && (
-          <Typography variant='body2' color='text.secondary' sx={{ mt: 1 }}>
-            An order is waiting for its tick — new orders are enabled once it lands.
-          </Typography>
-        )}
       </Paper>
 
-      <OpenOrders orders={openOrders} labels={labels} busy={busy} onCancel={cancelOpen} />
-
-      <Stack direction='row' spacing={2} alignItems='stretch' flexWrap='wrap' useFlexGap>
-        <Paper variant='outlined' sx={{ flex: '1 1 560px', minWidth: 0, overflow: 'hidden' }}>
-          <Box sx={{ px: 2, py: 1, display: 'flex', alignItems: 'center', gap: 2 }}>
+      {/* Book on the left fills the height; depth chart and open orders share the right column. */}
+      <Stack direction='row' spacing={2} sx={{ flex: 1, minHeight: 0 }}>
+        <Paper
+          variant='outlined'
+          sx={{ flex: 1, minWidth: 0, minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}
+        >
+          <Box sx={{ px: 2, py: 1, display: 'flex', alignItems: 'center', gap: 2, flexShrink: 0 }}>
             <Typography variant='subtitle2' sx={{ fontWeight: 600 }}>
               Order book{selectedAsset ? ` · ${selectedAsset}` : ''}
             </Typography>
@@ -421,7 +417,7 @@ export default function QxPanel({
             </Typography>
           </Box>
 
-          <Box sx={{ borderTop: 1, borderColor: 'divider' }}>
+          <Box sx={{ borderTop: 1, borderColor: 'divider', flex: '1 1 0', minHeight: 0, display: 'flex', flexDirection: 'column' }}>
             <Ladder
               side='ASK'
               orders={book.asks}
@@ -430,7 +426,7 @@ export default function QxPanel({
               onCancel={cancel}
               onFill={fillFromLadder}
               containerRef={asksRef}
-              emptyText='No sell orders.'
+              emptyText={bookLoading ? 'Loading order book…' : 'No sell orders.'}
             />
           </Box>
 
@@ -445,6 +441,7 @@ export default function QxPanel({
               borderBottom: 1,
               borderColor: 'divider',
               bgcolor: 'action.hover',
+              flexShrink: 0,
             }}
           >
             <Typography variant='body2' sx={{ display: 'flex', gap: 2 }}>
@@ -476,23 +473,28 @@ export default function QxPanel({
             </Typography>
           </Box>
 
-          <Ladder
-            side='BID'
-            orders={book.bids}
-            ownId={selectedId}
-            busy={busy}
-            onCancel={cancel}
-            onFill={fillFromLadder}
-            emptyText='No buy orders.'
-          />
+          <Box sx={{ flex: '1 1 0', minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+            <Ladder
+              side='BID'
+              orders={book.bids}
+              ownId={selectedId}
+              busy={busy}
+              onCancel={cancel}
+              onFill={fillFromLadder}
+              emptyText={bookLoading ? 'Loading order book…' : 'No buy orders.'}
+            />
+          </Box>
         </Paper>
 
-        <Paper variant='outlined' sx={{ flex: '0 0 auto', p: 1.5 }}>
-          <Typography variant='subtitle2' sx={{ fontWeight: 600, mb: 1 }}>
-            Depth
-          </Typography>
-          <DepthChart bids={book.bidLevels} asks={book.askLevels} asset={selectedAsset || ''} width={380} height={440} />
-        </Paper>
+        <Box sx={{ width: SIDE_WIDTH, flexShrink: 0, minHeight: 0, display: 'flex', flexDirection: 'column', gap: 2 }}>
+          <Paper variant='outlined' sx={{ p: 1.5, flexShrink: 0 }}>
+            <Typography variant='subtitle2' sx={{ fontWeight: 600, mb: 1 }}>
+              Depth
+            </Typography>
+            <DepthChart bids={book.bidLevels} asks={book.askLevels} asset={selectedAsset || ''} width={SIDE_WIDTH - 24} height={200} />
+          </Paper>
+          <OpenOrders orders={openOrders} labels={labels} busy={busy} onCancel={cancelOpen} />
+        </Box>
       </Stack>
     </Box>
   );

@@ -59,17 +59,23 @@ export const upperOnly = (value) => /^[A-Z]*$/.test(value);
 
 export const EXPLORER = 'https://explorer.qubic.org/network';
 
-export const CURRENCIES = ['USD', 'EUR', 'GBP', 'CHF', 'JPY', 'AUD', 'CAD'];
+// ISO codes: used both for Intl formatting and (lower-cased) as the CoinGecko vs_currency.
+export const CURRENCIES = ['USD', 'EUR', 'GBP', 'CHF', 'JPY', 'CNY', 'AUD', 'CAD'];
+// Display names where the everyday name differs from the ISO code.
+export const CURRENCY_LABELS = { CNY: 'RMB' };
+export const currencyLabel = (code) => CURRENCY_LABELS[code] || code;
 
 // price = fiat per QU in `currency`. Returns null when no price is known.
 export const formatFiat = (qu, price, currency = 'USD', { approx = true } = {}) => {
   if (!price || !isNumeric(qu)) return null;
   const value = Number(qu) * price;
+  // A single QU is worth a fraction of a cent: below 0.01 show significant
+  // digits instead of rounding everything small to 0.00.
+  const tiny = value > 0 && value < 0.01;
   const text = new Intl.NumberFormat('en-US', {
     style: 'currency',
     currency,
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
+    ...(tiny ? { maximumSignificantDigits: 2 } : { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
   }).format(value);
   return approx ? `≈ ${text}` : text;
 };
