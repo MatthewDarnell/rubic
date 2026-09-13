@@ -134,11 +134,14 @@ async fn main() {
                 }
             }
 
-            async fn on_response<'r>(&self, _request: &'r Request<'_>, response: &mut Response<'r>) {
-                response.set_header(Header::new("Access-Control-Allow-Origin", "*"));
-                response.set_header(Header::new("Access-Control-Allow-Methods", "POST, GET, PATCH, OPTIONS"));
-                response.set_header(Header::new("Access-Control-Allow-Headers", "*"));
-                response.set_header(Header::new("Access-Control-Allow-Credentials", "true"));
+            async fn on_response<'r>(&self, request: &'r Request<'_>, response: &mut Response<'r>) {
+                // Only the app's own origins are allowed; see rubic::routes::ALLOWED_ORIGINS.
+                if let Some(origin) = rubic::routes::cors_allowed_origin(request.headers().get_one("Origin")) {
+                    response.set_header(Header::new("Access-Control-Allow-Origin", origin));
+                    response.set_header(Header::new("Vary", "Origin"));
+                    response.set_header(Header::new("Access-Control-Allow-Methods", "POST, GET, OPTIONS"));
+                    response.set_header(Header::new("Access-Control-Allow-Headers", "Content-Type"));
+                }
             }
         }
 
@@ -166,6 +169,8 @@ async fn main() {
 
         rubic::routes::info::info,
         rubic::routes::info::latest_tick,
+        rubic::routes::info::health,
+        rubic::routes::qx::book_age,
 
         rubic::routes::peer::peers,
         rubic::routes::peer::add_peer,

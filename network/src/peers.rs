@@ -37,6 +37,21 @@ pub const MAX_REQUEST_BACKLOG: usize = 64;
 /// asset) yields to balances and everything else.
 pub const LOW_PRIORITY_BACKLOG: usize = 8;
 
+/// Process-wide view of the request queue, for the /health route (the PeerSet
+/// itself lives inside the peer-loop thread and is not reachable from routes).
+static GLOBAL_BACKLOG: AtomicUsize = AtomicUsize::new(0);
+static GLOBAL_TICK_BACKLOG: AtomicUsize = AtomicUsize::new(0);
+static GLOBAL_PEERS: AtomicUsize = AtomicUsize::new(0);
+
+/// `(queued requests, of which tick polls, connected peers)`.
+pub fn queue_stats() -> (usize, usize, usize) {
+    (
+        GLOBAL_BACKLOG.load(Ordering::Relaxed),
+        GLOBAL_TICK_BACKLOG.load(Ordering::Relaxed),
+        GLOBAL_PEERS.load(Ordering::Relaxed),
+    )
+}
+
 /// How eagerly a routine request is queued when the workers are behind.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum RequestPriority {
@@ -77,6 +92,12 @@ impl PeerSet {
     /// Number of queued requests no worker has started on yet.
     pub fn backlog(&self) -> usize {
         self.backlog.load(Ordering::Relaxed)
+    }
+    /// Copies the counters into the process-wide stats read by /health.
+    fn publish_stats(&self) {
+        GLOBAL_BACKLOG.store(self.backlog.load(Ordering::Relaxed), Ordering::Relaxed);
+        GLOBAL_TICK_BACKLOG.store(self.tick_backlog.load(Ordering::Relaxed), Ordering::Relaxed);
+        GLOBAL_PEERS.store(self.peers.len(), Ordering::Relaxed);
     }
     /// Queued requests other than the constant current-tick polls: what the
     /// low-priority sweeps have to wait behind.
@@ -238,6 +259,7 @@ impl PeerSet {
     fn make_request_with_priority(&mut self, mut request: QubicApiPacket, priority: RequestPriority) -> Result<(), String> {
         // Evict anything the workers have flagged dead first; no database round trips here.
         self.prune_disconnected();
+        self.publish_stats();
         if self.peers.is_empty() {
             return Err("Cannot send request, 0 peers! Add some!".to_string())
         }

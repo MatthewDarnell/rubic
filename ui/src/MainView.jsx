@@ -39,6 +39,8 @@ const DEFAULT_TICK_OFFSET = 30;
 const UNLOCK_CHECK_INTERVAL = 5000;
 const OPEN_ORDERS_INTERVAL = 5000; // poll of the server's QX-reported open orders
 const BOOK_VIEW_INTERVAL = 2000; // refresh of the order book on screen in QX Exchange
+const HEALTH_INTERVAL = 5000;
+const MIN_PEERS_FOR_SENDING = 3;
 const ASSETS_RETRY_INTERVAL = 5000; // while no issued assets are known yet
 const ASSETS_REFRESH_INTERVAL = 5 * 60 * 1000;
 
@@ -90,6 +92,8 @@ const MainView = () => {
   const [askOrders, setAskOrders] = useState([]);
   const [bidOrders, setBidOrders] = useState([]);
   const [bookAsset, setBookAsset] = useState(null); // asset the ask/bid arrays belong to
+  const [bookAge, setBookAge] = useState({ ask: null, bid: null }); // seconds since each side was last received
+  const [health, setHealth] = useState(null); // server request-queue health (see /health)
   const [selectedAsset, setSelectedAsset] = useState(null);
   const [selectedId, setSelectedId] = useState('');
 
@@ -320,16 +324,42 @@ const MainView = () => {
     if (nav !== 'exchange' || !selectedAsset) return undefined;
     let cancelled = false;
     let timer;
+    setBookAge({ ask: null, bid: null });
     const run = async () => {
-      await fetchOrderbook(selectedAsset, { interactive: true });
-      if (!cancelled) timer = setTimeout(run, BOOK_VIEW_INTERVAL);
+      const [, age] = await Promise.all([
+        fetchOrderbook(selectedAsset, { interactive: true }),
+        apiCall(`qx/book_age/${selectedAsset}`),
+      ]);
+      if (cancelled) return;
+      if (age.success && age.data && typeof age.data === 'object') {
+        setBookAge({ ask: age.data.ask ?? null, bid: age.data.bid ?? null });
+      }
+      timer = setTimeout(run, BOOK_VIEW_INTERVAL);
     };
-    timer = setTimeout(run, BOOK_VIEW_INTERVAL);
+    run();
     return () => {
       cancelled = true;
       clearTimeout(timer);
     };
   }, [nav, selectedAsset, fetchOrderbook]);
+
+  // Server health (request queue depth, peers) for the status pill's popover and
+  // the pre-send warnings.
+  useEffect(() => {
+    let cancelled = false;
+    let timer;
+    const run = async () => {
+      const res = await backgroundCall('health');
+      if (cancelled) return;
+      setHealth(res.success && res.data && typeof res.data === 'object' ? res.data : null);
+      timer = setTimeout(run, HEALTH_INTERVAL);
+    };
+    run();
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, []);
 
   // Open orders of our own identities, straight from the QX contract: the server
   // asks EntityAskOrders / EntityBidOrders for each identity every 10 s, so this
@@ -728,6 +758,26 @@ const MainView = () => {
     (t) => txState(t.status, t.tick, latestTick) === 'pending'
   );
   const pendingCount = pendingTxs.length;
+  // Things worth knowing before signing from `sourceId`; shown in the review /
+  // confirm step, never blocking.
+  const warningsFor = (sourceId) => {
+    const out = [];
+    const pendingFromSource = pendingTxs.filter((t) => t.source === sourceId).length;
+    if (pendingFromSource > 0) {
+      out.push(
+        `This identity already has ${pendingFromSource === 1 ? 'a transaction' : `${pendingFromSource} transactions`} waiting for its tick. A node keeps one pending transaction per identity, so sending now can replace the earlier one before it executes.`
+      );
+    }
+    if (connectedPeers < MIN_PEERS_FOR_SENDING) {
+      out.push(
+        `Only ${connectedPeers} peer${connectedPeers === 1 ? '' : 's'} connected. Transactions are broadcast to every connected peer; with few peers they may not reach the network in time.`
+      );
+    }
+    if (health && health.routine_limit && health.routine_backlog >= health.routine_limit / 2) {
+      out.push('The wallet is behind on peer requests right now; balances and confirmations may lag.');
+    }
+    return out;
+  };
   // The header pill counts down to the same tick Activity shows: the one stored
   // with the transaction. Until the first poll returns the new row, fall back to
   // the tick we asked for.
@@ -805,10 +855,13 @@ const MainView = () => {
         addressBook={addressBook}
         onAction={commitAction}
         requestConfirm={setConfirm}
+        warningsFor={warningsFor}
       />
     ),
     exchange: (
       <QxPanel
+        bookAge={bookAge}
+        warningsFor={warningsFor}
         identities={identities}
         labels={labels}
         openOrders={openOrders}
@@ -887,6 +940,8 @@ const MainView = () => {
           balanceStale={balanceStale}
           balanceStaleSince={balanceStaleSince}
           now={now}
+          health={health}
+          peers={peers}
         >
           {!connected && (
             <Alert severity='error' sx={{ mb: 2 }}>
@@ -954,6 +1009,7 @@ const MainView = () => {
         onAddressBookChange={setAddressBook}
         initialFrom={send.from}
         onAction={commitAction}
+        warningsFor={warningsFor}
       />
       <ConfirmDialog
         open={Boolean(confirm)}

@@ -69,11 +69,16 @@ const Ladder = ({ side, orders, ownId, busy, onCancel, onFill, containerRef, emp
                 key={`${o.entity}-${o.price}-${index}`}
                 hover
                 onClick={() => onFill?.(o)}
-                title={`Fill the form: ${formatNumber(o.cumulative)} shares at ${formatNumber(o.price)} QU`}
+                title={
+                  o.fromContract
+                    ? 'Your order, as reported by QX; the book snapshot has not caught up yet'
+                    : `Fill the form: ${formatNumber(o.cumulative)} shares at ${formatNumber(o.price)} QU`
+                }
                 sx={{
                   cursor: onFill ? 'pointer' : 'default',
                   background: `linear-gradient(to left, ${color}22 ${pct}%, transparent ${pct}%)`,
                   '& td': mine ? { fontWeight: 700 } : undefined,
+                  ...(o.fromContract && { '& td': { fontWeight: 700, fontStyle: 'italic', opacity: 0.8 } }),
                 }}
               >
                 <TableCell align='right' sx={{ color, fontFamily: 'monospace' }}>
@@ -103,6 +108,30 @@ const Ladder = ({ side, orders, ownId, busy, onCancel, onFill, containerRef, emp
         </TableBody>
       </Table>
     </TableContainer>
+  );
+};
+
+// How long ago the server last received each side of this book from a peer.
+const BookAge = ({ age }) => {
+  if (!age) return null;
+  const sides = [age.ask, age.bid];
+  if (sides.some((s) => s === null || s === undefined)) {
+    return (
+      <Tooltip title='Asked peers for this book; no reply stored yet since the wallet started'>
+        <Typography variant='caption' sx={{ color: 'warning.main' }}>
+          waiting for peers…
+        </Typography>
+      </Tooltip>
+    );
+  }
+  const oldest = Math.max(...sides);
+  const stale = oldest > 20;
+  return (
+    <Tooltip title={`Asks updated ${age.ask} s ago · bids ${age.bid} s ago. The book on screen is re-fetched from all peers every couple of seconds.`}>
+      <Typography variant='caption' sx={{ color: stale ? 'warning.main' : 'text.secondary' }}>
+        updated {oldest} s ago
+      </Typography>
+    </Tooltip>
   );
 };
 
@@ -178,10 +207,12 @@ export default function QxPanel({
   askOrders,
   bidOrders,
   bookLoading,
+  bookAge,
   openOrders,
   busy,
   onAction,
   requestConfirm,
+  warningsFor,
 }) {
   const [price, setPrice] = useState('');
   const [amount, setAmount] = useState('');
@@ -203,8 +234,16 @@ export default function QxPanel({
       num_shares: toNum(o.num_shares),
       total: toNum(o.price) * toNum(o.num_shares),
     });
-    const asksAsc = askOrders.map(norm).sort((a, b) => a.price - b.price);
-    const bidsDesc = bidOrders.map(norm).sort((a, b) => b.price - a.price);
+    // Our own resting orders come from the QX contract directly and can be
+    // ahead of the last book snapshot; show them in the ladder right away,
+    // marked, until the book catches up.
+    const same = (a, b) =>
+      a.entity === b.entity && toNum(a.price) === toNum(b.price) && toNum(a.num_shares) === toNum(b.num_shares);
+    const mine = (openOrders || []).filter((o) => o.asset === selectedAsset);
+    const extra = (side, list) =>
+      mine.filter((o) => o.side === side && !list.some((x) => same(x, o))).map((o) => ({ ...o, fromContract: true }));
+    const asksAsc = [...askOrders, ...extra('ASK', askOrders)].map(norm).sort((a, b) => a.price - b.price);
+    const bidsDesc = [...bidOrders, ...extra('BID', bidOrders)].map(norm).sort((a, b) => b.price - a.price);
     let cum = 0;
     const asksCum = asksAsc.map((o) => ({ ...o, cumulative: (cum += o.num_shares) }));
     cum = 0;
@@ -235,7 +274,7 @@ export default function QxPanel({
       askVolume: asksAsc.reduce((s, o) => s + o.num_shares, 0),
       bidVolume: bidsDesc.reduce((s, o) => s + o.num_shares, 0),
     };
-  }, [askOrders, bidOrders]);
+  }, [askOrders, bidOrders, openOrders, selectedAsset]);
 
   // Keep the best ask in view: scroll the ask ladder to the bottom when the asset changes
   // or when data first arrives, but leave it alone while the user is scrolling.
@@ -272,6 +311,11 @@ export default function QxPanel({
             From
           </Typography>
           <IdText id={selectedId} full copy={false} />
+          {(warningsFor?.(selectedId) || []).map((text) => (
+            <Typography key={text} variant='body2' sx={{ mt: 1.5, color: 'warning.main' }}>
+              {text}
+            </Typography>
+          ))}
         </>
       ),
       onConfirm: () => onAction(orderPath(side, selectedId, priceNum, amountNum)),
@@ -415,6 +459,8 @@ export default function QxPanel({
             <Typography variant='caption' color='text.secondary'>
               {formatNumber(book.askVolume)} for sale · {formatNumber(book.bidVolume)} wanted
             </Typography>
+            <Box sx={{ flex: 1 }} />
+            <BookAge age={bookAge} />
           </Box>
 
           <Box sx={{ borderTop: 1, borderColor: 'divider', flex: '1 1 0', minHeight: 0, display: 'flex', flexDirection: 'column' }}>

@@ -38,6 +38,27 @@ pub trait FormatQubicResponseDataToStructure {
 }
 
 
+/// When each order book side was last stored from a peer reply, keyed by
+/// (asset, side 'A'|'B'). Lets the UI show how fresh the book on screen is.
+static BOOK_REFRESHED: std::sync::OnceLock<Mutex<HashMap<(String, String), std::time::Instant>>> = std::sync::OnceLock::new();
+
+fn note_book_refreshed(asset: &str, side: &str) {
+    if let Ok(mut map) = BOOK_REFRESHED.get_or_init(|| Mutex::new(HashMap::new())).lock() {
+        map.insert((asset.to_string(), side.to_string()), std::time::Instant::now());
+    }
+}
+
+/// Seconds since each side of `asset`'s book was last stored: `(ask, bid)`,
+/// `None` when that side has never been received.
+pub fn book_age_seconds(asset: &str) -> (Option<u64>, Option<u64>) {
+    let map = match BOOK_REFRESHED.get().and_then(|m| m.lock().ok()) {
+        Some(map) => map,
+        None => return (None, None),
+    };
+    let age = |side: &str| map.get(&(asset.to_string(), side.to_string())).map(|at| at.elapsed().as_secs());
+    (age("A"), age("B"))
+}
+
 fn delete_request_from_matcher(dejavu: u32, requests: Arc<Mutex<HashMap<u32, QubicApiPacket>>>) {
     match requests.lock() {
         Ok(mut guard) => { guard.remove(&dejavu); },
@@ -465,7 +486,7 @@ pub fn get_formatted_response(requests: Arc<Mutex<HashMap<u32, QubicApiPacket>>>
                                         Ok(asset_name) => {
                                             match store::sqlite::qx::orderbook::create_qx_orderbook(get_db_path().as_str(), asset_name.to_str().unwrap(), side, &_v) {
                                                 Ok(_) => {
-                                                    //println!("Created Orderbook {} - {} Side", asset_name.to_str().unwrap(), side);
+                                                    note_book_refreshed(asset_name.to_str().unwrap_or(""), side);
                                                 },
                                                 Err(_err) => error(format!("Failed To Create OrderBook!: {}", _err).as_str())
                                                 

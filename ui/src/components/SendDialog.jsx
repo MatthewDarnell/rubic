@@ -49,6 +49,7 @@ export default function SendDialog({
   onAddressBookChange,
   initialFrom,
   onAction,
+  warningsFor,
 }) {
   const usd = (qu) => formatFiat(qu, price, currency);
   const [from, setFrom] = useState('');
@@ -318,6 +319,14 @@ export default function SendDialog({
             )}
           </Row>
           <Divider />
+          {(warningsFor?.(from) || []).map((text) => (
+            <Box
+              key={text}
+              sx={{ mt: 2, px: 1.5, py: 1, borderRadius: 1, border: 1, borderColor: 'warning.main', color: 'warning.main' }}
+            >
+              <Typography variant='body2'>{text}</Typography>
+            </Box>
+          ))}
           <Box sx={{ mt: 2 }}>
             <Chip size='small' color='warning' variant='outlined' label='Transfers cannot be reversed once included in a tick' />
           </Box>

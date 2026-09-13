@@ -26,7 +26,7 @@ pub fn request_priority_refresh(asset: &str) {
 // second instead of the ~100/s that asking for every book every 3 s produced,
 // which flooded the peer request queue and delayed transaction broadcasts.
 const PASS_INTERVAL: Duration = Duration::from_millis(500);
-const PRIORITY_MIN_INTERVAL: Duration = Duration::from_millis(1500);
+const PRIORITY_MIN_INTERVAL: Duration = Duration::from_millis(1000);
 const PRIORITY_PER_PASS: usize = 4;
 const ASSET_LIST_REFRESH: Duration = Duration::from_secs(60);
 

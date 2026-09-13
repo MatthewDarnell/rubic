@@ -4,11 +4,13 @@ import {
   Box,
   Button,
   Chip,
+  Divider,
   IconButton,
   List,
   ListItemButton,
   ListItemIcon,
   ListItemText,
+  Popover,
   Tooltip,
   Typography,
 } from '@mui/material';
@@ -104,47 +106,102 @@ const Sidebar = ({ nav, onNav, badges }) => (
   </Box>
 );
 
-const StatusPill = ({ connected, tick, peersConnected, syncing }) => {
+// Latency as the peer table stores it (9999 = never measured).
+const latencyText = (ping) => {
+  const n = Number(ping);
+  return Number.isFinite(n) && n > 0 && n < 9999 ? `${n} ms` : '—';
+};
+
+const StatusPill = ({ connected, tick, peersConnected, syncing, health, peers, now }) => {
+  const [anchor, setAnchor] = React.useState(null);
   const noPeers = connected && peersConnected === 0;
+  const behind = Boolean(health && health.routine_limit && health.routine_backlog >= health.routine_limit / 2);
   const label = !connected
     ? 'Server unreachable'
     : noPeers
     ? `No peers connected${!syncing ? ` · tick ${formatNumber(tick)}` : ''}`
     : syncing
     ? 'Waiting for first tick'
-    : `Tick ${formatNumber(tick)} · ${peersConnected} peer${peersConnected === 1 ? '' : 's'}`;
-  const color = !connected ? 'error.main' : noPeers || syncing ? 'warning.main' : 'success.main';
+    : `Tick ${formatNumber(tick)} · ${peersConnected} peer${peersConnected === 1 ? '' : 's'}${behind ? ' · catching up' : ''}`;
+  const color = !connected ? 'error.main' : noPeers || syncing || behind ? 'warning.main' : 'success.main';
+  const connectedPeers = (peers || []).filter((p) => p.whitelisted !== '-1' && (p.connected === '1' || p.connected === 'true'));
+  const nowSec = Math.floor((now || Date.now()) / 1000);
   return (
-    <Tooltip
-      title={
-        !connected
-          ? 'Cannot reach the local Rubic server'
-          : noPeers
-          ? 'Rubic is not talking to any peer right now; balances and ticks will not update until it reconnects'
-          : syncing
-          ? 'Connected to the server, but no peer has reported a tick yet'
-          : 'Latest tick reported by connected peers'
-      }
-    >
-      <Box
-        sx={{
-          display: 'inline-flex',
-          alignItems: 'center',
-          gap: 1,
-          px: 1.5,
-          py: 0.5,
-          borderRadius: 999,
-          border: 1,
-          borderColor: 'divider',
-          bgcolor: 'background.paper',
-        }}
+    <>
+      <Tooltip title='Network health — click for details'>
+        <Box
+          onClick={(e) => setAnchor(e.currentTarget)}
+          sx={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 1,
+            px: 1.5,
+            py: 0.5,
+            borderRadius: 999,
+            border: 1,
+            borderColor: 'divider',
+            bgcolor: 'background.paper',
+            cursor: 'pointer',
+            '&:hover': { bgcolor: 'action.hover' },
+          }}
+        >
+          <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: color }} />
+          <Typography variant='body2' sx={{ fontWeight: 500 }}>
+            {label}
+          </Typography>
+        </Box>
+      </Tooltip>
+      <Popover
+        open={Boolean(anchor)}
+        anchorEl={anchor}
+        onClose={() => setAnchor(null)}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+        transformOrigin={{ vertical: 'top', horizontal: 'right' }}
+        slotProps={{ paper: { sx: { p: 2, width: 380 } } }}
       >
-        <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: color, boxShadow: `0 0 0 3px ${'rgba(0,0,0,0.0)'}` }} />
-        <Typography variant='body2' sx={{ fontWeight: 500 }}>
-          {label}
+        <Typography variant='subtitle2' sx={{ fontWeight: 600, mb: 1 }}>
+          Network health
         </Typography>
-      </Box>
-    </Tooltip>
+        {!connected ? (
+          <Typography variant='body2' color='error.main'>Cannot reach the local Rubic server.</Typography>
+        ) : (
+          <>
+            <Box sx={{ display: 'grid', gridTemplateColumns: 'auto 1fr', columnGap: 2, rowGap: 0.5, mb: 1.5 }}>
+              <Typography variant='body2' color='text.secondary'>Latest tick</Typography>
+              <Typography variant='body2'>{isNumeric(tick) ? formatNumber(tick) : '—'}</Typography>
+              <Typography variant='body2' color='text.secondary'>Request queue</Typography>
+              <Typography variant='body2' sx={{ color: behind ? 'warning.main' : 'inherit' }}>
+                {health
+                  ? `${health.routine_backlog} waiting (limit ${health.routine_limit}) · ${health.tick_backlog} tick polls`
+                  : '—'}
+                {behind ? ' — behind; balances and confirmations may lag' : ''}
+              </Typography>
+              <Typography variant='body2' color='text.secondary'>Peers</Typography>
+              <Typography variant='body2'>{peersConnected} connected</Typography>
+            </Box>
+            <Divider sx={{ mb: 1 }} />
+            {connectedPeers.length === 0 ? (
+              <Typography variant='body2' color='warning.main'>No peers connected — nothing updates until Rubic reconnects.</Typography>
+            ) : (
+              <Box sx={{ display: 'grid', gridTemplateColumns: '1fr auto auto', columnGap: 2, rowGap: 0.25 }}>
+                {connectedPeers.slice(0, 10).map((p) => {
+                  const age = nowSec - Number(p.last_responded || 0);
+                  return (
+                    <React.Fragment key={p.id || p.ip}>
+                      <Typography variant='caption' sx={{ fontFamily: 'monospace' }}>{p.ip}</Typography>
+                      <Typography variant='caption' color='text.secondary'>{latencyText(p.ping)}</Typography>
+                      <Typography variant='caption' sx={{ color: age > 60 ? 'warning.main' : 'text.secondary' }}>
+                        {age < 0 || !p.last_responded ? '—' : age < 60 ? `${age} s ago` : formatAge(age * 1000) + ' ago'}
+                      </Typography>
+                    </React.Fragment>
+                  );
+                })}
+              </Box>
+            )}
+          </>
+        )}
+      </Popover>
+    </>
   );
 };
 
@@ -208,6 +265,8 @@ export default function AppShell({
   balanceStale,
   balanceStaleSince,
   now,
+  health,
+  peers,
   children,
 }) {
   const fiat = formatFiat(totalBalance, price, currency);
@@ -270,7 +329,15 @@ export default function AppShell({
           <UnencryptedPill count={unencryptedCount} onClick={() => onNav('wallet')} />
           <PendingPill pending={pending} />
           <UnlockPill secondsLeft={unlockSecondsLeft} />
-          <StatusPill connected={connected} tick={tick} peersConnected={peersConnected} syncing={!isNumeric(tick)} />
+          <StatusPill
+            connected={connected}
+            tick={tick}
+            peersConnected={peersConnected}
+            syncing={!isNumeric(tick)}
+            health={health}
+            peers={peers}
+            now={now}
+          />
           <Button variant='contained' startIcon={<SendIcon />} disabled={!canSend} onClick={onSend}>
             Send
           </Button>

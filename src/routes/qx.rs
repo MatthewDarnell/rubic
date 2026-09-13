@@ -9,6 +9,15 @@ use smart_contract::qx::order;
 use store::sqlite::tick::fetch_latest_tick;
 use crate::routes::MINPASSWORDLEN;
 
+/// Seconds since each side of an asset's book was last received from a peer.
+/// `null` means never (since this start of the wallet).
+#[get("/qx/book_age/<asset>")]
+pub fn book_age(asset: &str) -> String {
+    let (ask, bid) = api::response::book_age_seconds(asset);
+    let fmt = |v: Option<u64>| v.map(|s| s.to_string()).unwrap_or_else(|| "null".to_string());
+    format!("{{\"asset\": \"{}\", \"ask\": {}, \"bid\": {}}}", asset, fmt(ask), fmt(bid))
+}
+
 /// Every resting QX order of the wallet's identities, as reported by the QX
 /// contract itself (EntityAskOrders / EntityBidOrders), refreshed every 10 s.
 #[get("/qx/open_orders")]
