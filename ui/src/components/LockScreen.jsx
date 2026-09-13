@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
 import { Box, Button, CircularProgress, TextField, Typography } from '@mui/material';
-import WalletIcon from '@mui/icons-material/Wallet';
 import LockIcon from '@mui/icons-material/Lock';
+import logo from '../assets/rubic.png';
 
 const MIN_LENGTH = 5;
 
+// First-run screen: brand up top, then the master-password form.
 export default function LockScreen({ onSetPassword }) {
   const [password, setPassword] = useState('');
   const [retype, setRetype] = useState('');
@@ -30,17 +31,31 @@ export default function LockScreen({ onSetPassword }) {
       component='form'
       onSubmit={submit}
       sx={{
-        minHeight: '70vh',
+        minHeight: '80vh',
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
         justifyContent: 'center',
-        gap: 2,
+        textAlign: 'center',
       }}
     >
-      <WalletIcon sx={{ fontSize: 96 }} />
-      <Typography variant='h6'>Set a master password</Typography>
-      <Typography variant='body2' color='text.secondary' sx={{ maxWidth: 420, textAlign: 'center' }}>
+      <Box
+        component='img'
+        src={logo}
+        alt='Rubic'
+        sx={{ width: 128, height: 128, borderRadius: 4, display: 'block', mb: 2.5 }}
+      />
+      <Typography variant='h3' component='h1' sx={{ fontWeight: 700, letterSpacing: '-0.02em', lineHeight: 1.1 }}>
+        Rubic
+      </Typography>
+      <Typography variant='subtitle1' color='text.secondary' sx={{ mb: 5 }}>
+        Qubic Wallet
+      </Typography>
+
+      <Typography variant='h6' sx={{ mb: 0.5 }}>
+        Set a master password
+      </Typography>
+      <Typography variant='body2' color='text.secondary' sx={{ maxWidth: 420, mb: 3 }}>
         Seeds are encrypted with this password before they are stored. There is
         no recovery if you lose it.
       </Typography>
@@ -63,7 +78,7 @@ export default function LockScreen({ onSetPassword }) {
         helperText={retype && mismatch ? 'Passwords do not match' : ' '}
         error={Boolean(retype) && mismatch}
         autoComplete='new-password'
-        sx={{ width: 320 }}
+        sx={{ width: 320, mb: 1 }}
       />
       <Button
         type='submit'

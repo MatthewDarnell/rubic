@@ -287,7 +287,7 @@ const MainView = () => {
     fetchOrderbook(selectedAsset, { interactive: true });
   }, [selectedAsset, fetchOrderbook]);
 
-  // Resting orders of our own identities. Scanning every issued asset's book is
+  // Open orders of our own identities. Scanning every issued asset's book is
   // ~300 requests, so that happens rarely; in between only re-check the assets
   // we hold, have ordered from this wallet, are viewing, or already found orders on.
   const openOrdersInputRef = useRef({ identities: [], qxOrders: [], selectedAsset: null });
@@ -303,7 +303,7 @@ const MainView = () => {
     let cancelled = false;
     let timer;
     let lastFullScan = 0;
-    const found = new Map(); // asset -> our resting orders on it
+    const found = new Map(); // asset -> our open orders on it
 
     const scan = async (assets) => {
       for (const asset of assets) {

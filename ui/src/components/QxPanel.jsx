@@ -129,7 +129,7 @@ const OpenOrders = ({ orders, labels, busy, onCancel }) => (
           {orders.length === 0 && (
             <TableRow>
               <TableCell colSpan={5} align='center' sx={{ py: 2.5, color: 'text.secondary' }}>
-                You have no resting orders on QX.
+                No Open Orders
               </TableCell>
             </TableRow>
           )}
