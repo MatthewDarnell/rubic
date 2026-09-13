@@ -58,6 +58,7 @@ export default function AssetsPanel({
   addressBook = [],
   onAction,
   requestConfirm,
+  warningsFor,
 }) {
   const [source, setSource] = useState('');
   const [destination, setDestination] = useState('');
@@ -133,6 +134,11 @@ export default function AssetsPanel({
           <Typography variant='body2' color='text.secondary' sx={{ mt: 1 }}>To</Typography>
           {nameOf(dest) && <Typography sx={{ fontWeight: 600 }}>{nameOf(dest)}</Typography>}
           <IdText id={dest} full copy={false} />
+          {(warningsFor?.(source) || []).map((text) => (
+            <Typography key={text} variant='body2' sx={{ mt: 1.5, color: 'warning.main' }}>
+              {text}
+            </Typography>
+          ))}
           <Typography variant='body2' color='text.secondary' sx={{ mt: 2 }}>
             Asset transfers cannot be reversed once included in a tick.
           </Typography>

@@ -31,11 +31,18 @@ import { recordBalances, readHistory, sliceSince, RANGES } from './utils/balance
 const POLLING_INTERVAL = 3000;
 const TICK_INTERVAL = 1000;
 // Transactions expire this many ticks after the current one unless the user
-// overrides it in Settings ("Transfer Ticks Offset").
-const DEFAULT_TICK_OFFSET = 10;
+// overrides it in Settings ("Transfer Ticks Offset"). The wallet's own view of
+// the current tick trails the network by 10-20 ticks (it learns a new tick only
+// every few seconds), so anything much below 30 is already in the past by the
+// time computors see it. The original UI used 30 for this reason.
+const DEFAULT_TICK_OFFSET = 30;
 const UNLOCK_CHECK_INTERVAL = 5000;
-const OPEN_ORDERS_INTERVAL = 15000;
-const OPEN_ORDERS_FULL_SCAN = 5 * 60 * 1000;
+const OPEN_ORDERS_INTERVAL = 5000; // poll of the server's QX-reported open orders
+const BOOK_VIEW_INTERVAL = 2000; // refresh of the order book on screen in QX Exchange
+const HEALTH_INTERVAL = 5000;
+const MIN_PEERS_FOR_SENDING = 3;
+const ASSETS_RETRY_INTERVAL = 5000; // while no issued assets are known yet
+const ASSETS_REFRESH_INTERVAL = 5 * 60 * 1000;
 
 const INVALID_PASSWORD_RESPONSES = [
   'Invalid Password',
@@ -85,6 +92,8 @@ const MainView = () => {
   const [askOrders, setAskOrders] = useState([]);
   const [bidOrders, setBidOrders] = useState([]);
   const [bookAsset, setBookAsset] = useState(null); // asset the ask/bid arrays belong to
+  const [bookAge, setBookAge] = useState({ ask: null, bid: null }); // seconds since each side was last received
+  const [health, setHealth] = useState(null); // server request-queue health (see /health)
   const [selectedAsset, setSelectedAsset] = useState(null);
   const [selectedId, setSelectedId] = useState('');
 
@@ -149,9 +158,11 @@ const MainView = () => {
   const fetchOrderbook = useCallback(async (asset, { interactive = false } = {}) => {
     if (!asset) return;
     const call = interactive ? apiCall : backgroundCall;
+    // `refresh=1`: this is the book on screen, so the server refreshes it from
+    // peers ahead of its background sweep (the open-orders scan below omits it).
     const [ask, bid] = await Promise.all([
-      call(`qx/orderbook/${asset}/ASK/1000/0`),
-      call(`qx/orderbook/${asset}/BID/1000/0`),
+      call(`qx/orderbook/${asset}/ASK/1000/0?refresh=1`),
+      call(`qx/orderbook/${asset}/BID/1000/0?refresh=1`),
     ]);
     if (viewedAssetRef.current !== asset) return;
     setAskOrders(asList(ask));
@@ -170,20 +181,39 @@ const MainView = () => {
     const init = async () => {
       const encrypted = await apiCall('wallet/is_encrypted');
       setIsEncrypted(typeof encrypted.data === 'boolean');
+      await fetchPeerLimits();
+    };
+    init();
+  }, [fetchPeerLimits]);
 
-      const assets = await apiCall('asset/issued');
+  // Issued assets are only known once peers have reported them, which on a fresh
+  // wallet can be a while after startup. Keep asking until the list arrives, then
+  // refresh it slowly so newly issued assets show up without a restart.
+  useEffect(() => {
+    let cancelled = false;
+    let timer;
+    const load = async () => {
+      const assets = await backgroundCall('asset/issued');
+      if (cancelled) return;
       const pairs = asList(assets).reduce(
         (acc, val, idx, arr) => (idx % 2 === 0 ? [...acc, [val, arr[idx + 1]]] : acc),
         []
       );
       const map = new Map(pairs);
-      setAssetsNIssuer(map);
-      setSelectedAsset([...map.keys()].sort()[0] ?? null);
-
-      await fetchPeerLimits();
+      if (map.size > 0) {
+        setAssetsNIssuer((prev) =>
+          prev.size === map.size && [...map].every(([k, v]) => prev.get(k) === v) ? prev : map
+        );
+        setSelectedAsset((current) => (current && map.has(current) ? current : [...map.keys()].sort()[0] ?? null));
+      }
+      timer = setTimeout(load, map.size > 0 ? ASSETS_REFRESH_INTERVAL : ASSETS_RETRY_INTERVAL);
     };
-    init();
-  }, [fetchPeerLimits]);
+    load();
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -287,68 +317,79 @@ const MainView = () => {
     fetchOrderbook(selectedAsset, { interactive: true });
   }, [selectedAsset, fetchOrderbook]);
 
-  // Open orders of our own identities. Scanning every issued asset's book is
-  // ~300 requests, so that happens rarely; in between only re-check the assets
-  // we hold, have ordered from this wallet, are viewing, or already found orders on.
-  const openOrdersInputRef = useRef({ identities: [], qxOrders: [], selectedAsset: null });
+  // While the QX Exchange tab is open, keep the displayed book fresh: each poll
+  // carries `refresh=1`, which the server serves ahead of balances. Other tabs
+  // don't poll the book at all.
   useEffect(() => {
-    openOrdersInputRef.current = { identities, qxOrders, selectedAsset };
-  }, [identities, qxOrders, selectedAsset]);
-  const ownKey = useMemo(() => [...ownIds].sort().join(','), [ownIds]);
-  const assetKey = useMemo(() => [...assetsNIssuer.keys()].join(','), [assetsNIssuer]);
-  useEffect(() => {
-    const allAssets = assetKey ? assetKey.split(',') : [];
-    const own = new Set(ownKey ? ownKey.split(',') : []);
-    if (allAssets.length === 0 || own.size === 0) return undefined;
+    if (nav !== 'exchange' || !selectedAsset) return undefined;
     let cancelled = false;
     let timer;
-    let lastFullScan = 0;
-    const found = new Map(); // asset -> our open orders on it
-
-    const scan = async (assets) => {
-      for (const asset of assets) {
-        if (cancelled) return;
-        const [ask, bid] = await Promise.all([
-          backgroundCall(`qx/orderbook/${asset}/ASK/1000/0`),
-          backgroundCall(`qx/orderbook/${asset}/BID/1000/0`),
-        ]);
-        const mine = [
-          ...asList(ask).filter((o) => own.has(o.entity)).map((o) => ({ ...o, asset, side: 'ASK' })),
-          ...asList(bid).filter((o) => own.has(o.entity)).map((o) => ({ ...o, asset, side: 'BID' })),
-        ];
-        if (mine.length > 0) found.set(asset, mine);
-        else found.delete(asset);
-      }
-    };
-
+    setBookAge({ ask: null, bid: null });
     const run = async () => {
-      const now = Date.now();
-      const fullScan = now - lastFullScan >= OPEN_ORDERS_FULL_SCAN;
-      if (fullScan) lastFullScan = now;
-      const { identities: ids, qxOrders: orders, selectedAsset: viewing } = openOrdersInputRef.current;
-      const targets = fullScan
-        ? allAssets
-        : [
-            ...new Set(
-              [
-                ...found.keys(),
-                ...orders.map((o) => o.name),
-                ...ids.flatMap((i) => (i.assets || []).map((a) => a?.name)),
-                viewing,
-              ].filter((a) => a && allAssets.includes(a))
-            ),
-          ];
-      await scan(targets);
+      const [, age] = await Promise.all([
+        fetchOrderbook(selectedAsset, { interactive: true }),
+        apiCall(`qx/book_age/${selectedAsset}`),
+      ]);
       if (cancelled) return;
-      setOpenOrders([...found.values()].flat());
-      timer = setTimeout(run, OPEN_ORDERS_INTERVAL);
+      if (age.success && age.data && typeof age.data === 'object') {
+        setBookAge({ ask: age.data.ask ?? null, bid: age.data.bid ?? null });
+      }
+      timer = setTimeout(run, BOOK_VIEW_INTERVAL);
     };
     run();
     return () => {
       cancelled = true;
       clearTimeout(timer);
     };
-  }, [assetKey, ownKey]);
+  }, [nav, selectedAsset, fetchOrderbook]);
+
+  // Server health (request queue depth, peers) for the status pill's popover and
+  // the pre-send warnings.
+  useEffect(() => {
+    let cancelled = false;
+    let timer;
+    const run = async () => {
+      const res = await backgroundCall('health');
+      if (cancelled) return;
+      setHealth(res.success && res.data && typeof res.data === 'object' ? res.data : null);
+      timer = setTimeout(run, HEALTH_INTERVAL);
+    };
+    run();
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, []);
+
+  // Open orders of our own identities, straight from the QX contract: the server
+  // asks EntityAskOrders / EntityBidOrders for each identity every 10 s, so this
+  // no longer depends on how fresh any asset's order book is.
+  useEffect(() => {
+    let cancelled = false;
+    let timer;
+    const load = async () => {
+      const res = await backgroundCall('qx/open_orders');
+      if (cancelled) return;
+      if (res.success && Array.isArray(res.data)) {
+        setOpenOrders(
+          res.data.map((row) => ({
+            asset: row.asset,
+            issuer: row.issuer,
+            side: row.side === 'A' ? 'ASK' : 'BID',
+            entity: row.identity,
+            price: row.price,
+            num_shares: row.num_shares,
+          }))
+        );
+      }
+      timer = setTimeout(load, OPEN_ORDERS_INTERVAL);
+    };
+    load();
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -451,12 +492,11 @@ const MainView = () => {
           const was = prev.get(txid);
           if (!was || was.state !== 'pending' || cur.state === 'pending') return;
           if (cur.state === 'confirmed') toast.success(`Confirmed: ${cur.title}`);
-          else toast.error(`Failed to Confirm: ${cur.title}`);
+          else if (cur.state === 'failed') toast.error(`Failed: ${cur.title}`);
+          else toast.warning(`Tick passed, not verified yet: ${cur.title}`);
         });
       }
       txStatusRef.current = next;
-
-      await fetchOrderbook(selectedAsset);
     };
     const run = async () => {
       try {
@@ -470,7 +510,7 @@ const MainView = () => {
       cancelled = true;
       clearTimeout(timer);
     };
-  }, [selectedAsset, fetchOrderbook]);
+  }, []);
 
   // ---------- actions ----------
 
@@ -714,16 +754,47 @@ const MainView = () => {
     (p) => p.whitelisted !== '-1' && (p.connected === '1' || p.connected === 'true')
   ).length;
   const unlockSecondsLeft = Math.max(0, Math.ceil((unlockedUntil - now) / 1000));
-  const ticksToGo = isNumeric(latestTick) ? Number(orderTick) - Number(latestTick) : null;
-  const pending = showProgress
-    ? {
-        label: ticksToGo !== null && ticksToGo > 0 ? `Pending · ${ticksToGo} tick${ticksToGo === 1 ? '' : 's'}` : 'Pending',
-        tooltip: `A transaction is waiting to be included at tick ${formatNumber(orderTick)}`,
-      }
-    : null;
-  const pendingCount = [...transfers, ...assetTransfers, ...qxOrders].filter(
+  const pendingTxs = [...transfers, ...assetTransfers, ...qxOrders].filter(
     (t) => txState(t.status, t.tick, latestTick) === 'pending'
-  ).length;
+  );
+  const pendingCount = pendingTxs.length;
+  // Things worth knowing before signing from `sourceId`; shown in the review /
+  // confirm step, never blocking.
+  const warningsFor = (sourceId) => {
+    const out = [];
+    const pendingFromSource = pendingTxs.filter((t) => t.source === sourceId).length;
+    if (pendingFromSource > 0) {
+      out.push(
+        `This identity already has ${pendingFromSource === 1 ? 'a transaction' : `${pendingFromSource} transactions`} waiting for its tick. A node keeps one pending transaction per identity, so sending now can replace the earlier one before it executes.`
+      );
+    }
+    if (connectedPeers < MIN_PEERS_FOR_SENDING) {
+      out.push(
+        `Only ${connectedPeers} peer${connectedPeers === 1 ? '' : 's'} connected. Transactions are broadcast to every connected peer; with few peers they may not reach the network in time.`
+      );
+    }
+    if (health && health.routine_limit && health.routine_backlog >= health.routine_limit / 2) {
+      out.push('The wallet is behind on peer requests right now; balances and confirmations may lag.');
+    }
+    return out;
+  };
+  // The header pill counts down to the same tick Activity shows: the one stored
+  // with the transaction. Until the first poll returns the new row, fall back to
+  // the tick we asked for.
+  const nextPendingTick =
+    pendingTxs.length > 0
+      ? Math.max(...pendingTxs.map((t) => Number(t.tick)))
+      : showProgress && isNumeric(orderTick)
+      ? Number(orderTick)
+      : null;
+  const ticksToGo = nextPendingTick !== null && isNumeric(latestTick) ? nextPendingTick - Number(latestTick) : null;
+  const pending =
+    nextPendingTick !== null
+      ? {
+          label: ticksToGo !== null && ticksToGo > 0 ? `Pending · ${ticksToGo} tick${ticksToGo === 1 ? '' : 's'}` : 'Pending',
+          tooltip: `${pendingCount > 1 ? `${pendingCount} transactions are` : 'A transaction is'} waiting to be included${pendingCount > 1 ? '; the latest' : ''} at tick ${formatNumber(nextPendingTick)}`,
+        }
+      : null;
   const unencryptedCount = identities.filter((i) => i.encrypted !== 'true').length;
   const detailIdentity = identities.find((i) => i.id === detailId) || null;
   const detailActivity = useMemo(
@@ -784,10 +855,13 @@ const MainView = () => {
         addressBook={addressBook}
         onAction={commitAction}
         requestConfirm={setConfirm}
+        warningsFor={warningsFor}
       />
     ),
     exchange: (
       <QxPanel
+        bookAge={bookAge}
+        warningsFor={warningsFor}
         identities={identities}
         labels={labels}
         openOrders={openOrders}
@@ -866,6 +940,8 @@ const MainView = () => {
           balanceStale={balanceStale}
           balanceStaleSince={balanceStaleSince}
           now={now}
+          health={health}
+          peers={peers}
         >
           {!connected && (
             <Alert severity='error' sx={{ mb: 2 }}>
@@ -933,6 +1009,7 @@ const MainView = () => {
         onAddressBookChange={setAddressBook}
         initialFrom={send.from}
         onAction={commitAction}
+        warningsFor={warningsFor}
       />
       <ConfirmDialog
         open={Boolean(confirm)}

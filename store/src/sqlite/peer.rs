@@ -125,6 +125,48 @@ pub fn remove_blacklist(path: &str, ip: &str) -> Result<(), String> {
 }
 
 
+/// Records that a peer just answered a request and how long the round trip took.
+pub fn update_peer_responded(path: &str, id: &str, ping_ms: u32) -> Result<(), String> {
+    let prep_query = "UPDATE peer SET last_responded=:last_responded, ping=:ping WHERE id=:id;";
+    let _lock = get_db_lock().lock().unwrap();
+    match open_database(path, false) {
+        Ok(connection) => {
+            match prepare_crud_statement(&connection, prep_query) {
+                Ok(mut statement) => {
+                    let now: String = SystemTime::now()
+                        .duration_since(UNIX_EPOCH)
+                        .map(|d| d.as_secs())
+                        .unwrap_or(0)
+                        .to_string();
+                    let ping: String = ping_ms.to_string();
+                    match statement.bind::<&[(&str, &str)]>(&[
+                        (":id", id),
+                        (":last_responded", now.as_str()),
+                        (":ping", ping.as_str()),
+                    ][..]) {
+                        Ok(_) => {
+                            match statement.next() {
+                                Ok(State::Done) => Ok(()),
+                                Err(error) => Err(error.to_string()),
+                                _ => Err("Weird!".to_string())
+                            }
+                        },
+                        Err(err) => Err(err.to_string())
+                    }
+                },
+                Err(err) => {
+                    error!("Error in update_peer_responded! : {}", &err);
+                    Err(err)
+                }
+            }
+        },
+        Err(err) => {
+            error!("Error in update_peer_responded! : {}", &err);
+            Err(err)
+        }
+    }
+}
+
 pub fn update_peer_last_responded(path: &str, id: &str, last_responded: SystemTime) -> Result<(), String> {
     let prep_query = "UPDATE peer SET last_responded=:last_responded WHERE id=:id;";
     let _lock = get_db_lock().lock().unwrap();

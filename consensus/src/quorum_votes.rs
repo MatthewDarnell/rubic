@@ -10,6 +10,17 @@ pub fn get_quorum_votes(bc: &BroadcastComputors, ticks: &Vec<Tick>) -> Result<bo
     if ticks.len() == 0 as usize {
         return Ok(false);
     }
+    // Quorum needs 451 matching votes. Peers push tick votes as gossip in small
+    // groups; verifying hundreds of signatures for a group that cannot reach
+    // quorum anyway was the workers' biggest CPU cost, so count first.
+    {
+        let mut vote_indices: Vec<Vec<i32>> = Vec::new();
+        let mut unique_votes: Vec<Tick> = Vec::new();
+        get_unique_votes(ticks, &mut unique_votes, &mut vote_indices);
+        if !vote_indices.iter().any(|v| v.len() >= 451) {
+            return Ok(false);
+        }
+    }
     //println!("Getting Quorum Votes For Tick {}", ticks.first().unwrap().tick);
     for (_, vote) in ticks.iter().enumerate() {
         let mut tick = vote.clone();

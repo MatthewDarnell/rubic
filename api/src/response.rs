@@ -38,6 +38,27 @@ pub trait FormatQubicResponseDataToStructure {
 }
 
 
+/// When each order book side was last stored from a peer reply, keyed by
+/// (asset, side 'A'|'B'). Lets the UI show how fresh the book on screen is.
+static BOOK_REFRESHED: std::sync::OnceLock<Mutex<HashMap<(String, String), std::time::Instant>>> = std::sync::OnceLock::new();
+
+fn note_book_refreshed(asset: &str, side: &str) {
+    if let Ok(mut map) = BOOK_REFRESHED.get_or_init(|| Mutex::new(HashMap::new())).lock() {
+        map.insert((asset.to_string(), side.to_string()), std::time::Instant::now());
+    }
+}
+
+/// Seconds since each side of `asset`'s book was last stored: `(ask, bid)`,
+/// `None` when that side has never been received.
+pub fn book_age_seconds(asset: &str) -> (Option<u64>, Option<u64>) {
+    let map = match BOOK_REFRESHED.get().and_then(|m| m.lock().ok()) {
+        Some(map) => map,
+        None => return (None, None),
+    };
+    let age = |side: &str| map.get(&(asset.to_string(), side.to_string())).map(|at| at.elapsed().as_secs());
+    (age("A"), age("B"))
+}
+
 fn delete_request_from_matcher(dejavu: u32, requests: Arc<Mutex<HashMap<u32, QubicApiPacket>>>) {
     match requests.lock() {
         Ok(mut guard) => { guard.remove(&dejavu); },
@@ -85,7 +106,7 @@ pub fn get_formatted_response_from_multiple(requests: Arc<Mutex<HashMap<u32, Qub
                         }
                     },
                     None => {
-                        println!("Failed to format IssuedAsset!");
+                        //println!("Failed to format IssuedAsset!");
                     }
                 };
             }
@@ -320,24 +341,41 @@ pub fn get_formatted_response(requests: Arc<Mutex<HashMap<u32, QubicApiPacket>>>
                                             for (index, digest) in digests.iter().enumerate() {
                                                 dg[index*size_of::<TransactionDigest>()..index*size_of::<TransactionDigest>() + size_of::<TransactionDigest>()].copy_from_slice(digest);
                                             }
-                                            match store::sqlite::tick::fetch_tick(get_db_path().as_str(), resp.tick) {
-                                                Ok(tick) => {
-                                                    let transaction_digests_hash = tick.get(&"transaction_digests_hash".to_string()).unwrap();
-                                                    if resp.validate_vs_tick_tx_digests_hash(transaction_digests_hash) {
-                                                        //This Tick Data tx hash Matches The Verified Tx Digests Hash From Tick. We are all good to go!
-                                                        match store::sqlite::tick::set_tick_transaction_digests(get_db_path().as_str(), resp.tick, &dg) {
-                                                            Ok(_) => {
-                                                                //println!("Set Tx Digests For Tick {}", resp.tick);
-                                                            },
-                                                            Err(_err) => {
-                                                                println!("Failed to set Tick Transaction Digests for Tick {}!", resp.tick);
-                                                            }
-                                                        }
+                                            // The tick data is signed by the tick's leader computor (verified
+                                            // above against the quorum-signed computor list). Public nodes no
+                                            // longer answer quorum-tick requests, so that signature is what a
+                                            // wallet has to go on; when quorum votes did arrive (gossip), the
+                                            // data must also match their transaction digest hash.
+                                            let quorum_hash: Option<String> = store::sqlite::tick::fetch_tick(get_db_path().as_str(), resp.tick)
+                                                .ok()
+                                                .and_then(|t| t.get(&"transaction_digests_hash".to_string()).cloned())
+                                                .filter(|h| h.len() >= 8);
+                                            let accepted = match &quorum_hash {
+                                                Some(hash) => resp.validate_vs_tick_tx_digests_hash(hash),
+                                                None => true,
+                                            };
+                                            if accepted {
+                                                let peer_id = response.peer.clone().unwrap_or_default();
+                                                let _ = insert_tick(get_db_path().as_str(), peer_id.as_str(), resp.tick);
+                                                if quorum_hash.is_none() {
+                                                    let data_hash = get_identity(&resp.hash_with_signature_bytes());
+                                                    if let Err(err) = store::sqlite::tick::set_tick_tx_digest_hash(get_db_path().as_str(), &data_hash, resp.tick) {
+                                                        eprintln!("Failed To Set Transaction Digest Hash For Tick.({}): {}", resp.tick, err);
                                                     }
-                                                },
-                                                Err(_err) => {
-                                                    //eprintln!("Failed To Fetch Tick For TickData.({})", resp.tick);
                                                 }
+                                                match store::sqlite::tick::set_tick_transaction_digests(get_db_path().as_str(), resp.tick, &dg) {
+                                                    Ok(_) => {
+                                                        match store::sqlite::tick::set_tick_validated(get_db_path().as_str(), resp.tick) {
+                                                            Ok(_) => println!("Tick {} data accepted ({}).", resp.tick, if quorum_hash.is_some() { "matches quorum votes" } else { "leader-signed" }),
+                                                            Err(err) => println!("Failed to set Tick.({}) Validated: {}", resp.tick, err),
+                                                        }
+                                                    },
+                                                    Err(_err) => {
+                                                        println!("Failed to set Tick Transaction Digests for Tick {}!", resp.tick);
+                                                    }
+                                                }
+                                            } else {
+                                                println!("Tick data for {} does not match the quorum transaction digest hash; ignoring.", resp.tick);
                                             }
                                         }
                                     },
@@ -356,7 +394,7 @@ pub fn get_formatted_response(requests: Arc<Mutex<HashMap<u32, QubicApiPacket>>>
                     }
                 },
                 None => {  
-                    println!("Error Formatting Tick Data Response");
+                    //println!("Error Formatting Tick Data Response");
                 }
             }
         },
@@ -404,6 +442,32 @@ pub fn get_formatted_response(requests: Arc<Mutex<HashMap<u32, QubicApiPacket>>>
             }
         },
         EntityType::RespondContractFunction => {
+            // Which QX function was asked decides how the reply is laid out. The
+            // request is looked up by dejavu; copy it out so the matcher lock is
+            // not held across database writes.
+            let request_data: Option<Vec<u8>> = requests.lock().ok()
+                .and_then(|guard| guard.get(&response.header._dejavu).map(|r| r.data.clone()));
+            let function = request_data.as_ref()
+                .filter(|d| d.len() >= 8)
+                .map(|d| smart_contract::qx::orderbook::RequestContractFunction::from_bytes(d).input_type);
+            if matches!(function, Some(4) | Some(5)) {
+                // EntityAskOrders / EntityBidOrders: one identity's resting orders.
+                let data = request_data.unwrap();
+                let entity_request = smart_contract::qx::entity_orders::EntityOrdersRequest::from_bytes(&data);
+                let side = match entity_request.side() { Some("ASK") => "A", Some("BID") => "B", _ => "" };
+                match smart_contract::qx::entity_orders::parse_entity_orders(&response.data) {
+                    Some(orders) if !side.is_empty() => {
+                        let identity = get_identity(&entity_request.input.entity);
+                        if let Err(err) = store::sqlite::qx::entity_orders::replace_entity_orders(get_db_path().as_str(), &identity, side, &orders) {
+                            error(format!("Failed To Store Entity Orders!: {}", err).as_str());
+                        }
+                    },
+                    Some(_) => {},
+                    None => println!("Failed To Read Entity Orders ({} bytes)!", response.data.len()),
+                }
+                delete_request_from_matcher(response.header._dejavu, requests.clone());
+                return;
+            }
             //todo: as we implement more contracts, this might not be just for Qx Orderbook
             match OrderBook::format_qubic_response_data_to_structure(response) {
                 Some(_v) => {
@@ -422,7 +486,7 @@ pub fn get_formatted_response(requests: Arc<Mutex<HashMap<u32, QubicApiPacket>>>
                                         Ok(asset_name) => {
                                             match store::sqlite::qx::orderbook::create_qx_orderbook(get_db_path().as_str(), asset_name.to_str().unwrap(), side, &_v) {
                                                 Ok(_) => {
-                                                    //println!("Created Orderbook {} - {} Side", asset_name.to_str().unwrap(), side);
+                                                    note_book_refreshed(asset_name.to_str().unwrap_or(""), side);
                                                 },
                                                 Err(_err) => error(format!("Failed To Create OrderBook!: {}", _err).as_str())
                                                 
@@ -445,7 +509,7 @@ pub fn get_formatted_response(requests: Arc<Mutex<HashMap<u32, QubicApiPacket>>>
         },
         EntityType::ResponseEnd => {},
         _ => { 
-            println!("Unknown Entity Type {:?}", response.api_type);
+            //println!("Unknown Entity Type {:?}", response.api_type);
             //println!("{:?}", response);
         }
     }

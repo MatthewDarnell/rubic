@@ -8,8 +8,15 @@ use logger::{error, info};
 use network::peers::PeerSet;
 use smart_contract::qx::order::QxOrderTransaction;
 use store::{get_db_path, sqlite};
-use store::sqlite::transfer;
+use store::sqlite::{tick, transfer};
 use store::sqlite::transfer::set_transfer_as_broadcast;
+
+/// A pending transaction is re-sent to every peer whenever the known tick has
+/// advanced by at least this much since its previous send, until the current
+/// tick reaches its expiration tick or it confirms. With the tick poll hitting
+/// every peer, the known tick moves roughly once a second, so this is ~1 resend
+/// per tick per pending transaction.
+const REBROADCAST_EVERY_TICKS: u32 = 1;
 
 pub fn broadcast_transactions(peer_set: Arc<Mutex<PeerSet>>) {
     std::thread::spawn(move || {
@@ -17,13 +24,18 @@ pub fn broadcast_transactions(peer_set: Arc<Mutex<PeerSet>>) {
             std::thread::sleep(Duration::from_millis(1000));
             /*
             *
-            *   SECTION <Look For Pending Transfers To Broadcast>
+            *   SECTION <Look For Pending Transfers To Broadcast Or Re-Broadcast>
             *
             */
+            let latest_tick: u32 = match tick::fetch_latest_tick(get_db_path().as_str()) {
+                Ok(t) => t.parse::<u32>().unwrap_or(0),
+                Err(_) => 0,
+            };
 
-            match transfer::fetch_transfers_to_broadcast(get_db_path().as_str()) {
+            match transfer::fetch_transfers_to_broadcast(get_db_path().as_str(), latest_tick, REBROADCAST_EVERY_TICKS) {
                 Ok(transfers_to_broadcast) => {
                     for transfer_map in transfers_to_broadcast {
+                        let first_send = transfer_map.get("broadcast").map(|b| b == "0" || b == "false").unwrap_or(true);
                         let source_id = transfer_map.get("source").unwrap();
                         let dest_id = transfer_map.get("destination").unwrap();
 
@@ -105,10 +117,14 @@ pub fn broadcast_transactions(peer_set: Arc<Mutex<PeerSet>>) {
                             if let Some(broadcast) = _broadcast {
                                 match peer_set.lock().unwrap().make_request(broadcast) {
                                     Ok(_) => {
-                                        match set_transfer_as_broadcast(get_db_path().as_str(), txid.as_str()) {
+                                        match set_transfer_as_broadcast(get_db_path().as_str(), txid.as_str(), latest_tick) {
                                             Ok(_) => {
-                                                println!("Transaction {} Broadcast", txid);
-                                                info!("Transaction {} Broadcast", txid);
+                                                if first_send {
+                                                    println!("Transaction {} Broadcast (tick {})", txid, latest_tick);
+                                                    info!("Transaction {} Broadcast (tick {})", txid, latest_tick);
+                                                } else {
+                                                    info!("Transaction {} Re-Broadcast (tick {}, expires {})", txid, latest_tick, tck);
+                                                }
                                             },
                                             Err(err) => {
                                                 error!("Failed To Set Transaction <{}> as Broadcast! ({})", txid, err);

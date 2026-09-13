@@ -107,11 +107,14 @@ async fn main() {
       }
     }
 
-    async fn on_response<'r>(&self, _request: &'r Request<'_>, response: &mut Response<'r>) {
-      response.set_header(Header::new("Access-Control-Allow-Origin", "*"));
-      response.set_header(Header::new("Access-Control-Allow-Methods", "POST, GET, PATCH, OPTIONS"));
-      response.set_header(Header::new("Access-Control-Allow-Headers", "*"));
-      response.set_header(Header::new("Access-Control-Allow-Credentials", "true"));
+    async fn on_response<'r>(&self, request: &'r Request<'_>, response: &mut Response<'r>) {
+      // Only the app's own origins are allowed; see routes::ALLOWED_ORIGINS.
+      if let Some(origin) = routes::cors_allowed_origin(request.headers().get_one("Origin")) {
+        response.set_header(Header::new("Access-Control-Allow-Origin", origin));
+        response.set_header(Header::new("Vary", "Origin"));
+        response.set_header(Header::new("Access-Control-Allow-Methods", "POST, GET, OPTIONS"));
+        response.set_header(Header::new("Access-Control-Allow-Headers", "Content-Type"));
+      }
     }
   }
 
@@ -139,6 +142,8 @@ async fn main() {
 
         routes::info::info,
         routes::info::latest_tick,
+        routes::info::health,
+        routes::qx::book_age,
 
         routes::peer::peers,
         routes::peer::add_peer,
@@ -147,7 +152,8 @@ async fn main() {
         routes::peer::set_peer_limit,
           
         routes::qx::fetch_orders,  
-        routes::qx::get_orderbook,  
+        routes::qx::get_orderbook,
+        routes::qx::open_orders,
         routes::qx::place_order,  
 
         routes::transaction::fetch_transfers,

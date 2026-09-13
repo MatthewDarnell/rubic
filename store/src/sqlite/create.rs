@@ -65,6 +65,7 @@ pub fn open_database(path: &str, create: bool) -> Result<sqlite::Connection, Str
         signature TEXT NOT NULL,
         txid TEXT DEFAULT NULL UNIQUE,
         broadcast BOOLEAN DEFAULT FALSE,
+        last_broadcast_tick INTEGER DEFAULT 0,
         status INTEGER DEFAULT -1,
         created DATETIME DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY(source_identity) REFERENCES identities(identity) ON DELETE CASCADE
@@ -121,6 +122,17 @@ pub fn open_database(path: &str, create: bool) -> Result<sqlite::Connection, Str
         FOREIGN KEY(txid) REFERENCES transfer(txid) ON DELETE CASCADE
     );
 
+    CREATE TABLE IF NOT EXISTS qx_entity_order (
+        identity TEXT NOT NULL,
+        side TEXT CHECK( side IN ('A','B') ) NOT NULL,
+        issuer TEXT NOT NULL,
+        asset TEXT NOT NULL,
+        price INTEGER NOT NULL,
+        num_shares INTEGER NOT NULL,
+        created DATETIME DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY(identity, side, issuer, asset, price, num_shares)
+    );
+
     CREATE TABLE IF NOT EXISTS qx_orderbook (
         asset TEXT NOT NULL,
         entity TEXT NOT NULL,
@@ -143,7 +155,10 @@ pub fn open_database(path: &str, create: bool) -> Result<sqlite::Connection, Str
             match create {
                 true => {
                     match connection.execute(query) {
-                        Ok(_) => Ok(connection),
+                        Ok(_) => {
+                            migrate(&connection);
+                            Ok(connection)
+                        },
                         Err(_err) => {
                             eprintln!("Error {}", _err);
                             Err(String::from(_err.to_string()))
@@ -162,6 +177,23 @@ pub fn open_database(path: &str, create: bool) -> Result<sqlite::Connection, Str
     }
 }
 
+
+/// Columns added after a table first shipped. `CREATE TABLE IF NOT EXISTS` does
+/// not touch existing tables, so each is applied as an idempotent ALTER: a
+/// "duplicate column" error just means the database already has it.
+fn migrate(connection: &sqlite::Connection) {
+    const ADDED_COLUMNS: [&str; 1] = [
+        "ALTER TABLE transfer ADD COLUMN last_broadcast_tick INTEGER DEFAULT 0;",
+    ];
+    for statement in ADDED_COLUMNS {
+        if let Err(err) = connection.execute(statement) {
+            let text = err.to_string();
+            if !text.contains("duplicate column") {
+                logger::error(format!("Database migration failed ({}): {}", statement, text).as_str());
+            }
+        }
+    }
+}
 
 #[cfg(test)]
 mod store_tests {

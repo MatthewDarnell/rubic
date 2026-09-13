@@ -41,8 +41,6 @@ pub struct TransferTransaction {
     pub _signature: Vec<u8>
 }
 
-static TICK_OFFSET: u32 = 15;
-
 impl TransferTransaction {
 
     pub fn from_signed_data(
@@ -83,12 +81,16 @@ impl TransferTransaction {
             _source_public_key: pub_key_src.to_vec(),
             _source_destination_public_key: pub_key_dest.to_vec(),
             _amount: amount,
-            _tick: tick + TICK_OFFSET,
+            // The caller chooses the expiration tick (the UI's "Transfer Ticks
+            // Offset" on top of the current tick); nothing is added here, so the
+            // tick the user sees is the tick that is signed - same as asset
+            // transfers and QX orders.
+            _tick: tick,
             _input_type: 0,
             _input_size: 0,
             _signature: Vec::with_capacity(64)
         };
-        info!("Setting Expiration Tick For Transaction To {}", tick + TICK_OFFSET);
+        info!("Setting Expiration Tick For Transaction To {}", tick);
         let digest: Vec<u8> = k12_bytes(&t.as_bytes_without_signature());
         //let mut sub_seed: [u8; 32] = [0; 32];
         let sub_seed: Vec<u8> = get_subseed(source_identity.seed.as_str()).expect("Failed To Get SubSeed!");

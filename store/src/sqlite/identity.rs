@@ -212,6 +212,51 @@ pub fn delete_all_response_entities_before_tick(path: &str, tick: u32) -> Result
 }
 
 
+/// The newest entity report peers agree on for an identity, as
+/// `(report tick, latest outgoing transfer tick, number of agreeing peers)`.
+/// Peers report the tick of the identity's most recent executed outgoing
+/// transfer, which settles a pending transfer without quorum tick data.
+pub fn fetch_latest_entity_report(path: &str, identity: &str) -> Result<Option<(u32, u32, u32)>, String> {
+    // Each peer's newest report, then the latest-outgoing tick most of them agree
+    // on (peers answer at slightly different ticks, so never group by tick).
+    let prep_query = "SELECT MIN(tick) AS tick, latest_out_tick, COUNT(*) AS peers
+        FROM (
+            SELECT peer, MAX(tick) AS tick, latest_out_tick
+            FROM response_entity WHERE identity = :identity GROUP BY peer
+        )
+        GROUP BY latest_out_tick ORDER BY peers DESC, tick DESC LIMIT 1;";
+    let _lock = get_db_lock().lock().unwrap();
+    match open_database(path, false) {
+        Ok(connection) => {
+            match prepare_crud_statement(&connection, prep_query) {
+                Ok(mut statement) => {
+                    match statement.bind::<&[(&str, &str)]>(&[(":identity", identity)][..]) {
+                        Ok(_) => {
+                            if let Ok(State::Row) = statement.next() {
+                                let tick = statement.read::<i64, _>("tick").unwrap_or(0).max(0) as u32;
+                                let latest_out = statement.read::<i64, _>("latest_out_tick").unwrap_or(0).max(0) as u32;
+                                let peers = statement.read::<i64, _>("peers").unwrap_or(0).max(0) as u32;
+                                Ok(Some((tick, latest_out, peers)))
+                            } else {
+                                Ok(None)
+                            }
+                        },
+                        Err(err) => Err(err.to_string())
+                    }
+                },
+                Err(err) => {
+                    error!("Error in fetch_latest_entity_report! : {}", &err);
+                    Err(err)
+                }
+            }
+        },
+        Err(err) => {
+            error!("Error in fetch_latest_entity_report! : {}", &err);
+            Err(err)
+        }
+    }
+}
+
 pub fn fetch_balance_by_identity(path: &str, identity: &str) -> Result<Vec<String>, String> {
     //let prep_query = "SELECT * FROM (SELECT * FROM response_entity WHERE identity = :identity ORDER BY tick DESC) GROUP BY peer LIMIT 3;";
     let _lock = get_db_lock().lock().unwrap();

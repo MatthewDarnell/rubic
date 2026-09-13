@@ -2,6 +2,7 @@ use std::io::prelude::*;
 use std::collections::HashMap;
 use std::net::{SocketAddr, TcpStream};
 use std::sync::{Arc, Mutex};
+use std::sync::atomic::{AtomicUsize, Ordering};
 use api::request::QubicApiPacket;
 use logger::{ debug, error };
 use std::time::{Duration};
@@ -26,11 +27,51 @@ pub fn connect(ip: &str, timeout: Duration) -> Result<TcpStream, String> {
     Ok(stream)
 }
 
+/// Requests queued for the worker threads beyond which routine polling is
+/// dropped rather than queued. Every request occupies a peer's single socket for
+/// a full round trip (up to the 2.5 s read timeout), so an unbounded queue turns
+/// into seconds of latency for everything behind it - including transaction
+/// broadcasts and the tick poll that decides whether a transfer is still in time.
+pub const MAX_REQUEST_BACKLOG: usize = 64;
+/// Queue depth above which low-priority polling (the order-book sweep over every
+/// asset) yields to balances and everything else.
+pub const LOW_PRIORITY_BACKLOG: usize = 8;
+
+/// Process-wide view of the request queue, for the /health route (the PeerSet
+/// itself lives inside the peer-loop thread and is not reachable from routes).
+static GLOBAL_BACKLOG: AtomicUsize = AtomicUsize::new(0);
+static GLOBAL_TICK_BACKLOG: AtomicUsize = AtomicUsize::new(0);
+static GLOBAL_PEERS: AtomicUsize = AtomicUsize::new(0);
+
+/// `(queued requests, of which tick polls, connected peers)`.
+pub fn queue_stats() -> (usize, usize, usize) {
+    (
+        GLOBAL_BACKLOG.load(Ordering::Relaxed),
+        GLOBAL_TICK_BACKLOG.load(Ordering::Relaxed),
+        GLOBAL_PEERS.load(Ordering::Relaxed),
+    )
+}
+
+/// How eagerly a routine request is queued when the workers are behind.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum RequestPriority {
+    /// Background sweeps: only while the routine queue is nearly empty.
+    Low,
+    /// Balances, holdings, asset lists.
+    Normal,
+    /// What the user is watching right now.
+    High,
+}
+
 pub struct PeerSet {
   peers: Vec<Peer>,
   req_channel: (spmc::Sender<QubicApiPacket>, spmc::Receiver<QubicApiPacket>),
   request_matcher: Arc<Mutex<HashMap<u32, QubicApiPacket>>>,
-  threads: HashMap<String, std::thread::JoinHandle<()>>
+  threads: HashMap<String, std::thread::JoinHandle<()>>,
+  /// Requests handed to the channel that no worker has picked up yet.
+  backlog: Arc<AtomicUsize>,
+  /// The subset of `backlog` that are current-tick polls.
+  tick_backlog: Arc<AtomicUsize>,
 }
 
 
@@ -43,8 +84,25 @@ impl PeerSet {
             threads: HashMap::new(),
             request_matcher: Arc::new(Mutex::new(HashMap::new())),
             req_channel: spmc::channel::<QubicApiPacket>(),
+            backlog: Arc::new(AtomicUsize::new(0)),
+            tick_backlog: Arc::new(AtomicUsize::new(0)),
         };
         peer_set
+    }
+    /// Number of queued requests no worker has started on yet.
+    pub fn backlog(&self) -> usize {
+        self.backlog.load(Ordering::Relaxed)
+    }
+    /// Copies the counters into the process-wide stats read by /health.
+    fn publish_stats(&self) {
+        GLOBAL_BACKLOG.store(self.backlog.load(Ordering::Relaxed), Ordering::Relaxed);
+        GLOBAL_TICK_BACKLOG.store(self.tick_backlog.load(Ordering::Relaxed), Ordering::Relaxed);
+        GLOBAL_PEERS.store(self.peers.len(), Ordering::Relaxed);
+    }
+    /// Queued requests other than the constant current-tick polls: what the
+    /// low-priority sweeps have to wait behind.
+    pub fn routine_backlog(&self) -> usize {
+        self.backlog.load(Ordering::Relaxed).saturating_sub(self.tick_backlog.load(Ordering::Relaxed))
     }
     pub fn get_peers(&self) -> Vec<&Peer> { self.peers.iter().map(|x| x).collect() }
     pub fn get_peer_ids(&self) -> Vec<String> { self.peers.iter().map(|x| x.get_id().to_owned()).collect() }
@@ -87,7 +145,9 @@ impl PeerSet {
             peer.set_stream(stream);
             let rx = self.req_channel.1.clone();
             let thread_id = id.clone();
-            let t = std::thread::spawn(move || worker::handle_new_peer(thread_id, request_matcher, peer, rx));
+            let backlog = Arc::clone(&self.backlog);
+            let tick_backlog = Arc::clone(&self.tick_backlog);
+            let t = std::thread::spawn(move || worker::handle_new_peer(thread_id, request_matcher, peer, rx, backlog, tick_backlog));
             self.threads.insert(id.clone(), t);
         }
         self.peers.push(new_peer);
@@ -180,15 +240,37 @@ impl PeerSet {
         }
     }
 
-    pub fn make_request(&mut self, mut request: QubicApiPacket) -> Result<(), String> {
+    pub fn make_request(&mut self, request: QubicApiPacket) -> Result<(), String> {
+        self.make_request_with_priority(request, RequestPriority::Normal)
+    }
+
+    /// For background sweeps whose freshness matters least: sent only while the
+    /// queue is nearly empty, so identity balances always get through first.
+    pub fn make_request_low_priority(&mut self, request: QubicApiPacket) -> Result<(), String> {
+        self.make_request_with_priority(request, RequestPriority::Low)
+    }
+
+    /// For what the user is looking at right now (the order book on screen):
+    /// queued even when routine polling is being held back.
+    pub fn make_request_high_priority(&mut self, request: QubicApiPacket) -> Result<(), String> {
+        self.make_request_with_priority(request, RequestPriority::High)
+    }
+
+    fn make_request_with_priority(&mut self, mut request: QubicApiPacket, priority: RequestPriority) -> Result<(), String> {
         // Evict anything the workers have flagged dead first; no database round trips here.
         self.prune_disconnected();
+        self.publish_stats();
         if self.peers.is_empty() {
             return Err("Cannot send request, 0 peers! Add some!".to_string())
         }
 
+        // Requests that go to a single random peer. The current-tick poll is
+        // deliberately NOT in this list: asking every peer and keeping the highest
+        // answer keeps the wallet's tick within a tick or two of the network
+        // (one random peer at a time left it 6-15 ticks behind, which is what
+        // decides whether a transfer's expiration tick is still in the future).
+        // Duplicate tick replies are harmless: the store ignores conflicts.
         let spam_all: bool = match request.api_type {
-            api::header::EntityType::RequestCurrentTickInfo => false,
             api::header::EntityType::RequestedQuorumTick => false,
             api::header::EntityType::RequestTickData => false,
             api::header::EntityType::RequestContractFunction => false,
@@ -196,6 +278,34 @@ impl PeerSet {
             _ => true
         };
 
+        // Transaction broadcasts are never dropped. The tick poll goes to every
+        // peer every second, so it is capped at two rounds' worth: enough to keep
+        // the tick current, never enough to crowd out balances and the rest,
+        // which wait for the next pass whenever the workers are behind.
+        let is_tick_poll = matches!(request.api_type, api::header::EntityType::RequestCurrentTickInfo);
+        let (queued, limit) = match request.api_type {
+            api::header::EntityType::BroadcastTransaction => (0, usize::MAX),
+            api::header::EntityType::RequestCurrentTickInfo => (self.tick_backlog.load(Ordering::Relaxed), (2 * self.peers.len()).max(2)),
+            // The confirmer's lookups are rare (one per pending transfer per pass)
+            // and are what turns "pending" into confirmed/failed: never starve them.
+            api::header::EntityType::RequestedQuorumTick | api::header::EntityType::RequestTickData => (0, usize::MAX),
+            _ => (
+                self.routine_backlog(),
+                match priority {
+                    RequestPriority::Low => LOW_PRIORITY_BACKLOG,
+                    RequestPriority::Normal => MAX_REQUEST_BACKLOG,
+                    RequestPriority::High => MAX_REQUEST_BACKLOG * 4,
+                },
+            ),
+        };
+        if queued >= limit {
+            return Err(format!("Request backlog full ({} queued); skipping {:?} until the workers catch up", queued, request.api_type));
+        }
+
+        // Nodes answer contract-function (order book) requests slowly and
+        // unevenly; for the book the user is watching, ask every peer and let
+        // the first answer win instead of waiting on one random peer.
+        let spam_all = spam_all || priority == RequestPriority::High;
         let targets: Vec<String> = if spam_all {
             self.peers.iter().map(|p| p.get_id().to_owned()).collect()
         } else {
@@ -207,8 +317,14 @@ impl PeerSet {
 
         for id in targets {
             request.peer = Some(id);
-            if let Err(err) = self.req_channel.0.send(request.clone()) {
-                error!("Failed To Send Request Data To Threads! : {}", err.to_string());
+            match self.req_channel.0.send(request.clone()) {
+                Ok(_) => {
+                    self.backlog.fetch_add(1, Ordering::Relaxed);
+                    if is_tick_poll {
+                        self.tick_backlog.fetch_add(1, Ordering::Relaxed);
+                    }
+                },
+                Err(err) => error!("Failed To Send Request Data To Threads! : {}", err.to_string()),
             }
         }
         Ok(())

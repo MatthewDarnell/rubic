@@ -169,8 +169,18 @@ pub fn delete_transfers_by_source_identity(path: &str, source_identity: &str) ->
 }
 
 
-pub fn fetch_transfers_to_broadcast(path: &str) -> Result<Vec<HashMap<String, String>>, String> {
-    let prep_query = "SELECT * FROM transfer WHERE broadcast = false ORDER BY tick ASC;";
+/// Transfers that should go out to peers now: anything never broadcast, plus
+/// still-pending ones whose expiration tick has not passed and whose last
+/// broadcast is at least `resend_every_ticks` ticks old.
+pub fn fetch_transfers_to_broadcast(path: &str, latest_tick: u32, resend_every_ticks: u32) -> Result<Vec<HashMap<String, String>>, String> {
+    // Parameters are bound as text. Comparing an arithmetic result with a text
+    // value never applies numeric affinity in SQLite (and integers sort before
+    // text, so it would always be true), hence the explicit casts.
+    let prep_query = "SELECT * FROM transfer WHERE status = -1 AND (
+        broadcast = false
+        OR (tick > CAST(:latest_tick AS INTEGER)
+            AND last_broadcast_tick + CAST(:resend_every AS INTEGER) <= CAST(:latest_tick AS INTEGER))
+    ) ORDER BY tick ASC;";
     //let _lock =SQLITE_TRANSFER_MUTEX.lock().unwrap();
     let _lock = get_db_lock().lock().unwrap();
     match open_database(path, false) {
@@ -178,6 +188,8 @@ pub fn fetch_transfers_to_broadcast(path: &str) -> Result<Vec<HashMap<String, St
             match prepare_crud_statement(&connection, prep_query) {
                 Ok(mut statement) => {
                     match statement.bind::<&[(&str, &str)]>(&[
+                        (":latest_tick", latest_tick.to_string().as_str()),
+                        (":resend_every", resend_every_ticks.to_string().as_str()),
                     ][..]) {
                         Ok(_) => {
                             let mut response: Vec<HashMap<String, String>> = vec![];
@@ -212,8 +224,9 @@ pub fn fetch_transfers_to_broadcast(path: &str) -> Result<Vec<HashMap<String, St
         }
     }
 }
-pub fn set_transfer_as_broadcast(path: &str, txid: &str) -> Result<(), String> {
-    let prep_query = "UPDATE transfer SET broadcast = true WHERE txid = :txid;";
+/// Marks a transfer as sent to peers at `tick` (the latest tick known at send time).
+pub fn set_transfer_as_broadcast(path: &str, txid: &str, tick: u32) -> Result<(), String> {
+    let prep_query = "UPDATE transfer SET broadcast = true, last_broadcast_tick = :tick WHERE txid = :txid;";
     let _lock = get_db_lock().lock().unwrap();
     //let _lock =SQLITE_TRANSFER_MUTEX.lock().unwrap();
     match open_database(path, false) {
@@ -222,6 +235,7 @@ pub fn set_transfer_as_broadcast(path: &str, txid: &str) -> Result<(), String> {
                 Ok(mut statement) => {
                     match statement.bind::<&[(&str, &str)]>(&[
                         (":txid", txid),
+                        (":tick", tick.to_string().as_str()),
                     ][..]) {
                         Ok(_) => {
                             match statement.next() {
@@ -424,7 +438,7 @@ pub mod test_transfer {
                         assert_eq!(response_vec.len(), 1);
                         let mut tx = response_vec.first().unwrap();
                         assert_eq!(tx.get(&"broadcast".to_string()).unwrap(), &"0".to_string());
-                        match set_transfer_as_broadcast("test.sqlite", "txid") {
+                        match set_transfer_as_broadcast("test.sqlite", "txid", 3990) {
                             Ok(_) => {
                                 match fetch_transfer_by_txid("test.sqlite", "txid") {
                                     Ok(response_vec) => {
