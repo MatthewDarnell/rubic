@@ -1,4 +1,5 @@
-use rocket::get;
+use rocket::{get, post};
+use rocket::serde::{Deserialize, json::Json};
 use store::get_db_path;
 use store::sqlite::identity::insert_new_identity;
 use store::sqlite::master_password::get_master_password;
@@ -33,15 +34,53 @@ pub fn get_identities() -> String {
     }
 }
 
-#[get("/identity/from_seed/<seed>")]
-pub fn get_identity_from_seed(seed: &str) -> String {
-    let i: identity::Identity = identity::Identity::new(seed);
+/// Body of `POST /identity/from_seed`: seeds are secrets, so they never go in a URL.
+#[derive(Deserialize)]
+#[serde(crate = "rocket::serde")]
+pub struct SeedRequest {
+    pub seed: String,
+}
+
+/// Body of `POST /identity/new` and `POST /identity/delete`; `password` may be
+/// omitted when the wallet is unlocked (or, for new, to store the seed unencrypted).
+#[derive(Deserialize)]
+#[serde(crate = "rocket::serde")]
+pub struct PasswordRequest {
+    #[serde(default)]
+    pub password: String,
+}
+
+/// Body of `POST /identity/add`. Without a password the seed is stored as-is
+/// unless the wallet is unlocked, in which case it is encrypted with the unlocked one.
+#[derive(Deserialize)]
+#[serde(crate = "rocket::serde")]
+pub struct AddIdentityRequest {
+    pub seed: String,
+    #[serde(default)]
+    pub password: String,
+}
+
+/// Body of `POST /identity/delete`.
+#[derive(Deserialize)]
+#[serde(crate = "rocket::serde")]
+pub struct DeleteIdentityRequest {
+    pub identity: String,
+    #[serde(default)]
+    pub password: String,
+}
+
+// POST /identity/from_seed  {"seed": "..."}
+#[post("/identity/from_seed", format = "json", data = "<body>")]
+pub fn get_identity_from_seed(body: Json<SeedRequest>) -> String {
+    let i: identity::Identity = identity::Identity::new(body.seed.as_str());
     format!("{}", i.identity.as_str())
 }
 
 
-#[get("/identity/new/<password>")]
-pub fn create_random_identity(password: &str) -> String {
+// POST /identity/new  {"password": "..."}
+#[post("/identity/new", format = "json", data = "<body>")]
+pub fn create_random_identity(body: Json<PasswordRequest>) -> String {
+    let password: &str = body.password.as_str();
     let mut seed_string: String = String::from("");
     while seed_string.len() < 55 {
         let temp_seed: Vec<u8> = crypto::random::random_bytes(32);
@@ -96,45 +135,13 @@ pub fn create_random_identity(password: &str) -> String {
     return format!("{}", response);
 }
 
-#[get("/identity/add/<seed>")]
-pub fn add_identity(seed: &str) -> String {
-    if seed.len() != 55 {
-        return format!("Invalid Seed! Must be Exactly 55 characters in length!");
-    }
-    for i in seed.as_bytes() {
-        if *i < b'a' || *i > b'z' {
-            return format!("Invalid Seed! Must be a-z lowercase!");
-        }
-    }
-    let mut id: identity::Identity = identity::Identity::new(seed);
-
-    let unlocked = protocol::wallet_unlock::is_wallet_unlocked();
-    if unlocked.is_ok() {
-        let is_unlocked = unlocked.unwrap();
-        if is_unlocked {
-            return match protocol::wallet_unlock::get_plaintext_password() {
-                Ok(password) => {
-                    id = id.encrypt_identity(password.as_str()).expect("Failed To Encrypt Identity With Unlocked Password!");
-                    let response = match insert_new_identity(get_db_path().as_str(), &id) {
-                        Ok(_) => "200",
-                        Err(_) => "Failed To Insert Identity!"
-                    };
-                    format!("{}", response)
-                },
-                Err(_) => "Failed To Retrieve Unlocked Password".to_string()
-            }
-        }
-    }
-    
-    let response = match insert_new_identity(get_db_path().as_str(), &id) {
-        Ok(_) => "200",
-        Err(_) => "Failed To Insert Identity!"
-    };
-    return format!("{}", response);
-}
-
-#[get("/identity/add/<seed>/<password>")]
-pub fn add_identity_with_password(seed: &str, password: &str) -> String {
+// POST /identity/add  {"seed": "...", "password": "..."}
+// Replaces both GET /identity/add/<seed> and GET /identity/add/<seed>/<password>:
+// with no (or a too-short) password the seed is stored unencrypted, as before.
+#[post("/identity/add", format = "json", data = "<body>")]
+pub fn add_identity(body: Json<AddIdentityRequest>) -> String {
+    let seed: &str = body.seed.as_str();
+    let password: &str = body.password.as_str();
     if seed.len() != 55 {
         return format!("Invalid Seed! Must be Exactly 55 characters in length!");
     }
@@ -184,8 +191,11 @@ pub fn add_identity_with_password(seed: &str, password: &str) -> String {
     return format!("{}", response);
 }
 
-#[get("/identity/delete/<identity>/<password>")]
-pub fn delete_identity(identity: &str, password: &str) -> String {
+// POST /identity/delete  {"identity": "...", "password": "..."}
+#[post("/identity/delete", format = "json", data = "<body>")]
+pub fn delete_identity(body: Json<DeleteIdentityRequest>) -> String {
+    let identity: &str = body.identity.as_str();
+    let password: &str = body.password.as_str();
     match store::sqlite::identity::fetch_identity(get_db_path().as_str(), identity) {
         Ok(mut id) => {
             let unlocked = protocol::wallet_unlock::is_wallet_unlocked();

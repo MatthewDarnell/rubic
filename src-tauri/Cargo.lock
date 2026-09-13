@@ -3427,6 +3427,7 @@ dependencies = [
  "rocket_codegen",
  "rocket_http",
  "serde",
+ "serde_json",
  "state",
  "tempfile",
  "time",
@@ -3484,7 +3485,7 @@ dependencies = [
 
 [[package]]
 name = "rubic"
-version = "0.2.0"
+version = "1.0.0"
 dependencies = [
  "api",
  "base64 0.21.7",
@@ -3497,7 +3498,6 @@ dependencies = [
  "once_cell",
  "protocol",
  "rocket",
- "secrets",
  "smart_contract",
  "spmc",
  "store",
@@ -3505,7 +3505,7 @@ dependencies = [
 
 [[package]]
 name = "rubicui"
-version = "0.2.0"
+version = "1.0.0"
 dependencies = [
  "base64 0.21.7",
  "dotenv",
@@ -3646,17 +3646,6 @@ name = "sdd"
 version = "3.0.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "490dcfcbfef26be6800d11870ff2df8774fa6e86d047e3e8c8a76b25655e41ca"
-
-[[package]]
-name = "secrets"
-version = "1.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f51745a213c4a2acabad80cd511e40376996bc83db6ceb4ebc7853d41c597988"
-dependencies = [
- "libc",
- "pkg-config",
- "vcpkg",
-]
 
 [[package]]
 name = "selectors"
@@ -5096,12 +5085,6 @@ name = "valuable"
 version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ba73ea9cf16a25df0c8caa16c51acb937d5712a8429db78a3ee29d5dcacd3a65"
-
-[[package]]
-name = "vcpkg"
-version = "0.2.15"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "accd4ea62f7bb7a82fe23066fb0957d48ef677f6eeb8215f372f52e48bb32426"
 
 [[package]]
 name = "version-compare"

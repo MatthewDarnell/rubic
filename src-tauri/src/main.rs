@@ -46,6 +46,7 @@ async fn main() {
         Ok(())
     }
     tauri::Builder::default()
+        .plugin(tauri_plugin_shell::init())
         .setup(setup)
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
@@ -148,6 +149,7 @@ async fn main() {
             .merge(("address", host.as_str()));
         rocket::custom(figment)
             .mount("/", routes![
+        rubic::routes::cors_preflight,
 
         rubic::routes::asset::all_asset_balances,
         rubic::routes::asset::balance,
@@ -157,7 +159,6 @@ async fn main() {
 
         rubic::routes::identity::balance,
         rubic::routes::identity::add_identity,
-        rubic::routes::identity::add_identity_with_password,
         rubic::routes::identity::create_random_identity,
         rubic::routes::identity::delete_identity,
         rubic::routes::identity::get_identities,

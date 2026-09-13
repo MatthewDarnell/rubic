@@ -1,5 +1,6 @@
 use std::collections::HashMap;
-use rocket::get;
+use rocket::{get, post};
+use rocket::serde::{Deserialize, json::Json};
 use crypto::qubic_identities::get_identity;
 use logger::{debug, error, info};
 use store::{get_db_path, sqlite};
@@ -70,8 +71,32 @@ pub fn fetch_transfers(asc: u8, limit: u32, offset: u32) -> String {
     }    
 }
 
-#[get("/asset/transfer/<asset_name>/<issuer>/<source>/<dest>/<amount>/<expiration>/<password>")]
-pub fn transfer(asset_name: &str, issuer: &str, source: &str, dest: &str, amount: &str, expiration: &str, password: &str) -> String {
+/// Body of `POST /asset/transfer`. `expiration` 0 (or omitted) means the latest
+/// known tick; `password` may be omitted when the wallet is unlocked or the
+/// source seed is stored unencrypted.
+#[derive(Deserialize)]
+#[serde(crate = "rocket::serde")]
+pub struct AssetTransferRequest {
+    pub asset: String,
+    pub issuer: String,
+    pub source: String,
+    pub dest: String,
+    pub amount: i64,
+    #[serde(default)]
+    pub expiration: u32,
+    #[serde(default)]
+    pub password: String,
+}
+
+// POST /asset/transfer  {"asset", "issuer", "source", "dest", "amount", "expiration", "password"}
+#[post("/asset/transfer", format = "json", data = "<body>")]
+pub fn transfer(body: Json<AssetTransferRequest>) -> String {
+    let AssetTransferRequest { asset, issuer, source, dest, amount, expiration, password } = body.into_inner();
+    let asset_name: &str = asset.as_str();
+    let issuer: &str = issuer.as_str();
+    let source: &str = source.as_str();
+    let dest: &str = dest.as_str();
+    let password: &str = password.as_str();
     let source_identity: String = source.to_string();
     let dest_identity: String = dest.to_string();
 
@@ -137,8 +162,8 @@ pub fn transfer(asset_name: &str, issuer: &str, source: &str, dest: &str, amount
     } else {
         debug!("Creating Transfer, Wallet Is Not Encrypted!");
     }
-    let amt: i64 = amount.parse().unwrap();
-    let mut tck: u32 = expiration.parse().unwrap();
+    let amt: i64 = amount;
+    let mut tck: u32 = expiration;
     
     if tck == 0 {
         tck = match tick::fetch_latest_tick(get_db_path().as_str()) {

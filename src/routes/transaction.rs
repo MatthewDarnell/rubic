@@ -1,4 +1,5 @@
-use rocket::get;
+use rocket::{get, post};
+use rocket::serde::{Deserialize, json::Json};
 use logger::{debug, error, info};
 use store::{get_db_path, sqlite};
 use crate::routes::MINPASSWORDLEN;
@@ -25,9 +26,27 @@ pub fn fetch_transfers(asc: u8, limit: u32, offset: u32) -> String {
 }
 
 
-//transfer/${sourceIdentity}/${destinationIdentity}/${amountToSend}/${expirationTick}/${password}
-#[get("/transfer/<source>/<dest>/<amount>/<expiration>/<password>")]
-pub fn transfer(source: &str, dest: &str, amount: &str, expiration: &str, password: &str) -> String {
+/// Body of `POST /transfer`. `amount` and `expiration` are parsed by serde, so a
+/// malformed value is a 422 instead of a panic; `password` may be omitted when the
+/// wallet is unlocked or the source seed is stored unencrypted.
+#[derive(Deserialize)]
+#[serde(crate = "rocket::serde")]
+pub struct TransferRequest {
+    pub source: String,
+    pub dest: String,
+    pub amount: u64,
+    pub expiration: u32,
+    #[serde(default)]
+    pub password: String,
+}
+
+// POST /transfer  {"source": ..., "dest": ..., "amount": 1, "expiration": <tick>, "password": "..."}
+#[post("/transfer", format = "json", data = "<body>")]
+pub fn transfer(body: Json<TransferRequest>) -> String {
+    let TransferRequest { source, dest, amount, expiration, password } = body.into_inner();
+    let source: &str = source.as_str();
+    let dest: &str = dest.as_str();
+    let password: &str = password.as_str();
     let source_identity: String = source.to_string();
     let dest_identity: String = dest.to_string();
 
@@ -90,10 +109,10 @@ pub fn transfer(source: &str, dest: &str, amount: &str, expiration: &str, passwo
         debug!("Creating Transfer, Wallet Is Not Encrypted!");
     }
     
-    let amt: u64 = amount.parse().unwrap();
-    let tck: u32 = expiration.parse().unwrap();
+    let amt: u64 = amount;
+    let tck: u32 = expiration;
 
-    let transfer_tx = protocol::transfer::TransferTransaction::from_vars(&source_identity, &dest, amt, tck);
+    let transfer_tx = protocol::transfer::TransferTransaction::from_vars(&source_identity, dest, amt, tck);
     info!("Creating Transfer: {} .({}) ---> {} (Expires At Tick.<{}>)", &source_identity.identity.as_str(), amt.to_string().as_str(), dest, tck.to_string().as_str());
 
     let txid = transfer_tx.txid();

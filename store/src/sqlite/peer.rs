@@ -90,8 +90,8 @@ pub fn blacklist(path: &str, id: &str) -> Result<(), String> {
     }
 }
 
-pub fn remove_blacklist(path: &str, id: &str) -> Result<(), String> {
-    let prep_query = "UPDATE peer SET whitelisted = 0 WHERE id = :id";
+pub fn remove_blacklist(path: &str, ip: &str) -> Result<(), String> {
+    let prep_query = "UPDATE peer SET whitelisted = 0 WHERE ip = :ip";
     let _lock = get_db_lock().lock().unwrap();
     //let _lock =SQLITE_PEER_MUTEX.lock().unwrap();
     match open_database(path, false) {
@@ -99,7 +99,7 @@ pub fn remove_blacklist(path: &str, id: &str) -> Result<(), String> {
             match prepare_crud_statement(&connection, prep_query) {
                 Ok(mut statement) => {
                     match statement.bind::<&[(&str, &str)]>(&[
-                        (":id", id),
+                        (":ip", ip),
                     ][..]) {
                         Ok(_) => {
                             match statement.next() {

@@ -1,5 +1,6 @@
 use std::str::FromStr;
-use rocket::get;
+use rocket::{get, post};
+use rocket::serde::{Deserialize, json::Json};
 use crypto::qubic_identities::get_identity;
 use logger::{debug, error, info};
 use store::{get_db_path, sqlite};
@@ -36,8 +37,33 @@ pub fn fetch_orders(asc: u8, limit: u32, offset: u32) -> String {
     }
 }
 
-#[get("/qx/order/<tick>/<issuer>/<asset>/<ask_bid>/<address>/<price>/<amount>/<password>")]
-pub fn place_order(tick: u32, issuer: &str, asset: &str, ask_bid: &str, address: &str, price: u64, amount: u64, password: &str) -> String {
+/// Body of `POST /qx/order`. `side` is ASK, BID, REMOVEASK or REMOVEBID; `tick` 0
+/// (or omitted) means the latest known tick; `password` may be omitted when the
+/// wallet is unlocked or the identity's seed is stored unencrypted.
+#[derive(Deserialize)]
+#[serde(crate = "rocket::serde")]
+pub struct QxOrderRequest {
+    #[serde(default)]
+    pub tick: u32,
+    pub issuer: String,
+    pub asset: String,
+    pub side: String,
+    pub address: String,
+    pub price: u64,
+    pub amount: u64,
+    #[serde(default)]
+    pub password: String,
+}
+
+// POST /qx/order  {"tick", "issuer", "asset", "side", "address", "price", "amount", "password"}
+#[post("/qx/order", format = "json", data = "<body>")]
+pub fn place_order(body: Json<QxOrderRequest>) -> String {
+    let QxOrderRequest { tick, issuer, asset, side, address, price, amount, password } = body.into_inner();
+    let issuer: &str = issuer.as_str();
+    let asset: &str = asset.as_str();
+    let ask_bid: &str = side.as_str();
+    let address: &str = address.as_str();
+    let password: &str = password.as_str();
     let _identity: String = address.to_string();
     if asset.len() > 8 {
         return "Invalid Asset!".to_string();

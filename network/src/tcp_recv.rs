@@ -1,57 +1,75 @@
 use std::collections::HashMap;
-use std::io::Read;
+use std::io::{ErrorKind, Read};
 use std::net::TcpStream;
 use std::sync::{Arc, Mutex};
 use api::header::{EntityType, RequestResponseHeader};
 use api::request::QubicApiPacket;
 use api::response;
-use store::get_db_path;
-use store::sqlite::peer::set_peer_disconnected;
 use crate::peer::Peer;
 
-pub fn qubic_tcp_receive_data (peer: &Peer, requests: Arc<Mutex<HashMap<u32, QubicApiPacket>>>, stream: &TcpStream) {
+/// What a non-blocking peek at the socket told us.
+enum Peek {
+    Data,
+    /// Read timeout elapsed: the peer is slow or done sending, not gone.
+    NoData,
+    /// EOF or a hard socket error: the peer is gone.
+    Closed,
+}
+
+fn peek_header(stream: &TcpStream, buf: &mut [u8; 8]) -> Peek {
+    match stream.peek(buf) {
+        Ok(0) => Peek::Closed,
+        Ok(_) => Peek::Data,
+        Err(err) => match err.kind() {
+            ErrorKind::WouldBlock | ErrorKind::TimedOut | ErrorKind::Interrupted => Peek::NoData,
+            _ => Peek::Closed,
+        },
+    }
+}
+
+/// Reads the response(s) to the request just written. Returns `false` only when
+/// the socket is actually dead; a timeout just means the response was incomplete.
+pub fn qubic_tcp_receive_data (peer: &Peer, requests: Arc<Mutex<HashMap<u32, QubicApiPacket>>>, stream: &TcpStream) -> bool {
     let mut peeked: [u8; 8] = [0; 8];
-    match stream.peek(&mut peeked) {
-        Ok(_) => {
+    match peek_header(stream, &mut peeked) {
+        Peek::Data => {
             let peeked_header: RequestResponseHeader = RequestResponseHeader::from_vec(&peeked.to_vec());
             match peeked_header.recv_multiple_packets() {
                 true => {
-                    let mut data = recv_qubic_responses_until_end_response(peer, stream, 676);
-                    //println!("Received Multiple Data: {} From Peer {}", data.len(), peer.get_ip_addr());
+                    let (mut data, alive) = recv_qubic_responses_until_end_response(peer, stream, 676);
                     response::get_formatted_response_from_multiple(requests, &mut data);
+                    alive
                 },
                 false => {
                     match recv_qubic_response(peer, stream) {
-                        Some(mut data) => response::get_formatted_response(requests, &mut data),
-                        None => {}
+                        Some(mut data) => {
+                            response::get_formatted_response(requests, &mut data);
+                            true
+                        },
+                        None => true,
                     }
                 }
-            };
-            
+            }
         },
-        Err(_) => {}
+        Peek::NoData => true,
+        Peek::Closed => false,
     }
 }
 
 
 fn recv_qubic_response(peer: &Peer, stream: &TcpStream) -> Option<QubicApiPacket> {
     let mut peeked: [u8; 8] = [0; 8];
-    match stream.peek(&mut peeked) {
-        Ok(_) => {
+    match peek_header(stream, &mut peeked) {
+        Peek::Data => {
             let peeked_header: RequestResponseHeader = RequestResponseHeader::from_vec(&peeked.to_vec());
-            //println!("RESPONSE: {:?}  {:?}, {} bytes", &peeked_header, &peeked_header.get_type(), &peeked_header.get_size());
             let mut result_size: Vec<u8> = vec![0; peeked_header.get_size()];
             match stream.try_clone() {  //1 worker thread per tcp stream, should be fine to clone
                 Ok(mut stream) => {
                     match stream.read_exact(&mut result_size) {
                         Ok(_) => {
-                            let api_response: Option<QubicApiPacket> = QubicApiPacket::format_response_from_bytes(peer.get_id(), result_size.to_vec());
-                            api_response
+                            QubicApiPacket::format_response_from_bytes(peer.get_id(), result_size.to_vec())
                         },
-                        Err(_err) => {
-                            //eprintln!("Failed To Read Response! : {}", _err.to_string());
-                            None
-                        }
+                        Err(_err) => None,
                     }
                 },
                 Err(_) => {
@@ -60,51 +78,38 @@ fn recv_qubic_response(peer: &Peer, stream: &TcpStream) -> Option<QubicApiPacket
                 }
             }
         },
-        Err(_err) => {
-            //println!("Failed To Peek! {}", _err);
-            set_peer_disconnected(get_db_path().as_str(), peer.get_id().as_str()).unwrap();
-            None
-        }
+        _ => None,
     }
 }
 
 
-fn recv_qubic_responses_until_end_response(peer: &Peer, stream: &TcpStream, max_packets_to_read: u32) -> Vec<QubicApiPacket> {
+/// Collects packets until a ResponseEnd marker. The second value is `false` when
+/// the socket closed underneath us.
+fn recv_qubic_responses_until_end_response(peer: &Peer, stream: &TcpStream, max_packets_to_read: u32) -> (Vec<QubicApiPacket>, bool) {
     let mut data: Vec<QubicApiPacket> = Vec::new();
     let mut peeked: [u8; 8] = [0; 8];
-    let mut peeked_header: RequestResponseHeader = RequestResponseHeader::from_vec(&peeked.to_vec());
     loop {
-        match stream.peek(&mut peeked) {
-            Ok(_) => {
-                peeked_header = RequestResponseHeader::from_vec(&peeked.to_vec());
+        match peek_header(stream, &mut peeked) {
+            Peek::Data => {
+                let peeked_header = RequestResponseHeader::from_vec(&peeked.to_vec());
                 if peeked_header.get_type().to_byte() == EntityType::ResponseEnd.to_byte() {
-                    return data;
+                    return (data, true);
                 }
                 peeked = [0; 8];
                 match recv_qubic_response(peer, stream) {
                     Some(packet) => {
-                        //println!("read multiple packet");
                         data.push(packet);
                         if data.len() > max_packets_to_read as usize {
-                            println!("Breaking");
-                            break;
-                        } else {
-                            continue;
+                            return (data, true);
                         }
                     },
-                    None => {
-                        //eprintln!("Failed To Read Multiple Data");
-                    }
+                    // Could not read a full packet; keep what we have.
+                    None => return (data, true),
                 }
-                return data;
             },
-            Err(_err) => {
-                //println!("Failed To Peek! {}", _err);
-                set_peer_disconnected(get_db_path().as_str(), peer.get_id().as_str()).unwrap();
-                break;
-            }
+            // Slow peer or truncated response: keep the partial data, the peer stays.
+            Peek::NoData => return (data, true),
+            Peek::Closed => return (data, false),
         }
     }
-    println!("Read {} Data Packets. Last Packet Type={:?}", &data.len(), peeked_header.get_type());
-    data
 }

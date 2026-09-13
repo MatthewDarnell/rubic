@@ -4,10 +4,6 @@ on:
   push:
     branches:
       - main
-      - develop
-  pull_request:
-    branches:
-      - main
 env:
   CARGO_TERM_COLOR: always
 jobs:
@@ -24,7 +20,7 @@ jobs:
       - name: Install Tauri
         run: cargo install tauri-cli --version "^2.0.0" --locked
       - name: Build Frontend
-        run: cd frontend && yarn install --network-timeout 1000000000 && yarn build && cd ..
+        run: cd ui && yarn install --network-timeout 1000000000 && yarn build && cd ..
       - name: Build Rubic
         run: cargo tauri build --no-bundle
       - name: Bundle Rubic
@@ -53,7 +49,7 @@ jobs:
       - name: Install Tauri
         run: cargo install tauri-cli --version "^2.0.0" --locked
       - name: Build Frontend
-        run: cd frontend && yarn install --network-timeout 1000000000 && yarn build && cd ..
+        run: cd ui && yarn install --network-timeout 1000000000 && yarn build && cd ..
       - name: Build Rubic
         run: cargo tauri build --no-bundle
       - name: Bundle Rubic
@@ -72,6 +68,9 @@ jobs:
           path: src-tauri/target/release/bundle/macos/Rubic-macos.zip
       - run: echo "🍏 This job's status is ${{ job.status }}."
   windows:
+      # Downloads the Linux and macOS artifacts and publishes the release, so it
+      # must wait for those builds to finish.
+      needs: [linux, mac]
       permissions:
         contents: write
       runs-on: windows-latest
@@ -82,7 +81,7 @@ jobs:
         - name: Install Tauri
           run: cargo install tauri-cli --version "^2.0.0" --locked
         - name: Build Frontend
-          run: cd frontend; yarn install --network-timeout 1000000000; yarn build; cd ..;
+          run: cd ui; yarn install --network-timeout 1000000000; yarn build; cd ..;
         - name: Build Rubic
           run: cargo tauri build
         - name: Generate Commit Hash

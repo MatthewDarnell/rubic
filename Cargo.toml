@@ -16,7 +16,7 @@ test = false
 [dependencies]
 dotenv = "0.15.0"
 dotenv_codegen = "0.15.0"
-rocket = "0.5.0-rc.3"
+rocket = { version = "0.5.0-rc.3", features = ["json"] }
 spmc = "0.3.0"
 
 api = { path = './api' }
@@ -35,3 +35,8 @@ overflow-checks = false
 
 [profile.dev]
 overflow-checks = false
+
+# Dependencies (argon2, pbkdf2/sha2, chacha20poly1305, the crypto crate) run at
+# release speed in debug builds; unoptimized they make every unlock take seconds.
+[profile.dev.package."*"]
+opt-level = 3

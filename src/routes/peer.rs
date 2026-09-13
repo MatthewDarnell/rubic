@@ -20,6 +20,11 @@ pub fn add_peer(address: &str) -> String {
     match std::net::SocketAddrV4::from_str(address) {
         Ok(_) => {
             Peer::new(address, None, "");
+            // An explicit add of a previously removed peer restores it; discovery via
+            // the peer loop must not, so this lives here rather than in Peer::new.
+            if let Err(err) = store::sqlite::peer::remove_blacklist(store::get_db_path().as_str(), address) {
+                println!("Failed To Restore Peer.({}): {}", address, err);
+            }
             match store::sqlite::peer::fetch_peer_by_ip(store::get_db_path().as_str(), address) {
                 Ok(peer_map) => { peer_map.get(&"id".to_string()).unwrap().clone() },
                 Err(_) => { "Failed To Add Peer".to_string() }
