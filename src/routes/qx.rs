@@ -9,8 +9,23 @@ use smart_contract::qx::order;
 use store::sqlite::tick::fetch_latest_tick;
 use crate::routes::MINPASSWORDLEN;
 
-#[get("/qx/orderbook/<asset>/<ask_bid>/<limit>/<offset>")]
-pub fn get_orderbook(asset: &str, ask_bid: &str, limit: i32, offset: u32) -> String {
+/// Every resting QX order of the wallet's identities, as reported by the QX
+/// contract itself (EntityAskOrders / EntityBidOrders), refreshed every 10 s.
+#[get("/qx/open_orders")]
+pub fn open_orders() -> String {
+    match sqlite::qx::entity_orders::fetch_entity_orders(get_db_path().as_str()) {
+        Ok(rows) => format!("{:?}", rows),
+        Err(err) => err,
+    }
+}
+
+// `?refresh=1` marks the book the user is looking at: it is refreshed from peers
+// ahead of the background sweep. Background scans (open orders) omit it.
+#[get("/qx/orderbook/<asset>/<ask_bid>/<limit>/<offset>?<refresh>")]
+pub fn get_orderbook(asset: &str, ask_bid: &str, limit: i32, offset: u32, refresh: Option<bool>) -> String {
+    if refresh.unwrap_or(false) {
+        crate::peer_loop::qx::request_priority_refresh(asset);
+    }
     match sqlite::qx::orderbook::fetch_qx_orderbook(get_db_path().as_str(), asset, ask_bid, limit, offset) {
         Ok(r) => format!("{:?}", r),
         Err(err) => err

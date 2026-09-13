@@ -31,7 +31,7 @@ import NotesIcon from '@mui/icons-material/NotesOutlined';
 import TimeFilterChips from './TimeFilterChips';
 import IdText from './IdText';
 import Identicon from './Identicon';
-import TxStatus, { txState, TxStatusChip } from './TxStatus';
+import TxStatus, { canRetry, txState, TxStatusChip, UNCONFIRMED_HINT } from './TxStatus';
 import { useStoredValue, KEYS } from '../utils/localStore';
 import { ALL_TIME, formatNumber, isNumeric, parseCreated, shortenId, withinLastMinutes } from '../utils/format';
 
@@ -53,6 +53,7 @@ const STATES = [
   { key: 'all', label: 'Any status' },
   { key: 'pending', label: 'Pending' },
   { key: 'confirmed', label: 'Confirmed' },
+  { key: 'unconfirmed', label: 'Unconfirmed' },
   { key: 'failed', label: 'Failed' },
 ];
 
@@ -239,8 +240,8 @@ const TxDetailDialog = ({ item, labels, latestTick, note, onSaveNote, onRetry, o
                   {Math.max(0, Number(item.tick) - Number(latestTick))} ticks to go
                 </Typography>
               )}
-              {state === 'failed' && item.status === '-1' && (
-                <Typography variant='caption' sx={{ color: 'error.main' }}>Failed to Confirm</Typography>
+              {state === 'unconfirmed' && (
+                <Typography variant='caption' sx={{ color: 'warning.main' }}>{UNCONFIRMED_HINT}</Typography>
               )}
             </Box>
           ) : (
@@ -262,7 +263,7 @@ const TxDetailDialog = ({ item, labels, latestTick, note, onSaveNote, onRetry, o
         </Box>
       </DialogContent>
       <DialogActions sx={{ px: 3, pb: 2 }}>
-        {state === 'failed' && item.retry && (
+        {canRetry(state) && item.retry && (
           <Button color='warning' startIcon={<ReplayIcon />} onClick={() => { onClose(); onRetry(item); }} sx={{ mr: 'auto' }}>
             {item.retry.label}
           </Button>
@@ -352,10 +353,12 @@ const ActivityRow = ({ item, labels, latestTick, note, onRetry, onOpen }) => {
               {ticksLeft > 0 ? `${ticksLeft} tick${ticksLeft === 1 ? '' : 's'} to go` : 'at tick — awaiting confirmation'}
             </Box>
           )}
-          {state === 'failed' && item.status === '-1' && (
-            <Box component='span' sx={{ color: 'error.main' }}>
-              Failed to Confirm
-            </Box>
+          {state === 'unconfirmed' && (
+            <Tooltip title={UNCONFIRMED_HINT}>
+              <Box component='span' sx={{ color: 'warning.main' }}>
+                not verified yet
+              </Box>
+            </Tooltip>
           )}
           {note && (
             <Box component='span' sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.5, color: 'text.primary' }}>
@@ -377,7 +380,7 @@ const ActivityRow = ({ item, labels, latestTick, note, onRetry, onOpen }) => {
         </Typography>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
           <TxStatusChip status={item.status} tick={item.tick} latestTick={latestTick} />
-          {state === 'failed' && item.retry && (
+          {canRetry(state) && item.retry && (
             <TxStatus
               status={item.status}
               tick={item.tick}
@@ -484,6 +487,10 @@ export default function ActivityPanel({
           <Typography sx={{ fontWeight: 600 }}>{item.title}</Typography>
           <Typography variant='body2' color='text.secondary' sx={{ mt: 1 }}>
             A new transaction is created at the current tick.
+          </Typography>
+          <Typography variant='body2' sx={{ mt: 1, color: 'warning.main', fontWeight: 600 }}>
+            Only resend if the balance shows the original did not go through — resending one that
+            succeeded sends it twice.
           </Typography>
         </>
       ),

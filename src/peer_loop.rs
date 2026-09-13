@@ -5,7 +5,8 @@ mod disconnected_peer_handler;
 mod transaction_broadcaster;
 mod transaction_confirmer;
 mod broadcast_computors_updater;
-mod qx;
+pub mod qx;
+mod qx_entity_orders;
 mod issued_asset_monitor;
 
 use std::sync::{mpsc, Arc, Mutex};
@@ -18,6 +19,7 @@ use crate::peer_loop::disconnected_peer_handler::handle_disconnected_peers;
 use crate::peer_loop::issued_asset_monitor::monitor_issued_assets;
 use crate::peer_loop::latest_tick_monitor::monitor_latest_tick;
 use crate::peer_loop::qx::monitor_qx_orderbook;
+use crate::peer_loop::qx_entity_orders::monitor_qx_entity_orders;
 use crate::peer_loop::transaction_broadcaster::broadcast_transactions;
 use crate::peer_loop::transaction_confirmer::confirm_transactions;
 
@@ -43,6 +45,7 @@ pub fn start_peer_set_thread(_: &mpsc::Sender<std::collections::HashMap<String, 
             update_broadcast_computors(peer_set.clone());
             update_balances(peer_set.clone());
             monitor_qx_orderbook(peer_set.clone());
+            monitor_qx_entity_orders(peer_set.clone());
             monitor_issued_assets(peer_set.clone());
         });
     }

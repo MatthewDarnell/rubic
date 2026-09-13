@@ -8,6 +8,78 @@ use crate::sqlite::crud::prepare_crud_statement;
 use crate::sqlite::get_db_lock;
 
 
+/// An identity's resting QX orders as reported by the contract itself.
+pub mod entity_orders {
+    use std::collections::HashMap;
+    use sqlite::State;
+    use logger::error;
+    use crypto::qubic_identities::get_identity;
+    use smart_contract::qx::entity_orders::EntityOrder;
+    use crate::sqlite::create::open_database;
+    use crate::sqlite::crud::prepare_crud_statement;
+    use crate::sqlite::get_db_lock;
+
+    /// Replaces one side ('A' or 'B') of an identity's stored orders with a fresh page.
+    pub fn replace_entity_orders(path: &str, identity: &str, side: &str, orders: &[EntityOrder]) -> Result<(), String> {
+        let _lock = get_db_lock().lock().unwrap();
+        let connection = open_database(path, false)?;
+        connection.execute("BEGIN TRANSACTION;").map_err(|e| e.to_string())?;
+        let result = (|| -> Result<(), String> {
+            let mut del = prepare_crud_statement(&connection, "DELETE FROM qx_entity_order WHERE identity = :identity AND side = :side;")?;
+            del.bind::<&[(&str, &str)]>(&[(":identity", identity), (":side", side)][..]).map_err(|e| e.to_string())?;
+            del.next().map_err(|e| e.to_string())?;
+            let mut ins = prepare_crud_statement(
+                &connection,
+                "INSERT OR IGNORE INTO qx_entity_order (identity, side, issuer, asset, price, num_shares) VALUES (:identity, :side, :issuer, :asset, :price, :num_shares);",
+            )?;
+            for order in orders {
+                let issuer = get_identity(&order.issuer);
+                let asset = order.asset_name_str();
+                let price = order.price.to_string();
+                let shares = order.num_shares.to_string();
+                ins.bind::<&[(&str, &str)]>(&[
+                    (":identity", identity),
+                    (":side", side),
+                    (":issuer", issuer.as_str()),
+                    (":asset", asset.as_str()),
+                    (":price", price.as_str()),
+                    (":num_shares", shares.as_str()),
+                ][..]).map_err(|e| e.to_string())?;
+                ins.next().map_err(|e| e.to_string())?;
+                ins.reset().map_err(|e| e.to_string())?;
+            }
+            Ok(())
+        })();
+        match result {
+            Ok(_) => {
+                connection.execute("COMMIT;").map_err(|e| e.to_string())?;
+                Ok(())
+            },
+            Err(err) => {
+                let _ = connection.execute("ROLLBACK;");
+                error!("Error in replace_entity_orders! : {}", &err);
+                Err(err)
+            }
+        }
+    }
+
+    /// Every stored resting order of every identity in the wallet.
+    pub fn fetch_entity_orders(path: &str) -> Result<Vec<HashMap<String, String>>, String> {
+        let _lock = get_db_lock().lock().unwrap();
+        let connection = open_database(path, false)?;
+        let mut statement = prepare_crud_statement(&connection, "SELECT identity, side, issuer, asset, price, num_shares, created FROM qx_entity_order ORDER BY asset ASC, side ASC, price DESC;")?;
+        let mut rows: Vec<HashMap<String, String>> = Vec::new();
+        while let Ok(State::Row) = statement.next() {
+            let mut row: HashMap<String, String> = HashMap::new();
+            for column in ["identity", "side", "issuer", "asset", "price", "num_shares", "created"] {
+                row.insert(column.to_string(), statement.read::<String, _>(column).unwrap_or_default());
+            }
+            rows.push(row);
+        }
+        Ok(rows)
+    }
+}
+
 pub mod orderbook {
     use std::collections::HashMap;
     use sqlite::State;

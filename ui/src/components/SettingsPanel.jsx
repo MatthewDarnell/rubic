@@ -34,7 +34,7 @@ import pkg from '../../package.json';
 // The server rejects unlock timeouts above 99,999 ms.
 const MAX_UNLOCK_SECONDS = 99;
 const PRESETS = [15, 30, 60, 90];
-const DEFAULT_TICK_OFFSET = 10;
+const DEFAULT_TICK_OFFSET = 30;
 const MAX_TICK_OFFSET = 1000;
 
 const AddressBook = ({ entries, onChange, identities, labels }) => {

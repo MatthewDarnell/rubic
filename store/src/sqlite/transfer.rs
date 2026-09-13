@@ -173,9 +173,13 @@ pub fn delete_transfers_by_source_identity(path: &str, source_identity: &str) ->
 /// still-pending ones whose expiration tick has not passed and whose last
 /// broadcast is at least `resend_every_ticks` ticks old.
 pub fn fetch_transfers_to_broadcast(path: &str, latest_tick: u32, resend_every_ticks: u32) -> Result<Vec<HashMap<String, String>>, String> {
+    // Parameters are bound as text. Comparing an arithmetic result with a text
+    // value never applies numeric affinity in SQLite (and integers sort before
+    // text, so it would always be true), hence the explicit casts.
     let prep_query = "SELECT * FROM transfer WHERE status = -1 AND (
         broadcast = false
-        OR (tick > :latest_tick AND last_broadcast_tick + :resend_every <= :latest_tick)
+        OR (tick > CAST(:latest_tick AS INTEGER)
+            AND last_broadcast_tick + CAST(:resend_every AS INTEGER) <= CAST(:latest_tick AS INTEGER))
     ) ORDER BY tick ASC;";
     //let _lock =SQLITE_TRANSFER_MUTEX.lock().unwrap();
     let _lock = get_db_lock().lock().unwrap();

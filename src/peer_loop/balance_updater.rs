@@ -7,14 +7,26 @@ use store::{get_db_path, sqlite};
 use store::sqlite::tick;
 
 const OLD_ENTITIES_DELETE_TICK: u32 = 100;
+// Balance and holdings requests go to every peer (several answers are needed to
+// agree on a balance), so they are the wallet's heaviest traffic: 2 requests x
+// peers x identities per round. Holdings change rarely; poll them far less often.
+const BALANCE_INTERVAL: Duration = Duration::from_secs(10);
+const HOLDINGS_INTERVAL: Duration = Duration::from_secs(60);
 
 
 pub fn update_balances(peer_set: Arc<Mutex<PeerSet>>) {
     std::thread::spawn(move || {
         let mut latest_tick: u32 = 0;
         let mut last_deleted_tick: u32 = 0;
+        let mut last_balances: Option<std::time::Instant> = None;
+        let mut last_holdings: Option<std::time::Instant> = None;
         loop {
-            std::thread::sleep(Duration::from_millis(2500));
+            std::thread::sleep(Duration::from_millis(1000));
+            let balances_due = last_balances.map_or(true, |at| at.elapsed() >= BALANCE_INTERVAL);
+            let holdings_due = last_holdings.map_or(true, |at| at.elapsed() >= HOLDINGS_INTERVAL);
+            if !balances_due && !holdings_due {
+                continue;
+            }
             /*
             *
             *   SECTION <Update Latest Tick And Update Balances>
@@ -36,13 +48,13 @@ pub fn update_balances(peer_set: Arc<Mutex<PeerSet>>) {
                             let request = api::QubicApiPacket::get_identity_balance(identity.as_str());
                             let possessed_asset_request = api::QubicApiPacket::request_possessed_assets(&get_public_key_from_identity(&identity).unwrap());
                             let _owned_asset_request = api::QubicApiPacket::request_owned_assets(&get_public_key_from_identity(&identity).unwrap());
-                            {
+                            if balances_due {
                                 match peer_set.lock().unwrap().make_request(request) {
                                     Ok(_) => {},
                                     Err(err) => error!("{}", err)
                                 }
                             }
-                            {
+                            if holdings_due {
                                 match peer_set.lock().unwrap().make_request(possessed_asset_request) {
                                     Ok(_) => {
                                         //println!("Requested Possessed Assets For  {}", identity);
@@ -82,6 +94,12 @@ pub fn update_balances(peer_set: Arc<Mutex<PeerSet>>) {
                     last_deleted_tick = latest_tick;
                 }
                 latest_tick = temp_latest_tick;
+                if balances_due {
+                    last_balances = Some(std::time::Instant::now());
+                }
+                if holdings_due {
+                    last_holdings = Some(std::time::Instant::now());
+                }
             }
         }
     });

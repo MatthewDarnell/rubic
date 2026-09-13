@@ -143,6 +143,22 @@ impl QubicApiPacket {
         }
     }
 
+    /// QX EntityAskOrders / EntityBidOrders: one identity's resting orders across all assets.
+    pub fn get_entity_qx_orders(request: &smart_contract::qx::entity_orders::EntityOrdersRequest) -> Self {
+        let mut header = RequestResponseHeader::new();
+        header.set_type(EntityType::RequestContractFunction);
+        let data: Vec<u8> = request.as_bytes().to_vec();
+        let size = std::mem::size_of::<RequestResponseHeader>() + data.len();
+        header.set_size(size);
+        QubicApiPacket {
+            api_type: EntityType::RequestContractFunction,
+            peer: None,
+            header,
+            data,
+            response_data: None
+        }
+    }
+
     pub fn get_asset_qx_orders(request_contract_function_struct: &AssetOrdersRequest) -> Self {
         let mut header = RequestResponseHeader::new();
         header.set_type(EntityType::RequestContractFunction);

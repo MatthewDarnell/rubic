@@ -175,6 +175,7 @@ async fn main() {
 
         rubic::routes::qx::fetch_orders,
         rubic::routes::qx::get_orderbook,
+        rubic::routes::qx::open_orders,
         rubic::routes::qx::place_order,
 
         rubic::routes::transaction::fetch_transfers,

@@ -312,7 +312,7 @@ export default function QxPanel({
       ),
       onConfirm: () =>
         onAction(
-          `qx/order/<tick>/${assetsNIssuer.get(o.asset)}/${o.asset}/${o.side === 'ASK' ? 'REMOVEASK' : 'REMOVEBID'}/${o.entity}/${o.price}/${o.num_shares}/`
+          `qx/order/<tick>/${o.issuer || assetsNIssuer.get(o.asset)}/${o.asset}/${o.side === 'ASK' ? 'REMOVEASK' : 'REMOVEBID'}/${o.entity}/${o.price}/${o.num_shares}/`
         ),
     });
 

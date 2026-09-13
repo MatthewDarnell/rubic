@@ -1,18 +1,67 @@
+use std::collections::HashMap;
 use std::str::FromStr;
 use std::sync::{Arc, Mutex};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 use base64::Engine;
 use base64::engine::general_purpose;
 use crypto::qubic_identities::get_identity;
 use logger::error;
 use network::peers::PeerSet;
 use store::get_db_path;
-use store::sqlite::{tick, transfer};
+use store::sqlite::{identity, tick, transfer};
+
+/// How many ticks past a transfer's tick a peer report must be before "no
+/// outgoing transfer at that tick" is taken to mean the transfer failed.
+const ENTITY_REPORT_GRACE_TICKS: u32 = 5;
+
+/// Settles a pending transfer from the peers' entity reports for its source
+/// identity: they carry the tick of the identity's latest executed outgoing
+/// transfer. Returns `true` when the transfer's status was decided here.
+fn settle_from_entity_report(source: &str, txid: &str, tx_tick: u32) -> bool {
+    let (report_tick, latest_out, peers) = match identity::fetch_latest_entity_report(get_db_path().as_str(), source) {
+        Ok(Some(report)) => report,
+        _ => return false,
+    };
+    // Need a report from after the tick, backed by more than one peer.
+    if peers < 2 || report_tick <= tx_tick {
+        return false;
+    }
+    if latest_out == tx_tick {
+        match transfer::set_broadcasted_transfer_as_success(get_db_path().as_str(), txid) {
+            Ok(_) => println!("Transaction <{}> confirmed (peers report an outgoing transfer at tick {}).", txid, tx_tick),
+            Err(err) => println!("Failed To Confirm Transaction {} ({})", txid, err),
+        }
+        return true;
+    }
+    if latest_out < tx_tick && report_tick > tx_tick + ENTITY_REPORT_GRACE_TICKS {
+        match transfer::set_broadcasted_transfer_as_failure(get_db_path().as_str(), txid) {
+            Ok(_) => println!("Transaction <{}> failed (peers report no outgoing transfer at tick {} by tick {}).", txid, tx_tick, report_tick),
+            Err(err) => println!("Failed To Set Failed Transaction {} ({})", txid, err),
+        }
+        return true;
+    }
+    // latest_out > tx_tick: a later transfer executed; this one is ambiguous here.
+    false
+}
+
+/// Tick data for a given tick is asked for at most this often; the requests are
+/// exempt from the backlog limiter, so they must not be fired every pass.
+const TICK_DATA_REQUEST_INTERVAL: Duration = Duration::from_secs(10);
+
+fn request_tick_data_throttled(peer_set: &mut PeerSet, last: &mut HashMap<u32, Instant>, tick: u32) -> Result<(), String> {
+    if last.get(&tick).map_or(false, |at| at.elapsed() < TICK_DATA_REQUEST_INTERVAL) {
+        return Ok(());
+    }
+    last.insert(tick, Instant::now());
+    peer_set.make_request(api::QubicApiPacket::request_tick_data(tick))
+}
 
 pub fn confirm_transactions(peer_set: Arc<Mutex<PeerSet>>) {
     std::thread::spawn(move || {
+        let mut last_tick_data_request: HashMap<u32, Instant> = HashMap::new();
         loop {
             std::thread::sleep(Duration::from_millis(1000));
+            last_tick_data_request.retain(|_, at| at.elapsed() < Duration::from_secs(3600));
             /*
             *
             *   SECTION <Look For Broadcasted Transfers That Are Executed To Confirm>
@@ -35,6 +84,14 @@ pub fn confirm_transactions(peer_set: Arc<Mutex<PeerSet>>) {
                         let txid = transfer.get("txid").unwrap();
                         //println!("looking for tx {} at tick {}", txid, _tick);
                         let tick = u32::from_str(_tick.as_str()).unwrap();
+
+                        // First the cheap, peer-reported signal; the quorum tick data
+                        // below is the full verification when it is available.
+                        if let Some(source) = transfer.get("source") {
+                            if settle_from_entity_report(source.as_str(), txid.as_str(), tick) {
+                                continue;
+                            }
+                        }
 
                         if latest_tick - tick > 35000 {
                             match transfer::set_broadcasted_transfer_as_failure(get_db_path().as_str(), txid.as_str()) {
@@ -61,7 +118,7 @@ pub fn confirm_transactions(peer_set: Arc<Mutex<PeerSet>>) {
                                         //println!("We Have Tick But No Digest Hash. Fetching Tick {}!", tick);
                                         {
                                             let mut _lock = peer_set.lock().unwrap();
-                                            match _lock.make_request(api::QubicApiPacket::request_quorum_tick(tick)) {
+                                            match request_tick_data_throttled(&mut _lock, &mut last_tick_data_request, tick) {
                                                 Ok(_) => {},
                                                 Err(_) => {
                                                     //println!("TransactionConfirmer: Failed To Request Quorum Tick!");
@@ -74,7 +131,7 @@ pub fn confirm_transactions(peer_set: Arc<Mutex<PeerSet>>) {
                                             //println!("We Have Tick But No Digests. Fetching Tick {} Data!", tick);
                                             {
                                                 let mut _lock = peer_set.lock().unwrap();
-                                                match _lock.make_request(api::QubicApiPacket::request_tick_data(tick)) {
+                                                match request_tick_data_throttled(&mut _lock, &mut last_tick_data_request, tick) {
                                                     Ok(_) => {},
                                                     Err(_) => {
                                                         println!("TransactionConfirmer: Failed To Request Tick Data!");
@@ -121,7 +178,7 @@ pub fn confirm_transactions(peer_set: Arc<Mutex<PeerSet>>) {
                                     std::thread::sleep(std::time::Duration::from_millis(750));
                                     {
                                         let mut _lock = peer_set.lock().unwrap();
-                                        match _lock.make_request(api::QubicApiPacket::request_quorum_tick(tick)) {
+                                        match request_tick_data_throttled(&mut _lock, &mut last_tick_data_request, tick) {
                                             Ok(_) => {},
                                             Err(_) => {
                                                 //println!("TransactionConfirmer: Failed To Request Quorum Tick!");
@@ -137,7 +194,7 @@ pub fn confirm_transactions(peer_set: Arc<Mutex<PeerSet>>) {
                                 //println!("Fetching tick {}", tick);
                                 {
                                     let mut _lock = peer_set.lock().unwrap();
-                                    match _lock.make_request(api::QubicApiPacket::request_quorum_tick(tick)) {
+                                    match request_tick_data_throttled(&mut _lock, &mut last_tick_data_request, tick) {
                                         Ok(_) => {},
                                         Err(_) => {
                                             //println!("TransactionConfirmer: Failed To Request Quorum Tick!");

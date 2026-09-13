@@ -40,4 +40,5 @@ pub enum QxProcedure {
 pub mod asset_transfer;
 pub mod order;
 pub mod orderbook;
+pub mod entity_orders;
 pub mod asset;

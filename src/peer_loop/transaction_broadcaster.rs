@@ -11,9 +11,12 @@ use store::{get_db_path, sqlite};
 use store::sqlite::{tick, transfer};
 use store::sqlite::transfer::set_transfer_as_broadcast;
 
-/// A pending transaction is re-sent to every peer this many ticks after its
-/// previous send, until its expiration tick arrives or it confirms.
-const REBROADCAST_EVERY_TICKS: u32 = 5;
+/// A pending transaction is re-sent to every peer whenever the known tick has
+/// advanced by at least this much since its previous send, until the current
+/// tick reaches its expiration tick or it confirms. With the tick poll hitting
+/// every peer, the known tick moves roughly once a second, so this is ~1 resend
+/// per tick per pending transaction.
+const REBROADCAST_EVERY_TICKS: u32 = 1;
 
 pub fn broadcast_transactions(peer_set: Arc<Mutex<PeerSet>>) {
     std::thread::spawn(move || {
