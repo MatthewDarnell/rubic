@@ -81,6 +81,33 @@ pub fn get_master_password(path: &str) -> Result<Vec<String>, String> {
     }
 }
 
+pub fn delete_master_password(path: &str) -> Result<(), String> {
+    let prep_query = "DELETE FROM master_password;";
+    let _lock = get_db_lock().lock().unwrap();
+    //let _lock =SQLITE_MASTER_PASSWORD_MUTEX.lock().unwrap();
+    match open_database(path, false) {
+        Ok(connection) => {
+            match prepare_crud_statement(&connection, prep_query) {
+                Ok(mut statement) => {
+                    //println!("Master Password Deleted!");
+                    match statement.next() {
+                        Ok(State::Done) => Ok(()),
+                        Err(error) => Err(error.to_string()),
+                        _ => Err("Weird!".to_string())
+                    }
+                },
+                Err(err) => {
+                    error!("Error in delete_master_password! : {}", &err);
+                    Err(err)
+                }
+            }
+        },
+        Err(err) => {
+            error!("Error in delete_master_password! : {}", &err);
+            Err(err)
+        }
+    }
+}
 
 pub mod tests_master_password {
     use serial_test::serial;

@@ -21,6 +21,7 @@ import QxPanel from './components/QxPanel';
 import PeersPanel from './components/PeersPanel';
 import SettingsPanel from './components/SettingsPanel';
 import SendDialog from './components/SendDialog';
+import ImportDbWizard from './components/ImportDbWizard';
 import IdText from './components/IdText';
 import ErrorBoundary from './components/ErrorBoundary';
 import CommandPalette from './components/CommandPalette';
@@ -38,7 +39,7 @@ const TICK_INTERVAL = 1000;
 const DEFAULT_TICK_OFFSET = 30;
 const UNLOCK_CHECK_INTERVAL = 5000;
 const OPEN_ORDERS_INTERVAL = 5000; // poll of the server's QX-reported open orders
-const BOOK_VIEW_INTERVAL = 2000; // refresh of the order book on screen in QX Exchange
+const BOOK_VIEW_INTERVAL = 1000; // poll of the order book on screen in QX Exchange (a local read)
 const HEALTH_INTERVAL = 5000;
 const MIN_PEERS_FOR_SENDING = 3;
 const ASSETS_RETRY_INTERVAL = 5000; // while no issued assets are known yet
@@ -117,6 +118,7 @@ const MainView = () => {
   const [confirm, setConfirm] = useState(null);
   const [unlockedUntil, setUnlockedUntil] = useState(0);
   const [send, setSend] = useState({ open: false, from: '' });
+  const [importOpen, setImportOpen] = useState(false);
   const [detailId, setDetailId] = useState(null);
   const [renameTarget, setRenameTarget] = useState(null);
   const [openOrders, setOpenOrders] = useState([]);
@@ -158,8 +160,8 @@ const MainView = () => {
   const fetchOrderbook = useCallback(async (asset, { interactive = false } = {}) => {
     if (!asset) return;
     const call = interactive ? apiCall : backgroundCall;
-    // `refresh=1`: this is the book on screen, so the server refreshes it from
-    // peers ahead of its background sweep (the open-orders scan below omits it).
+    // `refresh=1`: this is the book on screen, so the server keeps re-fetching it
+    // from peers once per tick, ahead of its background sweep.
     const [ask, bid] = await Promise.all([
       call(`qx/orderbook/${asset}/ASK/1000/0?refresh=1`),
       call(`qx/orderbook/${asset}/BID/1000/0?refresh=1`),
@@ -177,14 +179,20 @@ const MainView = () => {
     }
   }, []);
 
+  // Whether a master password exists decides which screen is shown; re-checked
+  // after an import that resets the database.
+  const refreshEncrypted = useCallback(async () => {
+    const encrypted = await apiCall('wallet/is_encrypted');
+    setIsEncrypted(typeof encrypted.data === 'boolean');
+  }, []);
+
   useEffect(() => {
     const init = async () => {
-      const encrypted = await apiCall('wallet/is_encrypted');
-      setIsEncrypted(typeof encrypted.data === 'boolean');
+      await refreshEncrypted();
       await fetchPeerLimits();
     };
     init();
-  }, [fetchPeerLimits]);
+  }, [fetchPeerLimits, refreshEncrypted]);
 
   // Issued assets are only known once peers have reported them, which on a fresh
   // wallet can be a while after startup. Keep asking until the list arrives, then
@@ -318,8 +326,9 @@ const MainView = () => {
   }, [selectedAsset, fetchOrderbook]);
 
   // While the QX Exchange tab is open, keep the displayed book fresh: each poll
-  // carries `refresh=1`, which the server serves ahead of balances. Other tabs
-  // don't poll the book at all.
+  // carries `refresh=1`, which keeps the server re-fetching this book from peers
+  // once per tick; the poll itself only reads the server's local snapshot, so
+  // once a second is cheap. Other tabs don't poll the book at all.
   useEffect(() => {
     if (nav !== 'exchange' || !selectedAsset) return undefined;
     let cancelled = false;
@@ -631,6 +640,8 @@ const MainView = () => {
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
+        const rows = csv.split(/\r?\n/).filter((line) => line.includes(',') && !/^id(entity)?,/i.test(line)).length;
+        toast.success(`Wallet exported: ${rows} identit${rows === 1 ? 'y' : 'ies'} with seeds in plain text, saved as rubic-db-decrypted.csv`);
       }
     }
 
@@ -685,6 +696,28 @@ const MainView = () => {
   const cancelPasswordAction = () => {
     setAction('');
     setInvalidPassword('');
+  };
+
+  // The export writes every seed in plain text, so it is confirmed like a
+  // deletion is - before the master-password prompt, which only verifies.
+  const exportWallet = () => {
+    setConfirm({
+      title: 'Export the wallet as a decrypted CSV?',
+      confirmLabel: 'Export CSV',
+      confirmColor: 'error',
+      body: (
+        <>
+          <Typography variant='body2'>
+            The file <b>rubic-db-decrypted.csv</b> will contain every identity in this wallet with its seed in
+            plain text. Anyone who reads it can spend the funds.
+          </Typography>
+          <Typography variant='body2' color='text.secondary' sx={{ mt: 1 }}>
+            Keep it offline and delete it when you are done. {isEncrypted ? 'Your master password is asked for next.' : ''}
+          </Typography>
+        </>
+      ),
+      onConfirm: () => commitAction('/wallet/download/'),
+    });
   };
 
   const deleteIdentity = (identityId) => {
@@ -890,7 +923,8 @@ const MainView = () => {
         unencryptedCount={unencryptedCount}
         peerLimits={peerLimits}
         onSavePeerLimits={savePeerLimits}
-        onDownloadWallet={() => commitAction('/wallet/download/')}
+        onDownloadWallet={exportWallet}
+        onImportDb={() => setImportOpen(true)}
         latestTick={latestTick}
         currency={currency}
         onCurrencyChange={setCurrency}
@@ -957,10 +991,30 @@ const MainView = () => {
               Cannot reach the Rubic server at {serverIp}. Retrying…
             </Alert>
           )}
-          <LockScreen onSetPassword={setMasterPassword} />
+          <LockScreen onSetPassword={setMasterPassword} onImportDb={() => setImportOpen(true)} />
         </Box>
       )}
 
+      <ImportDbWizard
+        open={importOpen}
+        onClose={() => setImportOpen(false)}
+        hasMasterPassword={isEncrypted}
+        unlockTimerMs={unlockTimer}
+        // Unlocking inside the wizard is a normal unlock: start the header's countdown
+        // too - unless one is already running (the server keeps its original timer).
+        onUnlocked={() => setUnlockedUntil((current) => (current > Date.now() ? current : Date.now() + Number(unlockTimer)))}
+        // The wizard replaced the master password (and dropped the identities
+        // encrypted with the old one): any unlock is over, and a fresh wallet now
+        // has a password, so the first-run screen gives way to the wallet.
+        onReset={async () => {
+          setUnlockedUntil(0);
+          await refreshEncrypted();
+        }}
+        onImported={({ count, skipped }) => {
+          const detail = skipped > 0 ? ` (${skipped} already in the wallet)` : '';
+          toast.success(`Imported ${count} identit${count === 1 ? 'y' : 'ies'} from CSV${detail}`);
+        }}
+      />
       <PasswordDialog
         open={Boolean(action)}
         error={invalidPassword}

@@ -1,12 +1,13 @@
 import React, { useState } from 'react';
 import { Box, Button, CircularProgress, TextField, Typography } from '@mui/material';
 import LockIcon from '@mui/icons-material/Lock';
+import UploadFileIcon from '@mui/icons-material/UploadFile';
 import logo from '../assets/rubic.png';
 
 const MIN_LENGTH = 5;
 
 // First-run screen: brand up top, then the master-password form.
-export default function LockScreen({ onSetPassword }) {
+export default function LockScreen({ onSetPassword, onImportDb }) {
   const [password, setPassword] = useState('');
   const [retype, setRetype] = useState('');
   const [busy, setBusy] = useState(false);
@@ -89,6 +90,16 @@ export default function LockScreen({ onSetPassword }) {
       >
         Encrypt wallet
       </Button>
+      {onImportDb && (
+        <>
+          <Typography variant='body2' color='text.secondary' sx={{ mt: 4, mb: 1 }}>
+            Already have a wallet export?
+          </Typography>
+          <Button variant='outlined' startIcon={<UploadFileIcon />} disabled={busy} onClick={onImportDb}>
+            Import DB From CSV
+          </Button>
+        </>
+      )}
     </Box>
   );
 }

@@ -93,6 +93,49 @@ pub fn set_master_password(body: Json<PasswordRequest>) -> String {
     }
 }
 
+
+// POST /wallet/reset  {"password": "..."}
+// Replaces the master password: forgets any current unlock, removes every
+// identity encrypted under the old password (its seeds cannot be recovered
+// without it) and the old password itself, then sets the new one. Unencrypted
+// identities are kept. Works on a fresh database too (nothing to remove). The
+// "Import DB From CSV" wizard calls this, then adds the CSV rows one by one.
+#[post("/wallet/reset", format = "json", data = "<body>")]
+pub fn reset_wallet(body: Json<PasswordRequest>) -> String {
+    let password: &str = body.password.as_str();
+    if password.len() < MINPASSWORDLEN {
+        return format!("Password Too Short!");
+    }
+    let path = store::get_db_path();
+    // An unlock under the old password must not outlive it: identities added
+    // while "unlocked" are encrypted with the unlocked password. Zeroing the
+    // buffer is what the unlock timer does when it fires.
+    if let Ok(mut unlocked) = protocol::wallet_unlock::PLAINTEXT_DECRYPT_PASSWORD.lock() {
+        unlocked.fill(0);
+    }
+    if let Err(err) = store::sqlite::identity::delete_encrypted_identities(path.as_str()) {
+        logger::error(format!("Failed To Reset Wallet; Could Not Remove Encrypted Identities: {}", err).as_str());
+        return format!("Failed To Reset Wallet: {}", err);
+    }
+    if let Err(err) = store::sqlite::master_password::delete_master_password(path.as_str()) {
+        logger::error(format!("Failed To Reset Wallet; Could Not Remove Master Password: {}", err).as_str());
+        return format!("Failed To Reset Wallet: {}", err);
+    }
+    match crypto::passwords::hash_password(password) {
+        Ok(hashed) => {
+            match store::sqlite::master_password::set_master_password(path.as_str(), hashed.as_str()) {
+                Ok(_) => {
+                    logger::info("Wallet Reset; Master Password Set!");
+                    format!("Master Password Set!")
+                },
+                Err(err) => format!("{}", err),
+            }
+        },
+        Err(err) => format!("{}", err),
+    }
+}
+
+
 // POST /wallet/encrypt  {"password": "..."}
 #[post("/wallet/encrypt", format = "json", data = "<body>")]
 pub fn encrypt_wallet(body: Json<PasswordRequest>) -> String {

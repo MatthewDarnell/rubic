@@ -164,7 +164,8 @@ async fn main() {
         routes::wallet::set_master_password,
         routes::wallet::download_wallet,
         routes::wallet::is_unlocked,
-        routes::wallet::unlock
+        routes::wallet::unlock,
+        routes::wallet::reset_wallet
       ])
       .manage(std::sync::Mutex::new(tx))
       .manage(std::sync::Mutex::new(rx_server_route_responses_from_thread))

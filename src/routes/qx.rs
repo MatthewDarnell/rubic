@@ -28,11 +28,15 @@ pub fn open_orders() -> String {
     }
 }
 
-// `?refresh=1` marks the book the user is looking at: it is refreshed from peers
-// ahead of the background sweep. Background scans (open orders) omit it.
+// `?refresh=1` marks the book the user is looking at: it is re-fetched from peers
+// once per tick for a few seconds after each such request, ahead of the
+// background sweep. Background scans (open orders) omit it. Taken as text, not
+// `bool`: Rocket only reads true/on/yes as a boolean, and an unparsable optional
+// query value silently becomes `None`, so `refresh=1` used to do nothing.
 #[get("/qx/orderbook/<asset>/<ask_bid>/<limit>/<offset>?<refresh>")]
-pub fn get_orderbook(asset: &str, ask_bid: &str, limit: i32, offset: u32, refresh: Option<bool>) -> String {
-    if refresh.unwrap_or(false) {
+pub fn get_orderbook(asset: &str, ask_bid: &str, limit: i32, offset: u32, refresh: Option<&str>) -> String {
+    let refresh = matches!(refresh.map(|v| v.trim().to_ascii_lowercase()).as_deref(), Some("1" | "true" | "yes" | "on" | ""));
+    if refresh {
         crate::peer_loop::qx::request_priority_refresh(asset);
     }
     match sqlite::qx::orderbook::fetch_qx_orderbook(get_db_path().as_str(), asset, ask_bid, limit, offset) {

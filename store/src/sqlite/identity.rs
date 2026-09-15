@@ -404,7 +404,48 @@ pub fn delete_identity(path: &str, identity: &str) -> Result<(), String> {
         }
     }
 }
-
+/// Removes every encrypted identity, with its transfer history. Used when the
+/// master password is replaced: seeds encrypted under the old one cannot be
+/// recovered, so they must not linger as unreadable rows. Unencrypted
+/// identities are kept.
+pub fn delete_encrypted_identities(path: &str) -> Result<(), String> {
+    // The store calls below each take the global database lock themselves and
+    // it is not re-entrant, so it must not be held across them.
+    let identities: LinkedList<Identity> = fetch_all_identities_full(path)?;
+    for identity in identities.iter().filter(|i| i.encrypted) {
+        crate::sqlite::transfer::delete_transfers_by_source_identity(path, identity.identity.as_str())?;
+    }
+    // `is_encrypted` holds the text "true"/"false" (see insert_new_identity).
+    let prep_query = "DELETE FROM identities WHERE is_encrypted = 'true';";
+    let _lock = get_db_lock().lock().unwrap();
+    match open_database(path, false) {
+        Ok(connection) => {
+            match prepare_crud_statement(&connection, prep_query) {
+                Ok(mut statement) => {
+                    match statement.next() {
+                        Ok(State::Row) => {
+                            Err("Unexpected row while deleting encrypted identities".to_string())
+                        },
+                        Ok(State::Done) => {
+                            Ok(())
+                        },
+                        Err(err) => {
+                            Err(err.to_string())
+                        }
+                    }
+                },
+                Err(err) => {
+                    error!("Error in delete_encrypted_identities! : {}", &err);
+                    Err(err)
+                }
+            }
+        },
+        Err(err) => {
+            error!("Error in delete_encrypted_identities! : {}", &err);
+            Err(err)
+        }
+    }
+}
 
 pub mod test_identities {
     use protocol::identity::Identity;
