@@ -22,6 +22,7 @@ import PeersPanel from './components/PeersPanel';
 import SettingsPanel from './components/SettingsPanel';
 import SendDialog from './components/SendDialog';
 import ImportDbWizard from './components/ImportDbWizard';
+import BulkImportDialog from './components/BulkImportDialog';
 import IdText from './components/IdText';
 import ErrorBoundary from './components/ErrorBoundary';
 import CommandPalette from './components/CommandPalette';
@@ -119,6 +120,7 @@ const MainView = () => {
   const [unlockedUntil, setUnlockedUntil] = useState(0);
   const [send, setSend] = useState({ open: false, from: '' });
   const [importOpen, setImportOpen] = useState(false);
+  const [bulkOpen, setBulkOpen] = useState(false);
   const [detailId, setDetailId] = useState(null);
   const [renameTarget, setRenameTarget] = useState(null);
   const [openOrders, setOpenOrders] = useState([]);
@@ -858,6 +860,7 @@ const MainView = () => {
         loading={loading}
         labels={labels}
         onAction={commitAction}
+        onBulkImport={() => setBulkOpen(true)}
         onSend={(from) => setSend({ open: true, from })}
         onRename={openRename}
         onOpenIdentity={setDetailId}
@@ -1000,6 +1003,7 @@ const MainView = () => {
         onClose={() => setImportOpen(false)}
         hasMasterPassword={isEncrypted}
         unlockTimerMs={unlockTimer}
+        existing={identities.map((i) => i.id)}
         // Unlocking inside the wizard is a normal unlock: start the header's countdown
         // too - unless one is already running (the server keeps its original timer).
         onUnlocked={() => setUnlockedUntil((current) => (current > Date.now() ? current : Date.now() + Number(unlockTimer)))}
@@ -1013,6 +1017,19 @@ const MainView = () => {
         onImported={({ count, skipped }) => {
           const detail = skipped > 0 ? ` (${skipped} already in the wallet)` : '';
           toast.success(`Imported ${count} identit${count === 1 ? 'y' : 'ies'} from CSV${detail}`);
+        }}
+      />
+      <BulkImportDialog
+        open={bulkOpen}
+        onClose={() => setBulkOpen(false)}
+        isEncrypted={isEncrypted}
+        allowNonEncrypted={allowNonEncrypted}
+        unlockTimerMs={unlockTimer}
+        existing={identities.map((i) => i.id)}
+        onUnlocked={() => setUnlockedUntil((current) => (current > Date.now() ? current : Date.now() + Number(unlockTimer)))}
+        onImported={({ count, skipped, plain }) => {
+          const detail = [skipped > 0 && `${skipped} already in the wallet`, plain && 'seeds stored without encryption'].filter(Boolean).join('; ');
+          toast.success(`Imported ${count} identit${count === 1 ? 'y' : 'ies'}${detail ? ` (${detail})` : ''}`);
         }}
       />
       <PasswordDialog

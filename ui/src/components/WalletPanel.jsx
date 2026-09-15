@@ -30,6 +30,7 @@ import Visibility from '@mui/icons-material/Visibility';
 import VisibilityOff from '@mui/icons-material/VisibilityOff';
 import AddIcon from '@mui/icons-material/Add';
 import FileUploadIcon from '@mui/icons-material/FileUpload';
+import PlaylistAddIcon from '@mui/icons-material/PlaylistAdd';
 import SendIcon from '@mui/icons-material/Send';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import DriveFileRenameOutlineIcon from '@mui/icons-material/DriveFileRenameOutline';
@@ -48,7 +49,7 @@ const INVALID_SEED_ID = 'AARQXIKNFIEZZEMOAVNVSUINZXAAXYBZZXVSWYOYIETZVPVKJPARMKT
 
 // ---------- Add identity ----------
 
-const AddIdentity = ({ allowNonEncrypted, onAction, seedInputRef }) => {
+const AddIdentity = ({ allowNonEncrypted, onAction, onBulkImport, seedInputRef }) => {
   const toast = useToast();
   const [seed, setSeed] = useState('');
   const [showSeed, setShowSeed] = useState(false);
@@ -199,6 +200,9 @@ const AddIdentity = ({ allowNonEncrypted, onAction, seedInputRef }) => {
               Import without encryption
             </Button>
           )}
+          <Button variant='outlined' startIcon={<PlaylistAddIcon />} disabled={busy} onClick={onBulkImport}>
+            Import Bulk Identities
+          </Button>
         </Stack>
       </Paper>
     </Stack>
@@ -301,6 +305,7 @@ export default function WalletPanel({
   loading,
   labels,
   onAction,
+  onBulkImport,
   onSend,
   onRename,
   onOpenIdentity,
@@ -384,7 +389,7 @@ export default function WalletPanel({
 
   return (
     <Box sx={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
-      <AddIdentity allowNonEncrypted={allowNonEncrypted} onAction={onAction} seedInputRef={seedInputRef} />
+      <AddIdentity allowNonEncrypted={allowNonEncrypted} onAction={onAction} onBulkImport={onBulkImport} seedInputRef={seedInputRef} />
 
       {loading ? (
         <SkeletonRows />

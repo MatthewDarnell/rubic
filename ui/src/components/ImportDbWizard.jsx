@@ -15,6 +15,7 @@ import {
   StepLabel,
   Stepper,
   TextField,
+  Tooltip,
   Typography,
 } from '@mui/material';
 import UploadFileIcon from '@mui/icons-material/UploadFile';
@@ -25,6 +26,8 @@ import IdText from './IdText';
 import Identicon from './Identicon';
 
 const MIN_PASSWORD_LENGTH = 5; // the server's MINPASSWORDLEN
+// What the server derives for a seed that is not a valid Qubic seed.
+const INVALID_SEED_ID = 'AARQXIKNFIEZZEMOAVNVSUINZXAAXYBZZXVSWYOYIETZVPVKJPARMKTEKLKJ';
 
 const identities = (n) => `${n} identit${n === 1 ? 'y' : 'ies'}`;
 
@@ -82,7 +85,7 @@ const LABEL = { [STEP.UNLOCK]: 'Unlock', [STEP.RESET]: 'Reset Db', [STEP.PASSWOR
  * to `/identity/add` with the master password entered at the Unlock step, or with
  * none while the wallet is unlocked (the server then uses the unlocked password).
  */
-export default function ImportDbWizard({ open, onClose, hasMasterPassword, unlockTimerMs, onImported, onUnlocked, onReset }) {
+export default function ImportDbWizard({ open, onClose, hasMasterPassword, unlockTimerMs, existing = [], onImported, onUnlocked, onReset }) {
   const [step, setStep] = useState(STEP.UPLOAD);
   const [unlocked, setUnlocked] = useState(false);
   const [checking, setChecking] = useState(false);
@@ -97,6 +100,10 @@ export default function ImportDbWizard({ open, onClose, hasMasterPassword, unloc
   const [progress, setProgress] = useState(null); // { done, total }
   const [importError, setImportError] = useState('');
   const fileInputRef = useRef(null);
+  // seed -> { id } | { invalid: true }, as derived by the server, so each CSV
+  // row is checked against the identity it claims before anything is imported.
+  const [derived, setDerived] = useState({});
+  const derivedRef = useRef({});
 
   // Work out where to start each time the wizard opens.
   useEffect(() => {
@@ -111,6 +118,8 @@ export default function ImportDbWizard({ open, onClose, hasMasterPassword, unloc
     setImportError('');
     setProgress(null);
     setUnlocked(false);
+    derivedRef.current = {};
+    setDerived({});
     if (!hasMasterPassword) {
       setStep(STEP.PASSWORD);
       return undefined;
@@ -132,6 +141,48 @@ export default function ImportDbWizard({ open, onClose, hasMasterPassword, unloc
   // "Reset" means the import replaces the master password first: chosen
   // explicitly, or implied when there is no master password yet.
   const reset = !hasMasterPassword || (!unlocked && resetConfirmed);
+
+  // Derive the identity of every seed in the file, one request at a time.
+  useEffect(() => {
+    const seeds = file?.rows.map((row) => row.seed) ?? [];
+    if (!seeds.some((seed) => !derivedRef.current[seed])) return undefined;
+    let cancelled = false;
+    (async () => {
+      for (const seed of seeds) {
+        if (cancelled) return;
+        if (derivedRef.current[seed]) continue;
+        const res = await apiPost('identity/from_seed', { seed });
+        if (cancelled) return;
+        const ok = res.success && res.data && res.data !== INVALID_SEED_ID;
+        derivedRef.current = { ...derivedRef.current, [seed]: ok ? { id: String(res.data) } : { invalid: true } };
+        setDerived(derivedRef.current);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [file]);
+
+  // Each CSV row with what the server says about its seed. A row is imported
+  // only when the seed is valid, produces the identity the line claims, and
+  // (unless the database is being reset) is not already in the wallet.
+  const existingSet = useMemo(() => new Set(existing), [existing]);
+  const rows = useMemo(
+    () => (file?.rows ?? []).map((row) => {
+      const d = derived[row.seed];
+      const mismatch = Boolean(d?.id && d.id !== row.identity);
+      const present = Boolean(d?.id && !reset && existingSet.has(d.id));
+      return { ...row, derivedId: d?.id, invalid: Boolean(d?.invalid), mismatch, present, pending: !d, ready: Boolean(d?.id) && !mismatch && !present };
+    }),
+    [file, derived, existingSet, reset]
+  );
+  const deriving = rows.some((r) => r.pending);
+  const ready = rows.filter((r) => r.ready);
+  const counts = {
+    invalid: rows.filter((r) => r.invalid).length,
+    mismatch: rows.filter((r) => r.mismatch).length,
+    present: rows.filter((r) => r.present).length,
+  };
 
   // The steps shown, in order, for the mode we are in. The first step reads
   // "Unlock" until the reset is confirmed, then "Reset Db".
@@ -180,10 +231,10 @@ export default function ImportDbWizard({ open, onClose, hasMasterPassword, unloc
   };
 
   const runImport = async () => {
-    if (!file || file.rows.length === 0 || importing) return;
+    if (!file || ready.length === 0 || deriving || importing) return;
     setImporting(true);
     setImportError('');
-    const total = file.rows.length;
+    const total = ready.length;
     setProgress({ done: 0, total });
     try {
       if (reset) {
@@ -204,7 +255,7 @@ export default function ImportDbWizard({ open, onClose, hasMasterPassword, unloc
       const rowPassword = reset ? newPassword : password;
       let added = 0;
       let skipped = 0;
-      for (const [index, row] of file.rows.entries()) {
+      for (const [index, row] of ready.entries()) {
         const short = `${row.identity.slice(0, 8)}…`;
         if (!rowPassword) {
           const state = await apiCall('wallet/unlocked');
@@ -344,14 +395,36 @@ export default function ImportDbWizard({ open, onClose, hasMasterPassword, unloc
             {file && (
               <Box sx={{ mt: 2 }}>
                 <Typography variant='subtitle2'>
-                  {file.name}: {identities(file.rows.length)} ready to import
+                  {file.name}:{' '}
+                  {deriving
+                    ? `checking ${rows.filter((r) => r.pending).length} of ${rows.length}…`
+                    : [
+                        `${identities(ready.length)} ready to import`,
+                        counts.invalid > 0 && `${counts.invalid} invalid seed${counts.invalid === 1 ? '' : 's'}`,
+                        counts.mismatch > 0 && `${counts.mismatch} seed${counts.mismatch === 1 ? '' : 's'} not matching the listed identity`,
+                        counts.present > 0 && `${counts.present} already in the wallet`,
+                      ]
+                        .filter(Boolean)
+                        .join(' · ')}
                 </Typography>
-                {file.rows.length > 0 && (
+                {rows.length > 0 && (
                   <Box sx={{ maxHeight: 180, overflow: 'auto', mt: 1, pr: 1 }}>
-                    {file.rows.map((row) => (
-                      <Box key={row.identity} sx={{ display: 'flex', alignItems: 'center', gap: 1, py: 0.5 }}>
-                        <Identicon id={row.identity} size={20} />
-                        <IdText id={row.identity} full nowrap copy={false} sx={{ fontSize: '0.74rem' }} />
+                    {rows.map((row, index) => (
+                      <Box key={row.identity} sx={{ display: 'flex', alignItems: 'center', gap: 1, py: 0.5, opacity: row.present ? 0.6 : 1 }}>
+                        <Typography variant='caption' color='text.secondary' sx={{ width: 24, textAlign: 'right', flexShrink: 0 }}>
+                          {index + 1}
+                        </Typography>
+                        {row.pending && <CircularProgress size={14} />}
+                        <Identicon id={row.derivedId || row.identity} size={20} />
+                        <IdText id={row.derivedId || row.identity} full nowrap copy={false} sx={{ fontSize: '0.74rem' }} />
+                        {row.pending && <Typography variant='caption' color='text.secondary' sx={{ whiteSpace: 'nowrap' }}>checking seed…</Typography>}
+                        {row.invalid && <Typography variant='caption' color='error.main' sx={{ whiteSpace: 'nowrap' }}>invalid seed</Typography>}
+                        {row.mismatch && (
+                          <Tooltip title={`The line lists ${row.identity}, but its seed belongs to the identity shown.`}>
+                            <Typography variant='caption' color='error.main' sx={{ whiteSpace: 'nowrap' }}>seed does not match the listed identity</Typography>
+                          </Tooltip>
+                        )}
+                        {row.present && <Typography variant='caption' color='text.secondary' sx={{ whiteSpace: 'nowrap' }}>already in the wallet</Typography>}
                       </Box>
                     ))}
                   </Box>
@@ -381,7 +454,7 @@ export default function ImportDbWizard({ open, onClose, hasMasterPassword, unloc
         {!checking && step === STEP.IMPORT && file && (
           <Box>
             <Typography sx={{ fontWeight: 600 }}>
-              Import {identities(file.rows.length)} from {file.name}
+              Import {identities(ready.length)} from {file.name}
             </Typography>
             <Typography variant='body2' sx={{ mt: 1, color: reset ? 'error.main' : 'success.main', fontWeight: 600 }}>
               {reset
@@ -444,7 +517,7 @@ export default function ImportDbWizard({ open, onClose, hasMasterPassword, unloc
                 Back
               </Button>
             )}
-            <Button variant='contained' disabled={!file || file.rows.length === 0 || busy} onClick={() => setStep(STEP.IMPORT)}>
+            <Button variant='contained' disabled={!file || ready.length === 0 || deriving || busy} onClick={() => setStep(STEP.IMPORT)}>
               Next
             </Button>
           </>
