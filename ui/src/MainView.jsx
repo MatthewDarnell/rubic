@@ -1003,6 +1003,7 @@ const MainView = () => {
         onClose={() => setImportOpen(false)}
         hasMasterPassword={isEncrypted}
         unlockTimerMs={unlockTimer}
+        existing={identities.map((i) => i.id)}
         // Unlocking inside the wizard is a normal unlock: start the header's countdown
         // too - unless one is already running (the server keeps its original timer).
         onUnlocked={() => setUnlockedUntil((current) => (current > Date.now() ? current : Date.now() + Number(unlockTimer)))}
