@@ -36,6 +36,10 @@ pub const MAX_REQUEST_BACKLOG: usize = 64;
 /// Queue depth above which low-priority polling (the order-book sweep over every
 /// asset) yields to balances and everything else.
 pub const LOW_PRIORITY_BACKLOG: usize = 8;
+/// Copies of a high-priority request put on the shared work queue. Workers take
+/// the next item as soon as their socket is free, so the copies land on the
+/// peers that are answering fastest right now without any routing.
+pub const HIGH_PRIORITY_COPIES: usize = 2;
 
 /// Process-wide view of the request queue, for the /health route (the PeerSet
 /// itself lives inside the peer-loop thread and is not reachable from routes).
@@ -303,11 +307,14 @@ impl PeerSet {
         }
 
         // Nodes answer contract-function (order book) requests slowly and
-        // unevenly; for the book the user is watching, ask every peer and let
-        // the first answer win instead of waiting on one random peer.
-        let spam_all = spam_all || priority == RequestPriority::High;
+        // unevenly; for the book the user is watching, queue a couple of copies
+        // so the idle (responsive) peers pick them up, instead of waiting on one
+        // random peer - or tying up every socket, which asking all peers did.
         let targets: Vec<String> = if spam_all {
             self.peers.iter().map(|p| p.get_id().to_owned()).collect()
+        } else if priority == RequestPriority::High {
+            self.peers.iter().choose_multiple(&mut thread_rng(), HIGH_PRIORITY_COPIES)
+                .into_iter().map(|p| p.get_id().to_owned()).collect()
         } else {
             match self.peers.iter().choose(&mut thread_rng()) {
                 Some(p) => vec![p.get_id().to_owned()],

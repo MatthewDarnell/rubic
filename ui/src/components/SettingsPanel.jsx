@@ -20,6 +20,7 @@ import {
   Typography,
 } from '@mui/material';
 import DownloadIcon from '@mui/icons-material/Download';
+import UploadFileIcon from '@mui/icons-material/UploadFile';
 import SaveIcon from '@mui/icons-material/Save';
 import WarningAmberIcon from '@mui/icons-material/WarningAmber';
 import AddIcon from '@mui/icons-material/Add';
@@ -171,6 +172,7 @@ export default function SettingsPanel({
   peerLimits,
   onSavePeerLimits,
   onDownloadWallet,
+  onImportDb,
   latestTick,
   currency,
   onCurrencyChange,
@@ -383,7 +385,7 @@ export default function SettingsPanel({
       <Section
         danger
         title='Danger zone'
-        description='These settings weaken the protection of your seeds. Use them only if you understand the consequences.'
+        description='These settings can weaken the protection of your seeds. Use them only if you understand the consequences.'
       >
         <Stack spacing={2}>
           <Box>
@@ -408,6 +410,15 @@ export default function SettingsPanel({
                   sx={{ ml: 1 }}
                 />
               )}
+            </Typography>
+          </Box>
+          <Box>
+            <Button variant='outlined' color='error' startIcon={<UploadFileIcon />} onClick={onImportDb}>
+              Import DB From CSV
+            </Button>
+            <Typography variant='caption' color='text.secondary' sx={{ display: 'block', mt: 0.5 }}>
+              Restore identities from a decrypted CSV export. Unlock to add them to this database, or reset the
+              database and start from the file.
             </Typography>
           </Box>
           <Box>

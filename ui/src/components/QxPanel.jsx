@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
   Box,
   Button,
@@ -217,7 +217,10 @@ export default function QxPanel({
   const [price, setPrice] = useState('');
   const [amount, setAmount] = useState('');
   const asksRef = useRef(null);
-  const lastAnchoredAsset = useRef(null);
+  // Whether the ask ladder should stay pinned to its bottom (the best ask, next
+  // to the spread). True until the user scrolls up; true again when they scroll
+  // back down or switch asset.
+  const stickAsksRef = useRef(true);
 
   const assets = [...assetsNIssuer.keys()].sort();
   const priceNum = Number(price);
@@ -276,19 +279,35 @@ export default function QxPanel({
     };
   }, [askOrders, bidOrders, openOrders, selectedAsset]);
 
-  // Keep the best ask in view: scroll the ask ladder to the bottom when the asset changes
-  // or when data first arrives, but leave it alone while the user is scrolling.
+  // Keep the best ask in view. The ask ladder is pinned to its bottom whenever
+  // its content or size changes, unless the user has scrolled up to browse
+  // deeper asks; scrolling back to the bottom (or switching asset) re-pins it.
   useEffect(() => {
+    stickAsksRef.current = true;
+  }, [selectedAsset]);
+
+  useLayoutEffect(() => {
     const el = asksRef.current;
-    if (!el) return;
-    if (lastAnchoredAsset.current !== selectedAsset || book.asks.length > 0) {
-      if (lastAnchoredAsset.current !== selectedAsset || el.dataset.anchored !== '1') {
-        el.scrollTop = el.scrollHeight;
-        el.dataset.anchored = book.asks.length > 0 ? '1' : '0';
-        lastAnchoredAsset.current = selectedAsset;
-      }
-    }
-  }, [selectedAsset, book.asks.length]);
+    if (!el) return undefined;
+    const pin = () => {
+      if (stickAsksRef.current) el.scrollTop = el.scrollHeight;
+    };
+    const onScroll = () => {
+      stickAsksRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 4;
+    };
+    pin();
+    el.addEventListener('scroll', onScroll, { passive: true });
+    // The container gets its height from the flex layout, which can settle after
+    // the rows render; re-pin whenever it or its content is resized.
+    const observer = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(pin) : null;
+    observer?.observe(el);
+    const table = el.firstElementChild;
+    if (table) observer?.observe(table);
+    return () => {
+      el.removeEventListener('scroll', onScroll);
+      observer?.disconnect();
+    };
+  }, [selectedAsset, book.asks]);
 
   const orderPath = (side, id, p, n) =>
     `qx/order/<tick>/${assetsNIssuer.get(selectedAsset)}/${selectedAsset}/${side}/${id}/${p}/${n}/`;

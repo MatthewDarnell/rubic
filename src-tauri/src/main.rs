@@ -191,7 +191,8 @@ async fn main() {
         rubic::routes::wallet::set_master_password,
         rubic::routes::wallet::download_wallet,
         rubic::routes::wallet::is_unlocked,
-        rubic::routes::wallet::unlock
+        rubic::routes::wallet::unlock,
+        rubic::routes::wallet::reset_wallet
       ])
             .manage(std::sync::Mutex::new(tx))
             .manage(std::sync::Mutex::new(rx_server_route_responses_from_thread))
