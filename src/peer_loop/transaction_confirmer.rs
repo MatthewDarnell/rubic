@@ -4,7 +4,7 @@ use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 use base64::Engine;
 use base64::engine::general_purpose;
-use crypto::qubic_identities::get_identity;
+use crypto::qubic_identities::{get_identity, get_public_key_from_identity};
 use logger::error;
 use network::peers::PeerSet;
 use store::get_db_path;
@@ -17,31 +17,53 @@ const ENTITY_REPORT_GRACE_TICKS: u32 = 5;
 /// Settles a pending transfer from the peers' entity reports for its source
 /// identity: they carry the tick of the identity's latest executed outgoing
 /// transfer. Returns `true` when the transfer's status was decided here.
-fn settle_from_entity_report(source: &str, txid: &str, tx_tick: u32) -> bool {
+/// Outcome of a settlement attempt.
+enum Settled {
+    Confirmed,
+    Failed,
+    Undecided,
+}
+
+/// A confirmed transaction changed what the source identity holds: ask for its
+/// balance and possessed assets right away, ahead of the routine passes (up to
+/// a minute apart for holdings, and skipped while the request queue is busy).
+fn refresh_source(peer_set: &Arc<Mutex<PeerSet>>, source: &str) {
+    let mut lock = peer_set.lock().unwrap();
+    if let Err(err) = lock.make_request_high_priority(api::QubicApiPacket::get_identity_balance(source)) {
+        error!("{}", err);
+    }
+    if let Ok(pub_key) = get_public_key_from_identity(&source.to_string()) {
+        if let Err(err) = lock.make_request_high_priority(api::QubicApiPacket::request_possessed_assets(&pub_key)) {
+            error!("{}", err);
+        }
+    }
+}
+
+fn settle_from_entity_report(source: &str, txid: &str, tx_tick: u32) -> Settled {
     let (report_tick, latest_out, peers) = match identity::fetch_latest_entity_report(get_db_path().as_str(), source) {
         Ok(Some(report)) => report,
-        _ => return false,
+        _ => return Settled::Undecided,
     };
     // Need a report from after the tick, backed by more than one peer.
     if peers < 2 || report_tick <= tx_tick {
-        return false;
+        return Settled::Undecided;
     }
     if latest_out == tx_tick {
         match transfer::set_broadcasted_transfer_as_success(get_db_path().as_str(), txid) {
             Ok(_) => println!("Transaction <{}> confirmed (peers report an outgoing transfer at tick {}).", txid, tx_tick),
             Err(err) => println!("Failed To Confirm Transaction {} ({})", txid, err),
         }
-        return true;
+        return Settled::Confirmed;
     }
     if latest_out < tx_tick && report_tick > tx_tick + ENTITY_REPORT_GRACE_TICKS {
         match transfer::set_broadcasted_transfer_as_failure(get_db_path().as_str(), txid) {
             Ok(_) => println!("Transaction <{}> failed (peers report no outgoing transfer at tick {} by tick {}).", txid, tx_tick, report_tick),
             Err(err) => println!("Failed To Set Failed Transaction {} ({})", txid, err),
         }
-        return true;
+        return Settled::Failed;
     }
     // latest_out > tx_tick: a later transfer executed; this one is ambiguous here.
-    false
+    Settled::Undecided
 }
 
 /// Tick data for a given tick is asked for at most this often; the requests are
@@ -88,8 +110,13 @@ pub fn confirm_transactions(peer_set: Arc<Mutex<PeerSet>>) {
                         // First the cheap, peer-reported signal; the quorum tick data
                         // below is the full verification when it is available.
                         if let Some(source) = transfer.get("source") {
-                            if settle_from_entity_report(source.as_str(), txid.as_str(), tick) {
-                                continue;
+                            match settle_from_entity_report(source.as_str(), txid.as_str(), tick) {
+                                Settled::Confirmed => {
+                                    refresh_source(&peer_set, source.as_str());
+                                    continue;
+                                },
+                                Settled::Failed => continue,
+                                Settled::Undecided => {},
                             }
                         }
 
@@ -152,6 +179,9 @@ pub fn confirm_transactions(peer_set: Arc<Mutex<PeerSet>>) {
                                                     match transfer::set_broadcasted_transfer_as_success(get_db_path().as_str(), txid.as_str()) {
                                                         Ok(_) => {
                                                             println!("Transaction <{}> confirmed.", txid);
+                                                            if let Some(source) = transfer.get("source") {
+                                                                refresh_source(&peer_set, source.as_str());
+                                                            }
                                                         },
                                                         Err(err) => {
                                                             println!("Failed To Confirm Transaction {} ({})", txid.as_str(), err);

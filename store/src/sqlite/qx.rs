@@ -92,8 +92,11 @@ pub mod orderbook {
 
     
     pub fn create_qx_orderbook(path: &str, asset: &str, side: &str, orders: &OrderBook) -> Result<(), String> {
+        // A row that already exists (same entity, price and size) keeps its identity
+        // but takes the new queue position: the contract lists the orders at one
+        // price in fill order, and that order moves as earlier ones fill.
         let prep_query: &str = "INSERT INTO qx_orderbook (asset, side, entity, price, num_shares, stale, offset_at_price) VALUES (:asset, :side, :entity, :price, :num_shares, 0, :offset_at_price) \
-        ON CONFLICT DO UPDATE SET stale = 0 WHERE asset=:asset AND side=:side AND entity=:entity AND price=:price AND num_shares=:num_shares;";
+        ON CONFLICT DO UPDATE SET stale = 0, offset_at_price = :offset_at_price WHERE asset=:asset AND side=:side AND entity=:entity AND price=:price AND num_shares=:num_shares;";
         let _lock = get_db_lock().lock().unwrap();
         match open_database(path, false) {
             Ok(connection) => {
