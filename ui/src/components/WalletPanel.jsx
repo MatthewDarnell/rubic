@@ -32,7 +32,7 @@ import AddIcon from '@mui/icons-material/Add';
 import FileUploadIcon from '@mui/icons-material/FileUpload';
 import PlaylistAddIcon from '@mui/icons-material/PlaylistAdd';
 import SendIcon from '@mui/icons-material/Send';
-import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
+import DeleteOutlineIcon from '@mui/icons-material/DeleteOutlined';
 import DriveFileRenameOutlineIcon from '@mui/icons-material/DriveFileRenameOutline';
 import MoreVertIcon from '@mui/icons-material/MoreVert';
 import SearchIcon from '@mui/icons-material/Search';
@@ -49,7 +49,7 @@ const INVALID_SEED_ID = 'AARQXIKNFIEZZEMOAVNVSUINZXAAXYBZZXVSWYOYIETZVPVKJPARMKT
 
 // ---------- Add identity ----------
 
-const AddIdentity = ({ allowNonEncrypted, onAction, onBulkImport, seedInputRef }) => {
+const AddIdentity = ({ allowNonEncrypted, existing, labels, onAction, onBulkImport, seedInputRef }) => {
   const toast = useToast();
   const [seed, setSeed] = useState('');
   const [showSeed, setShowSeed] = useState(false);
@@ -95,7 +95,10 @@ const AddIdentity = ({ allowNonEncrypted, onAction, onBulkImport, seedInputRef }
     }
   };
 
-  const canImport = seedValid && derived?.id && !busy;
+  // The same check the bulk and CSV imports make: an identity the wallet
+  // already holds is shown as such instead of being sent to the server again.
+  const present = Boolean(derived?.id && existing?.has(derived.id));
+  const canImport = seedValid && derived?.id && !present && !busy;
 
   return (
     <Stack direction='row' spacing={2} sx={{ mb: 3, flexShrink: 0 }} flexWrap='wrap' useFlexGap>
@@ -174,6 +177,11 @@ const AddIdentity = ({ allowNonEncrypted, onAction, onBulkImport, seedInputRef }
               <Identicon id={derived.id} size={20} />
               <Box component='span' sx={{ color: 'text.secondary' }}>This seed belongs to</Box>
               <IdText id={derived.id} full copy={false} />
+              {present && (
+                <Box component='span' sx={{ color: 'warning.main', whiteSpace: 'nowrap' }}>
+                  already in the wallet{labels?.[derived.id] ? ` as ${labels[derived.id]}` : ''}
+                </Box>
+              )}
             </Typography>
           )}
         </Box>
@@ -312,6 +320,7 @@ export default function WalletPanel({
   onDeleteIdentity,
 }) {
   const [filter, setFilter] = useState('');
+  const existingIds = useMemo(() => new Set(identities.map((i) => i.id)), [identities]);
   const [orderBy, setOrderBy] = useState(null);
   const [order, setOrder] = useState('desc');
   const [menu, setMenu] = useState(null); // { anchor, identity }
@@ -389,7 +398,14 @@ export default function WalletPanel({
 
   return (
     <Box sx={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
-      <AddIdentity allowNonEncrypted={allowNonEncrypted} onAction={onAction} onBulkImport={onBulkImport} seedInputRef={seedInputRef} />
+      <AddIdentity
+        allowNonEncrypted={allowNonEncrypted}
+        existing={existingIds}
+        labels={labels}
+        onAction={onAction}
+        onBulkImport={onBulkImport}
+        seedInputRef={seedInputRef}
+      />
 
       {loading ? (
         <SkeletonRows />
