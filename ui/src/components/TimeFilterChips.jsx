@@ -4,7 +4,7 @@ import { TIME_OPTIONS } from '../utils/format';
 
 export default function TimeFilterChips({ value, onChange }) {
   return (
-    <Stack direction='row' spacing={1} sx={{ mb: 2, flexShrink: 0 }} flexWrap='wrap' useFlexGap>
+    <Stack direction='row' spacing={1} sx={{ mb: 2, flexShrink: 0, flexWrap: 'wrap' }} useFlexGap>
       {TIME_OPTIONS.map((option) => (
         <Chip
           key={option.label}

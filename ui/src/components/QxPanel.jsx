@@ -383,7 +383,7 @@ export default function QxPanel({
     <Box sx={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
       {/* One-line order ticket: nothing wraps, so the book below gets the rest of the window. */}
       <Paper variant='outlined' sx={{ px: 2, py: 1.5, mb: 2, flexShrink: 0 }}>
-        <Stack direction='row' spacing={1.5} alignItems='center' useFlexGap>
+        <Stack direction='row' spacing={1.5} useFlexGap sx={{ alignItems: 'center' }}>
           <FormControl size='small' sx={{ minWidth: 220, flex: 1 }}>
             <InputLabel id='qx-id-label'>Identity</InputLabel>
             <Select

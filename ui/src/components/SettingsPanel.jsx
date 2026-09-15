@@ -64,7 +64,7 @@ const AddressBook = ({ entries, onChange, identities, labels }) => {
 
   return (
     <Stack spacing={2}>
-      <Stack direction='row' spacing={1} alignItems='flex-start' flexWrap='wrap' useFlexGap component='form' onSubmit={(e) => { e.preventDefault(); add(); }}>
+      <Stack direction='row' spacing={1} useFlexGap component='form' sx={{ alignItems: 'flex-start', flexWrap: 'wrap' }} onSubmit={(e) => { e.preventDefault(); add(); }}>
         <TextField
           label='Name'
           size='small'
@@ -246,7 +246,7 @@ export default function SettingsPanel({
         title='Wallet unlock'
         description='After a correct password the wallet stays unlocked for this long, so follow-up actions do not prompt again.'
       >
-        <Stack direction='row' spacing={2} alignItems='center' flexWrap='wrap' useFlexGap>
+        <Stack direction='row' spacing={2} useFlexGap sx={{ alignItems: 'center', flexWrap: 'wrap' }}>
           <ToggleButtonGroup
             exclusive
             size='small'
@@ -264,7 +264,7 @@ export default function SettingsPanel({
             size='small'
             value={String(seconds)}
             onChange={(e) => digitsOnly(e.target.value) && e.target.value !== '' && setSeconds(e.target.value)}
-            inputProps={{ maxLength: 2 }}
+            slotProps={{ htmlInput: { maxLength: 2 } }}
             helperText={`1–${MAX_UNLOCK_SECONDS} seconds`}
             sx={{ width: 160 }}
           />
@@ -272,7 +272,7 @@ export default function SettingsPanel({
       </Section>
 
       <Section title='Transactions'>
-        <Stack direction='row' spacing={2} alignItems='flex-start' flexWrap='wrap' useFlexGap>
+        <Stack direction='row' spacing={2} useFlexGap sx={{ alignItems: 'flex-start', flexWrap: 'wrap' }}>
           <TextField
             label='Transfer Ticks Offset'
             size='small'
@@ -287,7 +287,7 @@ export default function SettingsPanel({
                 ? 'Default'
                 : `Default is ${DEFAULT_TICK_OFFSET}`
             }
-            inputProps={{ maxLength: 4, inputMode: 'numeric' }}
+            slotProps={{ htmlInput: { maxLength: 4, inputMode: 'numeric' } }}
             sx={{ width: 200 }}
           />
           {tickOffset !== DEFAULT_TICK_OFFSET && (
@@ -299,7 +299,7 @@ export default function SettingsPanel({
       </Section>
 
       <Section grow title='Display' description='Fiat values are indicative only, from the CoinGecko public price feed.'>
-        <Stack direction='row' spacing={2} alignItems='center' flexWrap='wrap' useFlexGap>
+        <Stack direction='row' spacing={2} useFlexGap sx={{ alignItems: 'center', flexWrap: 'wrap' }}>
           <FormControl size='small' sx={{ minWidth: 160 }}>
             <InputLabel id='currency-label'>Fiat currency</InputLabel>
             <Select
@@ -349,7 +349,7 @@ export default function SettingsPanel({
         title='Peer limits'
         description='Rubic keeps at least the minimum and at most the maximum number of peers connected. Changes apply after you save.'
       >
-        <Stack direction='row' spacing={2} alignItems='flex-start' flexWrap='wrap' useFlexGap>
+        <Stack direction='row' spacing={2} useFlexGap sx={{ alignItems: 'flex-start', flexWrap: 'wrap' }}>
           <TextField
             label='Min peers'
             size='small'

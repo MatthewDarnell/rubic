@@ -159,7 +159,7 @@ export default function AssetsPanel({
               No issued assets are known yet — they appear once peers report them.
             </Typography>
           ) : (
-            <Stack direction='row' spacing={2} alignItems='center' flexWrap='wrap' useFlexGap>
+            <Stack direction='row' spacing={2} useFlexGap sx={{ alignItems: 'center', flexWrap: 'wrap' }}>
               <FormControl size='small' sx={{ minWidth: 300 }}>
                 <InputLabel id='asset-select-label'>Asset</InputLabel>
                 <Select
@@ -303,7 +303,7 @@ export default function AssetsPanel({
                       ? `${destination.length}/60`
                       : nameOf(dest) || ' '
                   }
-                  slotProps={{ htmlInput: { ...params.inputProps, className: 'mono' } }}
+                  slotProps={{ ...params.slotProps, htmlInput: { ...params.slotProps?.htmlInput, className: 'mono' } }}
                 />
               )}
             />
@@ -344,7 +344,7 @@ export default function AssetsPanel({
         </Step>
 
         <Step n={3} title='Send'>
-          <Stack direction='row' spacing={2} alignItems='center'>
+          <Stack direction='row' spacing={2} sx={{ alignItems: 'center' }}>
             <Button variant='contained' startIcon={<SendIcon />} disabled={!valid} onClick={send}>
               Send {amount ? formatNumber(amount) : ''} {selectedAsset || 'asset'}
             </Button>

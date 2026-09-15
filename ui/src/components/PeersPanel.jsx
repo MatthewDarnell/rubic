@@ -91,7 +91,7 @@ const PeerTable = ({
                     indeterminate={someSelected}
                     disabled={rows.length === 0 || locked}
                     onChange={() => onToggleAll(rows, allSelected)}
-                    inputProps={{ 'aria-label': selectAllLabel }}
+                    slotProps={{ input: { 'aria-label': selectAllLabel } }}
                   />
                 </span>
               </Tooltip>
@@ -127,7 +127,7 @@ const PeerTable = ({
                     checked={checked}
                     disabled={locked}
                     onChange={() => onToggle(p.id)}
-                    inputProps={{ 'aria-label': `Select peer ${p.ip}` }}
+                    slotProps={{ input: { 'aria-label': `Select peer ${p.ip}` } }}
                   />
                 </TableCell>
                 <TableCell sx={{ fontFamily: 'monospace' }}>{p.ip}</TableCell>
@@ -399,8 +399,8 @@ export default function PeersPanel({ peers, onChanged }) {
         <Stack
           direction='row'
           spacing={1}
-          alignItems='flex-start'
           component='form'
+          sx={{ alignItems: 'flex-start' }}
           onSubmit={(e) => {
             e.preventDefault();
             if (ipValid && portValid && !alreadyActive && !adding) addPeer(address);

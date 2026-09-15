@@ -523,7 +523,7 @@ export default function ActivityPanel({
 
   return (
     <Box sx={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
-      <Stack direction='row' spacing={2} alignItems='center' flexWrap='wrap' useFlexGap sx={{ mb: 2, flexShrink: 0 }}>
+      <Stack direction='row' spacing={2} useFlexGap sx={{ mb: 2, flexShrink: 0, alignItems: 'center', flexWrap: 'wrap' }}>
         <Stack direction='row' spacing={1}>
           {KINDS.map((k) => (
             <Chip

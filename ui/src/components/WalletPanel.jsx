@@ -101,7 +101,7 @@ const AddIdentity = ({ allowNonEncrypted, existing, labels, onAction, onBulkImpo
   const canImport = seedValid && derived?.id && !present && !busy;
 
   return (
-    <Stack direction='row' spacing={2} sx={{ mb: 3, flexShrink: 0 }} flexWrap='wrap' useFlexGap>
+    <Stack direction='row' spacing={2} sx={{ mb: 3, flexShrink: 0, flexWrap: 'wrap' }} useFlexGap>
       <Paper variant='outlined' sx={{ p: 2, flex: '1 1 300px', display: 'flex', flexDirection: 'column' }}>
         <Typography variant='subtitle1' sx={{ fontWeight: 600 }}>
           Create a new identity
@@ -109,7 +109,7 @@ const AddIdentity = ({ allowNonEncrypted, existing, labels, onAction, onBulkImpo
         <Typography variant='body2' color='text.secondary' sx={{ mb: 2, flex: 1 }}>
           Rubic generates a fresh seed and stores it encrypted with your master password.
         </Typography>
-        <Stack direction='row' spacing={1} flexWrap='wrap' useFlexGap>
+        <Stack direction='row' spacing={1} useFlexGap sx={{ flexWrap: 'wrap' }}>
           <Button variant='contained' startIcon={<AddIcon />} disabled={busy} onClick={() => onAction('identity/new/')}>
             Create new identity
           </Button>
@@ -185,7 +185,7 @@ const AddIdentity = ({ allowNonEncrypted, existing, labels, onAction, onBulkImpo
             </Typography>
           )}
         </Box>
-        <Stack direction='row' spacing={1} flexWrap='wrap' useFlexGap>
+        <Stack direction='row' spacing={1} useFlexGap sx={{ flexWrap: 'wrap' }}>
           <Button
             variant='contained'
             startIcon={<FileUploadIcon />}
@@ -272,7 +272,7 @@ const EmptyState = ({ onCreate, onImport }) => (
     <Typography variant='body2' color='text.secondary' sx={{ mb: 3, maxWidth: 440, mx: 'auto' }}>
       An identity is a Qubic address you control. Create a new one, or import a seed you already have.
     </Typography>
-    <Stack direction='row' spacing={1.5} justifyContent='center'>
+    <Stack direction='row' spacing={1.5} sx={{ justifyContent: 'center' }}>
       <Button variant='contained' startIcon={<AddIcon />} onClick={onCreate}>
         Create new identity
       </Button>
@@ -413,7 +413,7 @@ export default function WalletPanel({
         <EmptyState onCreate={() => onAction('identity/new/')} onImport={focusImport} />
       ) : (
         <>
-          <Stack direction='row' spacing={2} alignItems='center' sx={{ mb: 1.5, flexShrink: 0 }}>
+          <Stack direction='row' spacing={2} sx={{ mb: 1.5, flexShrink: 0, alignItems: 'center' }}>
             <TextField
               size='small'
               placeholder='Filter by ID or nickname  ( / )'

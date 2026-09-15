@@ -218,7 +218,7 @@ export default function SendDialog({
                         ? nameOf(to)
                         : ' '
                     }
-                    slotProps={{ htmlInput: { ...params.inputProps, className: 'mono' } }}
+                    slotProps={{ ...params.slotProps, htmlInput: { ...params.slotProps?.htmlInput, className: 'mono' } }}
                   />
                 )}
               />
