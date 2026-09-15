@@ -27,7 +27,7 @@ import DeleteOutlineIcon from '@mui/icons-material/DeleteOutlined';
 import IdText from './IdText';
 import Identicon from './Identicon';
 import DepthChart from './DepthChart';
-import { digitsOnly, formatNumber, shortenId } from '../utils/format';
+import { digitsOnly, formatNumber, isNumeric, shortenId } from '../utils/format';
 
 const CHART_LEVELS = 40; // price levels per side shown in the depth chart
 const SIDE_WIDTH = 380; // depth chart + open orders column
@@ -228,6 +228,21 @@ export default function QxPanel({
   const valid = selectedId && selectedAsset && priceNum > 0 && amountNum > 0;
   const total = priceNum * amountNum;
 
+  // What the signing identity can back the order with. A buy locks its total in
+  // QU with the contract; a sell hands the shares over. Neither is offered when
+  // the identity is known to fall short; an unreported balance is not a "no".
+  const signer = identities.find((i) => i.id === selectedId);
+  const quBalance = isNumeric(signer?.balance) ? Number(signer.balance) : null;
+  const holding = signer?.assets ? Number(signer.assets.find((a) => a?.name === selectedAsset)?.balance ?? 0) : null;
+  const cannotAfford = quBalance !== null && total > quBalance;
+  const notEnoughShares = holding !== null && amountNum > holding;
+  const buyBlocked = valid && cannotAfford
+    ? `Costs ${formatNumber(total)} QU, but this identity has ${formatNumber(quBalance)} QU`
+    : '';
+  const sellBlocked = valid && notEnoughShares
+    ? `This identity holds ${formatNumber(holding)} ${selectedAsset}, not ${formatNumber(amountNum)}`
+    : '';
+
   // Asks: highest price at the top, best (lowest) ask at the bottom next to the spread.
   // Bids: best (highest) bid at the top. Cumulative depth accumulates away from the spread.
   const book = useMemo(() => {
@@ -340,6 +355,9 @@ export default function QxPanel({
       onConfirm: () => onAction(orderPath(side, selectedId, priceNum, amountNum)),
     });
 
+  // The ladder's "fill the form" click (onFill) prefills price and shares; the
+  // checks above then decide whether the resulting order is affordable.
+
   const cancel = (order, side) =>
     requestConfirm({
       title: 'Cancel this order?',
@@ -381,10 +399,10 @@ export default function QxPanel({
 
   return (
     <Box sx={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
-      {/* One-line order ticket: nothing wraps, so the book below gets the rest of the window. */}
+      {/* Order ticket on one line where it fits; the book below gets the rest of the window. */}
       <Paper variant='outlined' sx={{ px: 2, py: 1.5, mb: 2, flexShrink: 0 }}>
-        <Stack direction='row' spacing={1.5} useFlexGap sx={{ alignItems: 'center' }}>
-          <FormControl size='small' sx={{ minWidth: 220, flex: 1 }}>
+        <Stack direction='row' spacing={1.5} useFlexGap sx={{ alignItems: 'center', flexWrap: 'wrap' }}>
+          <FormControl size='small' sx={{ minWidth: 200, flex: 1 }}>
             <InputLabel id='qx-id-label'>Identity</InputLabel>
             <Select
               labelId='qx-id-label'
@@ -404,7 +422,7 @@ export default function QxPanel({
               ))}
             </Select>
           </FormControl>
-          <FormControl size='small' sx={{ width: 150, flexShrink: 0 }}>
+          <FormControl size='small' sx={{ width: 130, flexShrink: 0 }}>
             <InputLabel id='qx-asset-label'>Asset</InputLabel>
             <Select
               labelId='qx-asset-label'
@@ -423,7 +441,7 @@ export default function QxPanel({
               size='small'
               value={amount}
               onChange={(e) => digitsOnly(e.target.value) && setAmount(e.target.value)}
-              sx={{ width: 130, flexShrink: 0 }}
+              sx={{ width: 110, flexShrink: 0 }}
             />
           </Tooltip>
           <Tooltip title={price ? formatNumber(price) : ''} placement='top'>
@@ -432,36 +450,61 @@ export default function QxPanel({
               size='small'
               value={price}
               onChange={(e) => digitsOnly(e.target.value) && setPrice(e.target.value)}
-              sx={{ width: 150, flexShrink: 0 }}
+              sx={{ width: 130, flexShrink: 0 }}
             />
           </Tooltip>
-          <Box sx={{ flexShrink: 0, minWidth: 100, lineHeight: 1.1 }}>
+          <Box sx={{ flexShrink: 0, minWidth: 90, lineHeight: 1.1 }}>
             <Typography variant='caption' color='text.secondary' sx={{ display: 'block' }}>Total</Typography>
-            <Typography variant='body2' sx={{ fontWeight: 600, whiteSpace: 'nowrap' }}>{formatNumber(total)} QU</Typography>
+            <Typography variant='body2' sx={{ fontWeight: 600, whiteSpace: 'nowrap', color: cannotAfford ? 'error.main' : 'inherit' }}>
+              {formatNumber(total)} QU
+            </Typography>
           </Box>
-          <Tooltip title={busy ? 'An order is waiting for its tick — new orders are enabled once it lands.' : ''}>
-            <Stack direction='row' spacing={1} sx={{ flexShrink: 0 }}>
-              <Button
-                variant='contained'
-                disabled={!valid || busy}
-                startIcon={<ShoppingCartIcon />}
-                onClick={() => place('BID')}
-                sx={{ height: 40 }}
-              >
-                Buy
-              </Button>
-              <Button
-                variant='contained'
-                color='secondary'
-                disabled={!valid || busy}
-                startIcon={<SellIcon />}
-                onClick={() => place('ASK')}
-                sx={{ height: 40 }}
-              >
-                Sell
-              </Button>
-            </Stack>
-          </Tooltip>
+          {signer && (
+            <Tooltip title='What the selected identity can spend or sell' placement='top'>
+              <Box sx={{ flexShrink: 0, minWidth: 110, lineHeight: 1.1 }}>
+                <Typography variant='caption' color='text.secondary' sx={{ display: 'block' }}>Available</Typography>
+                <Typography variant='body2' sx={{ whiteSpace: 'nowrap' }}>
+                  <Box component='span' sx={{ color: cannotAfford ? 'error.main' : 'inherit' }}>
+                    {quBalance === null ? '? ' : formatNumber(quBalance)} QU
+                  </Box>
+                  {selectedAsset && (
+                    <Box component='span' sx={{ color: notEnoughShares ? 'error.main' : 'inherit' }}>
+                      {' · '}{holding === null ? '?' : formatNumber(holding)} {selectedAsset}
+                    </Box>
+                  )}
+                </Typography>
+              </Box>
+            </Tooltip>
+          )}
+          <Stack direction='row' spacing={1} sx={{ flexShrink: 0 }}>
+            <Tooltip title={busy ? 'An order is waiting for its tick — new orders are enabled once it lands.' : buyBlocked} placement='top'>
+              <span>
+                <Button
+                  variant='contained'
+                  disabled={!valid || busy || cannotAfford}
+                  startIcon={<ShoppingCartIcon />}
+                  onClick={() => place('BID')}
+                  sx={{ height: 40 }}
+                >
+                  Buy
+                </Button>
+              </span>
+            </Tooltip>
+            <Tooltip title={busy ? 'An order is waiting for its tick — new orders are enabled once it lands.' : sellBlocked} placement='top'>
+              <span>
+                <Button
+                  variant='contained'
+                  color='secondary'
+                  disabled={!valid || busy || notEnoughShares}
+                  startIcon={<SellIcon />}
+                  onClick={() => place('ASK')}
+                  sx={{ height: 40 }}
+                >
+                  Sell
+                </Button>
+              </span>
+            </Tooltip>
+          </Stack>
         </Stack>
       </Paper>
 

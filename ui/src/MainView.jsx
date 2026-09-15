@@ -428,7 +428,8 @@ const MainView = () => {
           const balances = [];
           for (let i = 0; i < res.length; i += 3) balances.push(res[i + 2]);
           const quorum = doArrayElementsAgree(balances, 50);
-          const agreed = balances.every((v) => v === res[0]) || quorum >= 0;
+          // `res[0]` is a peer id, not a balance: a lone reporting peer used to read as a mismatch.
+          const agreed = balances.every((v) => v === balances[0]) || quorum >= 0;
           const balance = agreed ? balances[0] : 'Peer Balance Mismatch';
           return { ...item, balance, assets: asList(assetsRes) };
         })
