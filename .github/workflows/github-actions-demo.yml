@@ -36,7 +36,8 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: Rubic-linux
-          path: src-tauri/target/release/bundle/deb/Rubic_1.0.0_amd64.deb
+          path: src-tauri/target/release/bundle/deb/*.deb
+          if-no-files-found: error
       - run: echo "🍏 This job's status is ${{ job.status }}."
   mac:
     permissions:
@@ -56,8 +57,6 @@ jobs:
         run: cargo tauri bundle --bundles app
       - name: Remove Quarantine Attribute
         run: sudo xattr -rd com.apple.quarantine src-tauri/target/release/bundle/macos/Rubic.app
-      - name: Remove Attribute
-        run: sudo xattr -cr src-tauri/target/release/bundle/macos/Rubic.app
       - name: Zip App Bundle
         run: cd src-tauri/target/release/bundle/macos/ && zip -9 -y -r -q Rubic-macos.zip Rubic.app && cd ../../../../..
       - name: Generate release tag
