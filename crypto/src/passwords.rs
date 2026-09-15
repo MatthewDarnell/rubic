@@ -1,12 +1,15 @@
-use password_hash::{PasswordHash, PasswordHasher, PasswordVerifier, SaltString};
+use password_hash::{Error, PasswordHasher, PasswordVerifier};
 use argon2::Argon2;
 use crate::random::random_bytes;
+
+// password-hash 0.6 (final) takes the salt as raw bytes and verifies straight
+// from the PHC string; the string format is unchanged, so hashes written by the
+// release candidates this used before still verify.
 
 pub fn hash_password(password: &str) -> Result<String, String> {
     let ctx = Argon2::default();
     let salt: [u8; 16] = random_bytes(16).as_slice().try_into().unwrap();
-    let salt_string = SaltString::encode_b64(&salt).unwrap();
-    match ctx.hash_password(password.as_bytes(), &salt_string) {
+    match ctx.hash_password_with_salt(password.as_bytes(), &salt) {
         Ok(result) => Ok(result.to_string()),
         Err(_) => Err("Could not hash password".to_string())
     }
@@ -15,13 +18,9 @@ pub fn hash_password(password: &str) -> Result<String, String> {
 
 pub fn verify_password(password: &str, ciphertext: &str) -> Result<bool, String> {
     let ctx = Argon2::default();
-    match PasswordHash::new(ciphertext) {
-        Ok(hash) => {
-            match ctx.verify_password(password.as_bytes(), &hash) {
-                Ok(_) => Ok(true),
-                Err(_) => Ok(false)
-            }
-        },
+    match ctx.verify_password(password.as_bytes(), ciphertext) {
+        Ok(_) => Ok(true),
+        Err(Error::PasswordInvalid) => Ok(false),
         Err(_) => Err("Could Not Validate Password".to_string())
     }
 }

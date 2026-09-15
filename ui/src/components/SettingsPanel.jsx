@@ -24,7 +24,7 @@ import UploadFileIcon from '@mui/icons-material/UploadFile';
 import SaveIcon from '@mui/icons-material/Save';
 import WarningAmberIcon from '@mui/icons-material/WarningAmber';
 import AddIcon from '@mui/icons-material/Add';
-import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
+import DeleteOutlineIcon from '@mui/icons-material/DeleteOutlined';
 import DriveFileRenameOutlineIcon from '@mui/icons-material/DriveFileRenameOutline';
 import Identicon from './Identicon';
 import IdText from './IdText';

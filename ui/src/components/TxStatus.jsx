@@ -2,8 +2,8 @@ import React from 'react';
 import { Chip, IconButton, Tooltip } from '@mui/material';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import HourglassTopIcon from '@mui/icons-material/HourglassTop';
-import ErrorOutlineIcon from '@mui/icons-material/ErrorOutline';
-import HelpOutlineIcon from '@mui/icons-material/HelpOutline';
+import ErrorOutlineIcon from '@mui/icons-material/ErrorOutlined';
+import HelpOutlineIcon from '@mui/icons-material/HelpOutlined';
 import ReplayIcon from '@mui/icons-material/Replay';
 import { isNumeric } from '../utils/format';
 
