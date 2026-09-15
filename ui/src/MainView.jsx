@@ -1024,6 +1024,7 @@ const MainView = () => {
         isEncrypted={isEncrypted}
         allowNonEncrypted={allowNonEncrypted}
         unlockTimerMs={unlockTimer}
+        existing={identities.map((i) => i.id)}
         onUnlocked={() => setUnlockedUntil((current) => (current > Date.now() ? current : Date.now() + Number(unlockTimer)))}
         onImported={({ count, skipped, plain }) => {
           const detail = [skipped > 0 && `${skipped} already in the wallet`, plain && 'seeds stored without encryption'].filter(Boolean).join('; ');

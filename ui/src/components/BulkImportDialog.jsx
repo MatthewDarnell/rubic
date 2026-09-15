@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Alert,
   Box,
@@ -21,8 +21,12 @@ import FileUploadIcon from '@mui/icons-material/FileUpload';
 import Visibility from '@mui/icons-material/Visibility';
 import VisibilityOff from '@mui/icons-material/VisibilityOff';
 import { apiCall, apiPost } from '../api';
+import IdText from './IdText';
+import Identicon from './Identicon';
 
 const seedRegex = /^[a-z]{55}$/;
+// What the server derives for a seed that is not a valid Qubic seed.
+const INVALID_SEED_ID = 'AARQXIKNFIEZZEMOAVNVSUINZXAAXYBZZXVSWYOYIETZVPVKJPARMKTEKLKJ';
 
 // One seed per line; blank lines ignored, case and surrounding spaces forgiven.
 const parseSeeds = (text) => {
@@ -59,7 +63,7 @@ const parseSeeds = (text) => {
  *                                     encrypted if the unlock timer runs out
  *  - no master password yet        -> stored as-is (nothing to encrypt with)
  */
-export default function BulkImportDialog({ open, onClose, isEncrypted, allowNonEncrypted, unlockTimerMs, onUnlocked, onImported }) {
+export default function BulkImportDialog({ open, onClose, isEncrypted, allowNonEncrypted, unlockTimerMs, existing = [], onUnlocked, onImported }) {
   const [text, setText] = useState('');
   const [showSeeds, setShowSeeds] = useState(false);
   const [unlocked, setUnlocked] = useState(false);
@@ -70,11 +74,22 @@ export default function BulkImportDialog({ open, onClose, isEncrypted, allowNonE
   const [importing, setImporting] = useState(false);
   const [progress, setProgress] = useState(null); // { done, total }
   const [error, setError] = useState('');
+  // seed -> { id } | { invalid: true }, as derived by the server; kept across
+  // edits. The ref mirrors the state so the derivation loop can skip seeds
+  // that are done without restarting every time one finishes.
+  const [derived, setDerived] = useState({});
+  const derivedRef = useRef({});
+  const remember = (seed, value) => {
+    derivedRef.current = { ...derivedRef.current, [seed]: value };
+    setDerived(derivedRef.current);
+  };
 
   useEffect(() => {
     if (!open) return undefined;
     let cancelled = false;
     setText('');
+    derivedRef.current = {};
+    setDerived({});
     setShowSeeds(false);
     setEncryptAnyway(false);
     setPassword('');
@@ -96,17 +111,51 @@ export default function BulkImportDialog({ open, onClose, isEncrypted, allowNonE
 
   const parsed = useMemo(() => parseSeeds(text), [text]);
 
+  // Derive the identity of every new seed (a short pause after typing stops),
+  // one request at a time so a long paste does not flood the server.
+  useEffect(() => {
+    if (!parsed.seeds.some((seed) => !derivedRef.current[seed])) return undefined;
+    let cancelled = false;
+    const timer = setTimeout(async () => {
+      for (const seed of parsed.seeds) {
+        if (cancelled) return;
+        if (derivedRef.current[seed]) continue;
+        const res = await apiPost('identity/from_seed', { seed });
+        if (cancelled) return;
+        const ok = res.success && res.data && res.data !== INVALID_SEED_ID;
+        remember(seed, ok ? { id: String(res.data) } : { invalid: true });
+      }
+    }, 300);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [parsed.seeds]);
+
+  const existingSet = useMemo(() => new Set(existing), [existing]);
+  const rows = useMemo(
+    () => parsed.seeds.map((seed) => {
+      const d = derived[seed];
+      return { seed, id: d?.id, invalid: Boolean(d?.invalid), pending: !d, present: Boolean(d?.id && existingSet.has(d.id)) };
+    }),
+    [parsed.seeds, derived, existingSet]
+  );
+  const deriving = rows.some((r) => r.pending);
+  const ready = rows.filter((r) => r.id && !r.present);
+  const invalidSeeds = rows.filter((r) => r.invalid).length;
+  const alreadyPresent = rows.filter((r) => r.present).length;
+
   // What will happen to the seeds, given the wallet's state right now.
   const mode = !isEncrypted ? 'plain-no-password' : unlocked ? 'unlocked' : allowNonEncrypted && !encryptAnyway ? 'plain' : 'password';
   const needsPassword = mode === 'password';
-  const canImport = parsed.seeds.length > 0 && !importing && !checking && (!needsPassword || password.length > 0);
+  const canImport = ready.length > 0 && !deriving && !importing && !checking && (!needsPassword || password.length > 0);
 
   const runImport = async () => {
     if (!canImport) return;
     setImporting(true);
     setError('');
     setPasswordError('');
-    const total = parsed.seeds.length;
+    const total = ready.length;
     setProgress({ done: 0, total });
     try {
       let rowPassword = '';
@@ -128,7 +177,7 @@ export default function BulkImportDialog({ open, onClose, isEncrypted, allowNonE
       }
       let added = 0;
       let skipped = 0;
-      for (const [index, seed] of parsed.seeds.entries()) {
+      for (const [index, { seed, id }] of ready.entries()) {
         const res = await apiPost('identity/add', { seed, password: rowPassword });
         const reply = String(res.data ?? '').trim();
         if (res.success && reply === '200') {
@@ -136,7 +185,7 @@ export default function BulkImportDialog({ open, onClose, isEncrypted, allowNonE
         } else if (/failed to insert/i.test(reply)) {
           skipped += 1; // already in the wallet
         } else {
-          setError(`Stopped at line ${index + 1} of ${total}: ${reply || res.error || 'no response from server'}. ${added} added so far, and kept.`);
+          setError(`Stopped at ${id.slice(0, 8)}… (${index + 1} of ${total}): ${reply || res.error || 'no response from server'}. ${added} added so far, and kept.`);
           return;
         }
         setProgress({ done: index + 1, total });
@@ -190,7 +239,9 @@ export default function BulkImportDialog({ open, onClose, isEncrypted, allowNonE
         <Typography variant='caption' color='text.secondary' sx={{ display: 'block', mt: 0.5, minHeight: 20 }}>
           {text.trim()
             ? [
-                `${parsed.seeds.length} seed${parsed.seeds.length === 1 ? '' : 's'} ready`,
+                deriving ? `deriving ${rows.filter((r) => r.pending).length}…` : `${ready.length} identit${ready.length === 1 ? 'y' : 'ies'} ready`,
+                invalidSeeds > 0 && `${invalidSeeds} seed${invalidSeeds === 1 ? '' : 's'} invalid`,
+                alreadyPresent > 0 && `${alreadyPresent} already in the wallet`,
                 parsed.invalid > 0 && `${parsed.invalid} line${parsed.invalid === 1 ? '' : 's'} skipped (not 55 lowercase letters a–z)`,
                 parsed.duplicates > 0 && `${parsed.duplicates} duplicate${parsed.duplicates === 1 ? '' : 's'} ignored`,
               ]
@@ -198,6 +249,31 @@ export default function BulkImportDialog({ open, onClose, isEncrypted, allowNonE
                 .join(' · ')
             : ' '}
         </Typography>
+        {rows.length > 0 && (
+          <Box sx={{ maxHeight: 180, overflow: 'auto', mt: 0.5, pr: 1 }}>
+            {rows.map((row, index) => (
+              <Box key={row.seed} sx={{ display: 'flex', alignItems: 'center', gap: 1, py: 0.5, opacity: row.present ? 0.6 : 1 }}>
+                <Typography variant='caption' color='text.secondary' sx={{ width: 24, textAlign: 'right', flexShrink: 0 }}>
+                  {index + 1}
+                </Typography>
+                {row.pending && <CircularProgress size={14} />}
+                {row.pending && <Typography variant='caption' color='text.secondary'>Deriving identity…</Typography>}
+                {row.invalid && (
+                  <Typography variant='caption' color='error.main'>This seed does not produce a valid identity</Typography>
+                )}
+                {row.id && (
+                  <>
+                    <Identicon id={row.id} size={20} />
+                    <IdText id={row.id} full nowrap copy={false} sx={{ fontSize: '0.74rem' }} />
+                    {row.present && (
+                      <Typography variant='caption' color='text.secondary' sx={{ whiteSpace: 'nowrap' }}>already in the wallet</Typography>
+                    )}
+                  </>
+                )}
+              </Box>
+            ))}
+          </Box>
+        )}
 
         {checking && (
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mt: 1.5 }}>
