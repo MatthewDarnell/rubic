@@ -4,10 +4,16 @@ use network::peer::Peer;
 use store;
 use crate::env::{get_max_peers, get_min_peers};
 
+// Each peer row also carries `tick_lag`: how many ticks the peer trailed the
+// network at its last tick reply ("0" = up to date, "" = not measured lately).
 #[get("/peers")]
 pub fn peers() -> String {
     match store::sqlite::peer::fetch_all_peers(store::get_db_path().as_str()) {
-        Ok(value) => {
+        Ok(mut value) => {
+            for peer in value.iter_mut() {
+                let lag = peer.get("id").and_then(|id| api::response::peer_tick_lag(id.as_str()));
+                peer.insert("tick_lag".to_string(), lag.map(|l| l.to_string()).unwrap_or_default());
+            }
             format!("{:?}", value)
         }, Err(err) => {
             format!("Error! : {}", err.to_string())

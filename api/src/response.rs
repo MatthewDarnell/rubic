@@ -42,6 +42,42 @@ pub trait FormatQubicResponseDataToStructure {
 /// (asset, side 'A'|'B'). Lets the UI show how fresh the book on screen is.
 static BOOK_REFRESHED: std::sync::OnceLock<Mutex<HashMap<(String, String), std::time::Instant>>> = std::sync::OnceLock::new();
 
+/// How far behind the network each peer was the last time it answered a tick
+/// poll, keyed by peer id: `(ticks behind, measured at)`. A node that is out of
+/// sync serves an out-of-date order book, so its books are not stored.
+static PEER_LAG: std::sync::OnceLock<Mutex<HashMap<String, (u32, std::time::Instant)>>> = std::sync::OnceLock::new();
+/// Order books from a peer more than this many ticks behind are dropped.
+const MAX_BOOK_PEER_LAG: u32 = 10;
+/// A lag measurement older than this no longer counts against a peer.
+const PEER_LAG_MEASUREMENT_TTL: std::time::Duration = std::time::Duration::from_secs(60);
+
+/// Records how far `peer`'s reported tick trails the highest tick the wallet
+/// already knows. Both numbers are taken when the reply arrives, so a slow
+/// poll does not make a healthy peer look behind.
+fn note_peer_tick(peer: &str, reported: u32) {
+    let latest = store::sqlite::tick::fetch_latest_tick(get_db_path().as_str()).ok()
+        .and_then(|t| t.parse::<u32>().ok())
+        .unwrap_or(0);
+    let lag = latest.saturating_sub(reported);
+    if let Ok(mut map) = PEER_LAG.get_or_init(|| Mutex::new(HashMap::new())).lock() {
+        map.insert(peer.to_string(), (lag, std::time::Instant::now()));
+    }
+}
+
+/// Ticks `peer` was behind the network at its last tick reply, if that reply
+/// is recent enough to count; `None` when the peer has not been measured.
+pub fn peer_tick_lag(peer: &str) -> Option<u32> {
+    PEER_LAG.get().and_then(|m| m.lock().ok())
+        .and_then(|map| map.get(peer).copied())
+        .filter(|(_, at)| at.elapsed() < PEER_LAG_MEASUREMENT_TTL)
+        .map(|(lag, _)| lag)
+}
+
+/// Ticks `peer` was behind at its last recent tick reply; `0` when unmeasured.
+fn peer_lag(peer: &str) -> u32 {
+    peer_tick_lag(peer).unwrap_or(0)
+}
+
 fn note_book_refreshed(asset: &str, side: &str) {
     if let Ok(mut map) = BOOK_REFRESHED.get_or_init(|| Mutex::new(HashMap::new())).lock() {
         map.insert((asset.to_string(), side.to_string()), std::time::Instant::now());
@@ -278,6 +314,7 @@ pub fn get_formatted_response(requests: Arc<Mutex<HashMap<u32, QubicApiPacket>>>
                     data[2] = response.data[6];
                     data[3] = response.data[7];
                     let value = u32::from_le_bytes(data);
+                    note_peer_tick(peer_id.as_str(), value);
                     match insert_tick(get_db_path().as_str(), peer_id.as_str(), value) {
                         Ok(_) => {},
                         Err(_err) => {}
@@ -466,6 +503,15 @@ pub fn get_formatted_response(requests: Arc<Mutex<HashMap<u32, QubicApiPacket>>>
                     None => println!("Failed To Read Entity Orders ({} bytes)!", response.data.len()),
                 }
                 delete_request_from_matcher(response.header._dejavu, requests.clone());
+                return;
+            }
+            // A peer that trails the network serves a book the network has moved
+            // past; storing it would overwrite a current one with stale rows.
+            let lag = response.peer.as_deref().map(peer_lag).unwrap_or(0);
+            if lag > MAX_BOOK_PEER_LAG {
+                logger::debug(format!("Ignoring an order book from peer {} ({} ticks behind the network)", response.peer.clone().unwrap_or_default(), lag).as_str());
+                // The request stays in the matcher: the other queued copy of it
+                // may still be answered by a peer that is up to date.
                 return;
             }
             //todo: as we implement more contracts, this might not be just for Qx Orderbook

@@ -57,6 +57,23 @@ const Latency = ({ ms }) => {
   );
 };
 
+// How many ticks the peer trailed the network at its last tick reply: 0 is up
+// to date, -10 is ten ticks behind. Empty when the server has no recent measurement.
+const TickLag = ({ lag }) => {
+  if (lag === undefined || lag === null || lag === '') return <Box component='span' sx={{ color: 'text.disabled' }}>—</Box>;
+  const n = Number(lag);
+  if (!Number.isFinite(n)) return <Box component='span' sx={{ color: 'text.disabled' }}>—</Box>;
+  const color = n === 0 ? 'success.main' : n <= 10 ? 'warning.main' : 'error.main';
+  const title = n === 0 ? 'Up to date with the network' : n <= 10 ? `${n} tick${n === 1 ? '' : 's'} behind the network` : `${n} ticks behind: its order books are ignored`;
+  return (
+    <Tooltip title={title}>
+      <Box component='span' sx={{ color, fontVariantNumeric: 'tabular-nums' }}>
+        {n === 0 ? '0' : `-${n}`}
+      </Box>
+    </Tooltip>
+  );
+};
+
 const isRemoved = (p) => p.whitelisted === '-1';
 const isConnected = (p) => p.connected === '1' || p.connected === 'true';
 const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
@@ -98,6 +115,7 @@ const PeerTable = ({
             </TableCell>
             <TableCell>Address</TableCell>
             <TableCell align='right'>Latency</TableCell>
+            <TableCell align='right'>Tick Lag</TableCell>
             <TableCell>Last responded</TableCell>
             <TableCell align='right' sx={{ width: 64 }} />
           </TableRow>
@@ -105,7 +123,7 @@ const PeerTable = ({
         <TableBody>
           {rows.length === 0 && (
             <TableRow>
-              <TableCell colSpan={5} align='center' sx={{ py: 3, color: 'text.secondary' }}>
+              <TableCell colSpan={6} align='center' sx={{ py: 3, color: 'text.secondary' }}>
                 {emptyText}
               </TableCell>
             </TableRow>
@@ -133,6 +151,9 @@ const PeerTable = ({
                 <TableCell sx={{ fontFamily: 'monospace' }}>{p.ip}</TableCell>
                 <TableCell align='right'>
                   <Latency ms={p.ping} />
+                </TableCell>
+                <TableCell align='right'>
+                  <TickLag lag={p.connected === '1' ? p.tick_lag : ''} />
                 </TableCell>
                 <TableCell>
                   <Tooltip title={formatAbsoluteTime(p.last_responded)}>
