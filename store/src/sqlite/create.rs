@@ -144,8 +144,48 @@ pub fn open_database(path: &str, create: bool) -> Result<sqlite::Connection, Str
         created DATETIME DEFAULT CURRENT_TIMESTAMP,
         PRIMARY KEY(asset, side, entity, price, num_shares)
     );
+
+    DROP TABLE IF EXISTS random_round;
+    CREATE TABLE IF NOT EXISTS random_session (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        identity TEXT NOT NULL,
+        tier INTEGER NOT NULL,
+        first_tick INTEGER NOT NULL,
+        status INTEGER DEFAULT 0,
+        broadcast_through INTEGER DEFAULT -1,
+        leave_step INTEGER DEFAULT -1,
+        last_accepted_tick INTEGER DEFAULT 0,
+        reason TEXT DEFAULT '',
+        auto_restart INTEGER DEFAULT 0,
+        fail_streak INTEGER DEFAULT 0,
+        continued_by INTEGER DEFAULT 0,
+        failed_tick INTEGER DEFAULT 0,
+        created DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (identity) REFERENCES identities(identity) ON DELETE CASCADE
+    );
+    CREATE TABLE IF NOT EXISTS random_provider (
+        identity TEXT PRIMARY KEY,
+        checked_tick INTEGER NOT NULL,
+        slots TEXT NOT NULL,
+        updated DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE TABLE IF NOT EXISTS random_step (
+        session_id INTEGER NOT NULL,
+        step INTEGER NOT NULL,
+        tick INTEGER NOT NULL,
+        reveal_secret TEXT NOT NULL,
+        commit_secret TEXT NOT NULL,
+        stay_txid TEXT,
+        stay_sig TEXT,
+        leave_txid TEXT,
+        leave_sig TEXT,
+        PRIMARY KEY (session_id, step),
+        FOREIGN KEY (session_id) REFERENCES random_session(id) ON DELETE CASCADE
+    );
+    CREATE INDEX IF NOT EXISTS random_step_stay_txid ON random_step(stay_txid);
+    CREATE INDEX IF NOT EXISTS random_step_leave_txid ON random_step(leave_txid);
+
 ";
-    //        FOREIGN KEY(identity) REFERENCES identities(identity)
     match sqlite::open(path) {
         Ok(mut connection) => {
             match connection.set_busy_timeout(1000) {
@@ -182,8 +222,14 @@ pub fn open_database(path: &str, create: bool) -> Result<sqlite::Connection, Str
 /// not touch existing tables, so each is applied as an idempotent ALTER: a
 /// "duplicate column" error just means the database already has it.
 fn migrate(connection: &sqlite::Connection) {
-    const ADDED_COLUMNS: [&str; 1] = [
+    const ADDED_COLUMNS: [&str; 7] = [
         "ALTER TABLE transfer ADD COLUMN last_broadcast_tick INTEGER DEFAULT 0;",
+        "ALTER TABLE random_session ADD COLUMN last_accepted_tick INTEGER DEFAULT 0;",
+        "ALTER TABLE random_session ADD COLUMN reason TEXT DEFAULT '';",
+        "ALTER TABLE random_session ADD COLUMN auto_restart INTEGER DEFAULT 0;",
+        "ALTER TABLE random_session ADD COLUMN fail_streak INTEGER DEFAULT 0;",
+        "ALTER TABLE random_session ADD COLUMN continued_by INTEGER DEFAULT 0;",
+        "ALTER TABLE random_session ADD COLUMN failed_tick INTEGER DEFAULT 0;",
     ];
     for statement in ADDED_COLUMNS {
         if let Err(err) = connection.execute(statement) {

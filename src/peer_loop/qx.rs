@@ -82,6 +82,15 @@ pub fn monitor_qx_orderbook(peer_set: Arc<Mutex<PeerSet>>) {
             if assets.is_empty() {
                 continue;
             }
+            // While a RANDOM session is active the sockets are for its steps and the
+            // tick polls that time them: no book is fetched, viewed or swept. The UI
+            // says so on the QX tab; refreshes resume as soon as the session ends.
+            let mining = store::sqlite::random_session::fetch_active_sessions(get_db_path().as_str())
+                .map(|sessions| !sessions.is_empty())
+                .unwrap_or(false);
+            if mining {
+                continue;
+            }
             let issuer_of = |name: &str| assets.iter().find(|(n, _)| n == name).map(|(_, i)| i.clone());
 
             // Viewed: what the UI is showing, once per tick while the lease holds.

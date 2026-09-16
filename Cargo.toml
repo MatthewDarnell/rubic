@@ -1,6 +1,6 @@
 [package]
 name = "rubic"
-version = "1.1.0"
+version = "1.2.0"
 edition = "2021"
 authors = ["Matthew Darnell"]
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
@@ -23,6 +23,7 @@ api = { path = './api' }
 crypto =  { path = './crypto' }
 protocol = { path = './protocol' }
 logger = { path = './logger' }
+miner = { path = './miner' }
 network = { path = './network' }
 smart_contract = { path = './smart_contract' }
 store = { path = './store' }

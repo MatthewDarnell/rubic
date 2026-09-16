@@ -484,9 +484,31 @@ pub fn get_formatted_response(requests: Arc<Mutex<HashMap<u32, QubicApiPacket>>>
             // not held across database writes.
             let request_data: Option<Vec<u8>> = requests.lock().ok()
                 .and_then(|guard| guard.get(&response.header._dejavu).map(|r| r.data.clone()));
-            let function = request_data.as_ref()
+            let asked = request_data.as_ref()
                 .filter(|d| d.len() >= 8)
-                .map(|d| smart_contract::qx::orderbook::RequestContractFunction::from_bytes(d).input_type);
+                .map(|d| smart_contract::qx::orderbook::RequestContractFunction::from_bytes(d));
+            let function = asked.as_ref().map(|r| r.input_type);
+            if asked.as_ref().map(|r| r.contract_index == miner::random::RANDOM_CONTRACT_INDEX && r.input_type == miner::random::GET_PROVIDER_STATUS).unwrap_or(false) {
+                // RANDOM GetProviderStatus: the identity asked about is the request input.
+                let data = request_data.unwrap();
+                if data.len() >= 40 {
+                    let identity = get_identity(&<[u8; 32]>::try_from(&data[8..40]).unwrap());
+                    match miner::random::parse_provider_status(&response.data) {
+                        Some(slots) => {
+                            // The report reflects the answering peer's state, which may trail
+                            // the network: date it by that peer's tick, not the wallet's.
+                            let latest: u32 = store::sqlite::tick::fetch_latest_tick(get_db_path().as_str()).ok().and_then(|t| t.parse().ok()).unwrap_or(0);
+                            let checked_tick = latest.saturating_sub(response.peer.as_deref().map(peer_lag).unwrap_or(0));
+                            if let Err(err) = store::sqlite::random_session::set_provider_status(get_db_path().as_str(), &identity, checked_tick, &miner::random::ProviderSlot::list_to_text(&slots)) {
+                                error(format!("Failed To Store RANDOM Provider Status: {}", err).as_str());
+                            }
+                        },
+                        None => println!("Failed To Read RANDOM Provider Status ({} bytes)!", response.data.len()),
+                    }
+                }
+                delete_request_from_matcher(response.header._dejavu, requests.clone());
+                return;
+            }
             if matches!(function, Some(4) | Some(5)) {
                 // EntityAskOrders / EntityBidOrders: one identity's resting orders.
                 let data = request_data.unwrap();

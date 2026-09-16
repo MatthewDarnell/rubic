@@ -7,6 +7,7 @@ use std::sync::mpsc;
 mod env;
 mod routes;
 mod peer_loop;
+mod miner;
 
 use rocket::http::Header;
 use rocket::{Request, Response};
@@ -94,6 +95,7 @@ async fn main() {
     Ok(v) => v,
     Err(err) => panic!("Invalid Server Port! {}", err.to_string())
   };
+    
   info!("Starting Rubic Server at.({}:{})", &host, port);
 
   pub struct CORS;
@@ -165,7 +167,10 @@ async fn main() {
         routes::wallet::download_wallet,
         routes::wallet::is_unlocked,
         routes::wallet::unlock,
-        routes::wallet::reset_wallet
+        routes::wallet::reset_wallet,
+        routes::miner::random::random_sessions,
+        routes::miner::random::start_random_session,
+        routes::miner::random::stop_random_session,
       ])
       .manage(std::sync::Mutex::new(tx))
       .manage(std::sync::Mutex::new(rx_server_route_responses_from_thread))

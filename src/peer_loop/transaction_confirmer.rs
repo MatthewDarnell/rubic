@@ -109,10 +109,15 @@ pub fn confirm_transactions(peer_set: Arc<Mutex<PeerSet>>) {
 
                         // First the cheap, peer-reported signal; the quorum tick data
                         // below is the full verification when it is available.
+                        let to_contract = transfer.get("destination").map(|d| d == miner::random::RANDOM_CONTRACT_IDENTITY).unwrap_or(false);
                         if let Some(source) = transfer.get("source") {
                             match settle_from_entity_report(source.as_str(), txid.as_str(), tick) {
                                 Settled::Confirmed => {
-                                    refresh_source(&peer_set, source.as_str());
+                                    // A RANDOM step settles every 3 ticks and only moves the stake:
+                                    // not worth a balance and holdings round trip each time.
+                                    if !to_contract {
+                                        refresh_source(&peer_set, source.as_str());
+                                    }
                                     continue;
                                 },
                                 Settled::Failed => continue,
@@ -180,7 +185,9 @@ pub fn confirm_transactions(peer_set: Arc<Mutex<PeerSet>>) {
                                                         Ok(_) => {
                                                             println!("Transaction <{}> confirmed.", txid);
                                                             if let Some(source) = transfer.get("source") {
-                                                                refresh_source(&peer_set, source.as_str());
+                                                                if !to_contract {
+                                                                    refresh_source(&peer_set, source.as_str());
+                                                                }
                                                             }
                                                         },
                                                         Err(err) => {

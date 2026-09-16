@@ -9,6 +9,7 @@ edition = "2021"
 consensus = { path = "../consensus" }
 crypto = { path = '../crypto' }
 protocol = { path = '../protocol' }
+miner = { path = '../miner' }
 logger = { path = '../logger' }
 smart_contract = { path = '../smart_contract' }
 store = { path = '../store' }

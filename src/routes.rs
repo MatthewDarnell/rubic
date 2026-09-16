@@ -37,3 +37,4 @@ pub mod wallet;
 pub mod transaction;
 pub mod asset;
 pub mod qx;
+pub mod miner;

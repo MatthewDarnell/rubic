@@ -115,8 +115,8 @@ impl TransferTransaction {
             _source_destination_public_key: bytes[32..64].to_vec(),
             _amount: read_le_u64(&mut &bytes[64..]),
             _tick: read_le_u32(&mut &bytes[72..]),
-            _input_size: read_le_u16(&mut &bytes[76..]),
-            _input_type: read_le_u16(&mut &bytes[78..]),
+            _input_type: read_le_u16(&mut &bytes[76..]),
+            _input_size: read_le_u16(&mut &bytes[78..]),
             _signature
         }
     }

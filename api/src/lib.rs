@@ -3,6 +3,8 @@ pub mod response;
 pub mod request;
 
 pub use crate::request::QubicApiPacket;
+pub mod customtransfer;
+use crate::customtransfer::CustomTransferTransaction;
 
 extern crate crypto;
 extern crate protocol;
@@ -59,6 +61,24 @@ impl QubicApiPacket {
     }
     
     pub fn broadcast_transaction<T: AsBytes>(transaction: T) -> Self {
+        //let entity: EntityType = EntityType::RequestEntity;
+        let mut header = RequestResponseHeader::new();
+        header.set_type(EntityType::BroadcastTransaction);
+        header.zero_dejavu();
+
+        let data: Vec<u8> = transaction.as_bytes().to_vec();
+        let size = std::mem::size_of::<RequestResponseHeader>() + data.len();
+        header.set_size(size);
+        QubicApiPacket {
+            api_type: EntityType::BroadcastTransaction,
+            peer: None,
+            header,
+            data: data,
+            response_data: None
+        }
+    }
+
+    pub fn broadcast_custom_transaction(transaction: &CustomTransferTransaction) -> Self {
         //let entity: EntityType = EntityType::RequestEntity;
         let mut header = RequestResponseHeader::new();
         header.set_type(EntityType::BroadcastTransaction);
@@ -148,6 +168,27 @@ impl QubicApiPacket {
         let mut header = RequestResponseHeader::new();
         header.set_type(EntityType::RequestContractFunction);
         let data: Vec<u8> = request.as_bytes().to_vec();
+        let size = std::mem::size_of::<RequestResponseHeader>() + data.len();
+        header.set_size(size);
+        QubicApiPacket {
+            api_type: EntityType::RequestContractFunction,
+            peer: None,
+            header,
+            data,
+            response_data: None
+        }
+    }
+
+    /// `RequestContractFunction` for any contract: the 8-byte header (contract
+    /// index, input type, input size) followed by the function's input.
+    pub fn request_contract_function(contract_index: u32, input_type: u16, input: &[u8]) -> Self {
+        let mut header = RequestResponseHeader::new();
+        header.set_type(EntityType::RequestContractFunction);
+        let mut data: Vec<u8> = Vec::with_capacity(8 + input.len());
+        data.extend_from_slice(&contract_index.to_le_bytes());
+        data.extend_from_slice(&input_type.to_le_bytes());
+        data.extend_from_slice(&(input.len() as u16).to_le_bytes());
+        data.extend_from_slice(input);
         let size = std::mem::size_of::<RequestResponseHeader>() + data.len();
         header.set_size(size);
         QubicApiPacket {

@@ -1,3 +1,4 @@
+import { keyframes } from '@mui/material/styles';
 import React from 'react';
 import {
   Badge,
@@ -18,6 +19,7 @@ import WalletIcon from '@mui/icons-material/AccountBalanceWalletOutlined';
 import HistoryIcon from '@mui/icons-material/History';
 import TokenIcon from '@mui/icons-material/TokenOutlined';
 import SwapHorizIcon from '@mui/icons-material/SwapHoriz';
+import CasinoIcon from '@mui/icons-material/Casino';
 import HubIcon from '@mui/icons-material/HubOutlined';
 import SettingsIcon from '@mui/icons-material/SettingsOutlined';
 import LightModeIcon from '@mui/icons-material/LightMode';
@@ -31,11 +33,25 @@ import Sparkline from './Sparkline';
 import { formatAge, formatFiat, formatNumber, isNumeric } from '../utils/format';
 import logo from '../assets/rubic.png';
 
+// The sidebar marker while the RANDOM miner runs: a pick that steps through
+// -30, 0 and 30 degrees, half a second each.
+const swing = keyframes`
+  0%, 33.32% { transform: rotate(-30deg); }
+  33.33%, 66.65% { transform: rotate(0deg); }
+  66.66%, 100% { transform: rotate(30deg); }
+`;
+// A spark at the pick's bottom left, shown only during the -30 degree step.
+const sparks = keyframes`
+  0%, 33.32% { opacity: 1; }
+  33.33%, 100% { opacity: 0; }
+`;
+
 export const NAV = [
   { key: 'wallet', label: 'Wallet', icon: WalletIcon },
   { key: 'activity', label: 'Activity', icon: HistoryIcon },
   { key: 'assets', label: 'Assets', icon: TokenIcon },
   { key: 'exchange', label: 'QX Exchange', icon: SwapHorizIcon },
+  { key: 'miner', label: 'Random Miner', icon: CasinoIcon },
   { key: 'network', label: 'Network', icon: HubIcon },
   { key: 'settings', label: 'Settings', icon: SettingsIcon },
 ];
@@ -98,7 +114,41 @@ const Sidebar = ({ nav, onNav, badges }) => (
               primary={item.label}
               slotProps={{ primary: { sx: { fontWeight: active ? 600 : 500, fontSize: '0.9rem' } } }}
             />
-            {badge ? <Chip size='small' label={badge} sx={{ height: 20, fontSize: '0.7rem' }} /> : null}
+            {badge ? (
+              /^\d+$/.test(String(badge)) ? (
+                <Chip size='small' label={badge} sx={{ height: 20, fontSize: '0.7rem' }} />
+              ) : (
+                // A non-numeric badge is a marker: the pick while the RANDOM miner runs,
+                // stepping through three angles, half a second each.
+                <Box component='span' sx={{ position: 'relative', display: 'inline-block', fontSize: '0.95rem', lineHeight: 1 }}>
+                  <Box
+                    component='span'
+                    sx={{
+                      display: 'inline-block',
+                      transformOrigin: '50% 80%',
+                      animation: `${swing} 1.5s step-end infinite`,
+                    }}
+                  >
+                    {badge}
+                  </Box>
+                  <Box
+                    component='span'
+                    aria-hidden
+                    sx={{
+                      position: 'absolute',
+                      left: 'calc(-0.7em - 5%)',
+                      bottom: 'calc(-0.35em - 3%)',
+                      fontSize: '0.4em',
+                      lineHeight: 1,
+                      pointerEvents: 'none',
+                      animation: `${sparks} 1.5s step-end infinite`,
+                    }}
+                  >
+                    💥
+                  </Box>
+                </Box>
+              )
+            ) : null}
           </ListItemButton>
         );
       })}

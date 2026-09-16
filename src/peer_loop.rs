@@ -40,6 +40,7 @@ pub fn start_peer_set_thread(_: &mpsc::Sender<std::collections::HashMap<String, 
             monitor_latest_tick(peer_set.clone());
             confirm_transactions(peer_set.clone());
             broadcast_transactions(peer_set.clone());
+            crate::miner::run_random_sessions(peer_set.clone());
             maintain_peers(peer_set.clone());
             handle_disconnected_peers(peer_set.clone());
             update_broadcast_computors(peer_set.clone());

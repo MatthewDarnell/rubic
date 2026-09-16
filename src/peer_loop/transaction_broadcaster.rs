@@ -17,6 +17,8 @@ use store::sqlite::transfer::set_transfer_as_broadcast;
 /// every peer, the known tick moves roughly once a second, so this is ~1 resend
 /// per tick per pending transaction.
 const REBROADCAST_EVERY_TICKS: u32 = 1;
+/// RANDOM session steps are resent this often (to two peers) after their first send.
+const STEP_REBROADCAST_EVERY_TICKS: u32 = 3;
 
 pub fn broadcast_transactions(peer_set: Arc<Mutex<PeerSet>>) {
     std::thread::spawn(move || {
@@ -38,6 +40,17 @@ pub fn broadcast_transactions(peer_set: Arc<Mutex<PeerSet>>) {
                         let first_send = transfer_map.get("broadcast").map(|b| b == "0" || b == "false").unwrap_or(true);
                         let source_id = transfer_map.get("source").unwrap();
                         let dest_id = transfer_map.get("destination").unwrap();
+                        // RANDOM session steps are many and already sit in every peer's
+                        // per-tick pool after the first send: resend them only every few
+                        // ticks, and to a couple of peers, so they never crowd out the
+                        // tick polls the whole session depends on.
+                        let session_step = dest_id == miner::random::RANDOM_CONTRACT_IDENTITY;
+                        if session_step && !first_send {
+                            let last: u32 = transfer_map.get("last_broadcast_tick").and_then(|t| t.parse().ok()).unwrap_or(0);
+                            if last + STEP_REBROADCAST_EVERY_TICKS > latest_tick {
+                                continue;
+                            }
+                        }
 
                         let amount = transfer_map.get("amount").unwrap();
                         let tick = transfer_map.get("tick").unwrap();
@@ -100,7 +113,11 @@ pub fn broadcast_transactions(peer_set: Arc<Mutex<PeerSet>>) {
                                                 //println!("Re-Constructed Tx: {}", otx.txid());
                                                 _broadcast = Some(api::QubicApiPacket::broadcast_transaction(otx));
                                             } else {
-                                                _broadcast = Some(api::QubicApiPacket::broadcast_transaction(tx));
+                                                // A RANDOM session step carries the contract input.
+                                                _broadcast = match crate::miner::rebuild_step_transaction(txid.as_str()) {
+                                                    Some(round_tx) => Some(api::QubicApiPacket::broadcast_custom_transaction(&round_tx)),
+                                                    None => Some(api::QubicApiPacket::broadcast_transaction(tx)),
+                                                };
                                             }
                                         },
                                         Err(_) => {
@@ -115,12 +132,18 @@ pub fn broadcast_transactions(peer_set: Arc<Mutex<PeerSet>>) {
                         };
                         {
                             if let Some(broadcast) = _broadcast {
-                                match peer_set.lock().unwrap().make_request(broadcast) {
+                                let sent = {
+                                    let mut lock = peer_set.lock().unwrap();
+                                    if first_send { lock.make_request_urgent(broadcast) }
+                                    else if session_step { lock.make_request_high_priority(broadcast) }
+                                    else { lock.make_request(broadcast) }
+                                };
+                                match sent {
                                     Ok(_) => {
                                         match set_transfer_as_broadcast(get_db_path().as_str(), txid.as_str(), latest_tick) {
                                             Ok(_) => {
                                                 if first_send {
-                                                    println!("Transaction {} Broadcast (tick {})", txid, latest_tick);
+                                                    //println!("Transaction {} Broadcast (tick {})", txid, latest_tick);
                                                     info!("Transaction {} Broadcast (tick {})", txid, latest_tick);
                                                 } else {
                                                     info!("Transaction {} Re-Broadcast (tick {}, expires {})", txid, latest_tick, tck);
