@@ -7,6 +7,7 @@ mod transaction_confirmer;
 mod broadcast_computors_updater;
 pub mod qx;
 mod qx_entity_orders;
+mod rotation;
 mod issued_asset_monitor;
 
 use std::sync::{mpsc, Arc, Mutex};

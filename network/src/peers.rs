@@ -41,6 +41,11 @@ pub const LOW_PRIORITY_BACKLOG: usize = 8;
 /// the next item as soon as their socket is free, so the copies land on the
 /// peers that are answering fastest right now without any routing.
 pub const HIGH_PRIORITY_COPIES: usize = 2;
+/// Peers asked for an identity's balance or holdings. The store accepts a
+/// balance once two peers agree on it at the same tick, so a few answers are
+/// enough; asking every peer made balances the wallet's heaviest traffic
+/// (peers x identities per round). Four leaves room for a slow or lagging peer.
+pub const BALANCE_COPIES: usize = 4;
 
 /// Process-wide view of the request queue, for the /health route (the PeerSet
 /// itself lives inside the peer-loop thread and is not reachable from routes).
@@ -287,8 +292,12 @@ impl PeerSet {
             api::header::EntityType::RequestTickData => false,
             api::header::EntityType::RequestContractFunction => false,
             api::header::EntityType::RequestAssets => false,
+            api::header::EntityType::RequestEntity => false,
+            api::header::EntityType::RequestPossessedAssets => false,
             _ => true
         };
+        // Balances and holdings: a few random peers, enough for two to agree.
+        let balance_poll = matches!(request.api_type, api::header::EntityType::RequestEntity | api::header::EntityType::RequestPossessedAssets);
 
         // Transaction broadcasts are never dropped. The tick poll goes to every
         // peer every second, so it is capped at two rounds' worth: enough to keep
@@ -321,6 +330,9 @@ impl PeerSet {
         // random peer - or tying up every socket, which asking all peers did.
         let targets: Vec<String> = if spam_all {
             self.peers.iter().map(|p| p.get_id().to_owned()).collect()
+        } else if balance_poll {
+            self.peers.iter().choose_multiple(&mut thread_rng(), BALANCE_COPIES)
+                .into_iter().map(|p| p.get_id().to_owned()).collect()
         } else if priority == RequestPriority::High {
             self.peers.iter().choose_multiple(&mut thread_rng(), HIGH_PRIORITY_COPIES)
                 .into_iter().map(|p| p.get_id().to_owned()).collect()
