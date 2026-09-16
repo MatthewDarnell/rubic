@@ -36,6 +36,13 @@ static SESSION_SEEDS: Lazy<Mutex<HashMap<i64, String>>> = Lazy::new(|| Mutex::ne
 const MAX_FAIL_STREAK: u32 = 3;
 /// Ticks ahead of the latest known tick a session's first commit is scheduled.
 pub const FIRST_COMMIT_LEAD_TICKS: u32 = 30;
+/// How often the step transfers are settled from the contract's report.
+const SETTLE_INTERVAL: Duration = Duration::from_secs(5);
+/// Ticks after a leave's tick to wait for peers to report whether the leave
+/// was included before the session is given up as evicted.
+const LEAVE_VERIFY_TICKS: u32 = 30;
+/// How often a balance report is asked for while a leave is being verified.
+const LEAVE_CHECK_INTERVAL: Duration = Duration::from_secs(3);
 /// Identities whose provider status should be fetched on the next pass, asked
 /// for by the start route's pre-flight check.
 static STATUS_CHECKS: Lazy<Mutex<HashSet<String>>> = Lazy::new(|| Mutex::new(HashSet::new()));
@@ -197,7 +204,9 @@ fn fail(path: &str, session: &HashMap<String, String>, failed_tick: u32, reason:
 fn request_provider_status(peer_set: &Arc<Mutex<PeerSet>>, identity: &str) {
     let Ok(pub_key) = get_public_key_from_identity(&identity.to_string()) else { return };
     let request = api::QubicApiPacket::request_contract_function(RANDOM_CONTRACT_INDEX, GET_PROVIDER_STATUS, &pub_key);
-    if let Err(err) = peer_set.lock().unwrap().make_request(request) {
+    // Sessions settle on this report; a routine request would be dropped
+    // whenever the queue is busy, so it goes ahead of the routine polls.
+    if let Err(err) = peer_set.lock().unwrap().make_request_high_priority(request) {
         error!("{}", err);
     }
 }
@@ -205,11 +214,17 @@ fn request_provider_status(peer_set: &Arc<Mutex<PeerSet>>, identity: &str) {
 pub fn run_random_sessions(peer_set: Arc<Mutex<PeerSet>>) {
     std::thread::spawn(move || {
         let mut last_status_request: HashMap<String, Instant> = HashMap::new();
+        // Session id -> when a balance report was last asked for to verify its leave.
+        let mut leave_checks: HashMap<i64, Instant> = HashMap::new();
         // Session id -> tick of the first report that showed no slot after a step
         // was due. One report can come from a peer that has not caught up; a
         // second one, a few ticks later, is taken as the contract's word.
         let mut empty_since: HashMap<i64, u32> = HashMap::new();
         let mut last_prune = Instant::now() - PRUNE_INTERVAL;
+        let mut last_settle = Instant::now() - SETTLE_INTERVAL;
+        // The tick found in the store at start is whatever was known when Rubic
+        // last ran; nothing is sent, or judged too late, until a peer has answered.
+        let mut tick_at_start: Option<u32> = None;
         loop {
             std::thread::sleep(PASS_INTERVAL);
             let path = get_db_path();
@@ -224,6 +239,21 @@ pub fn run_random_sessions(peer_set: Arc<Mutex<PeerSet>>) {
             let latest: u32 = tick::fetch_latest_tick(path.as_str()).ok().and_then(|t| t.parse().ok()).unwrap_or(0);
             if latest == 0 {
                 continue;
+            }
+            let tick_moved = match tick_at_start {
+                None => {
+                    tick_at_start = Some(latest);
+                    false
+                },
+                Some(at_start) => latest > at_start,
+            };
+            if last_settle.elapsed() >= SETTLE_INTERVAL {
+                last_settle = Instant::now();
+                match random_session::settle_step_transfers(path.as_str(), RANDOM_CONTRACT_IDENTITY, latest) {
+                    Ok((0, 0)) => {},
+                    Ok((confirmed, failed)) => info!("RANDOM: settled step transfers from the contract's report: {} included, {} not", confirmed, failed),
+                    Err(err) => error!("RANDOM: could not settle step transfers: {}", err),
+                }
             }
             // Pre-flight checks asked for by the start route.
             let checks: Vec<String> = STATUS_CHECKS.lock().unwrap().drain().collect();
@@ -270,27 +300,54 @@ pub fn run_random_sessions(peer_set: Arc<Mutex<PeerSet>>) {
                     if let Some(k) = judged_through {
                         let due_tick = step_tick(k);
                         if slot.is_none() {
-                            match empty_since.get(&id) {
-                                None => {
-                                    empty_since.insert(id, checked_tick);
-                                    continue;
-                                },
-                                Some(first_empty) if checked_tick < first_empty + STREAM_TICKS => continue,
-                                Some(_) => {},
+                            // A report from after the leave's tick is the contract's last
+                            // word on its own; otherwise wait for a second empty report.
+                            let conclusive = leave_step >= 0 && checked_tick >= step_tick(leave_step) + STREAM_TICKS;
+                            if !conclusive {
+                                match empty_since.get(&id) {
+                                    None => {
+                                        empty_since.insert(id, checked_tick);
+                                        continue;
+                                    },
+                                    Some(first_empty) if checked_tick < first_empty + STREAM_TICKS => continue,
+                                    Some(_) => {},
+                                }
                             }
-                            // After a leave the slot is gone either way; it was a clean leave when
-                            // every step before it was accepted, or when the leave itself was seen
-                            // included in its tick.
-                            let leave_included = leave_step >= 0
-                                && random_session::fetch_step(path.as_str(), id, leave_step as u32).ok().flatten()
-                                    .map(|step| transfer_status(&get(&step, "leave_txid")).as_deref() == Some("0"))
-                                    .unwrap_or(false);
-                            if leave_step >= 0 && k >= leave_step && (leave_included || last_accepted >= step_tick(leave_step - 1).max(first_tick)) {
-                                // Reveal-and-leave went through: the slot is released on purpose.
-                                info!("RANDOM session {}: left at step {} (tick {}), collateral returned", id, leave_step, step_tick(leave_step));
-                                let _ = random_session::set_session_accepted(path.as_str(), id, step_tick(leave_step));
-                                let _ = random_session::set_session_status(path.as_str(), id, STATUS_STOPPED);
-                                forget_seed(id);
+                            // After a leave the slot is gone either way. It was a clean leave
+                            // when the leave itself was seen included in its tick, or when the
+                            // contract had accepted every step before it. Otherwise the peers'
+                            // entity report decides (it names the identity's latest outgoing
+                            // transfer): ask for one and wait a little before giving up.
+                            if leave_step >= 0 && k >= leave_step {
+                                let leave_tick = step_tick(leave_step);
+                                let leave_status = random_session::fetch_step(path.as_str(), id, leave_step as u32).ok().flatten()
+                                    .and_then(|step| transfer_status(&get(&step, "leave_txid")));
+                                let included = leave_status.as_deref() == Some("0");
+                                if included || last_accepted >= step_tick(leave_step - 1).max(first_tick) {
+                                    info!("RANDOM session {}: left at step {} (tick {}), collateral returned", id, leave_step, leave_tick);
+                                    let _ = random_session::set_session_accepted(path.as_str(), id, leave_tick);
+                                    let _ = random_session::set_session_status(path.as_str(), id, STATUS_STOPPED);
+                                    leave_checks.remove(&id);
+                                    forget_seed(id);
+                                    continue;
+                                }
+                                let not_included = leave_status.as_deref() == Some("1");
+                                if !not_included && checked_tick < leave_tick + LEAVE_VERIFY_TICKS {
+                                    if leave_checks.get(&id).map_or(true, |at| at.elapsed() >= LEAVE_CHECK_INTERVAL) {
+                                        leave_checks.insert(id, Instant::now());
+                                        if let Err(err) = peer_set.lock().unwrap().make_request(api::QubicApiPacket::get_identity_balance(&identity)) {
+                                            error!("{}", err);
+                                        }
+                                    }
+                                    continue;
+                                }
+                                leave_checks.remove(&id);
+                                let reason = if not_included {
+                                    format!("the reveal-and-leave at tick {} was not included in its tick; the provider was evicted and the stake of {} QU forfeited", leave_tick, tier)
+                                } else {
+                                    format!("the reveal-and-leave at tick {} could not be verified: peers did not report on it within {} ticks", leave_tick, LEAVE_VERIFY_TICKS)
+                                };
+                                fail(path.as_str(), &session, leave_tick, reason);
                                 continue;
                             }
                             let (failed_tick, reason) = if last_accepted < first_tick {
@@ -325,7 +382,7 @@ pub fn run_random_sessions(peer_set: Arc<Mutex<PeerSet>>) {
                         }
                     }
                 }
-                if failed || leave_step >= 0 {
+                if failed || leave_step >= 0 || !tick_moved {
                     continue;
                 }
 
