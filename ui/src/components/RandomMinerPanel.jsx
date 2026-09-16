@@ -76,7 +76,7 @@ export default function RandomMinerPanel({ identities, labels, latestTick, tickO
   const [history, setHistory] = useState({ id: null, rows: null, error: '' });
   // Read when the start dialog is confirmed: the dialog body is built once, so
   // the checkbox is uncontrolled and reports into this ref.
-  const autoRestartRef = useRef(false);
+  const autoRestartRef = useRef(true);
 
   // Sessions from the server, refreshed while the tab is open.
   useEffect(() => {
@@ -130,7 +130,7 @@ export default function RandomMinerPanel({ identities, labels, latestTick, tickO
 
   const start = () => {
     const warnings = warningsFor?.(selectedId) || [];
-    autoRestartRef.current = false;
+    autoRestartRef.current = true;
     requestConfirm({
       title: 'Start providing entropy?',
       confirmLabel: 'Start',
@@ -165,12 +165,13 @@ export default function RandomMinerPanel({ identities, labels, latestTick, tickO
           </Typography>
           <FormControlLabel
             sx={{ mt: 1, alignItems: 'flex-start' }}
-            control={<Checkbox size='small' defaultChecked={false} onChange={(e) => { autoRestartRef.current = e.target.checked; }} sx={{ mt: -0.5 }} />}
+            control={<Checkbox size='small' defaultChecked onChange={(e) => { autoRestartRef.current = e.target.checked; }} sx={{ mt: -0.5 }} />}
             label={
               <Typography variant='body2'>
-                Keep mining if a transaction fails: start a new session automatically. Each new session locks a fresh
-                stake, and this identity's seed stays in memory while it mines. It stops after 3 failures in a row
-                without an accepted step.
+                Keep mining: when the contract drops this provider, start a new session right away. The network loses
+                a few transactions in a hundred, and every miss costs the slot, so a provider that does not re-enrol
+                stops within minutes. Each new session locks a fresh stake, and this identity's seed stays in memory
+                while it mines. It stops after 3 sessions in a row without a single accepted step.
               </Typography>
             }
           />

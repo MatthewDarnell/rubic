@@ -19,6 +19,11 @@ use store::sqlite::transfer::set_transfer_as_broadcast;
 const REBROADCAST_EVERY_TICKS: u32 = 1;
 /// RANDOM session steps are resent this often (to two peers) after their first send.
 const STEP_REBROADCAST_EVERY_TICKS: u32 = 3;
+/// Within this many ticks of its own tick a step is instead pushed to every
+/// peer on every tick. A step that misses its tick costs the whole slot, and a
+/// few transactions in a hundred never reach the tick leader on the ordinary
+/// path; one small packet per peer per tick for the imminent step is cheap.
+const STEP_IMMINENT_TICKS: u32 = 6;
 
 pub fn broadcast_transactions(peer_set: Arc<Mutex<PeerSet>>) {
     std::thread::spawn(move || {
@@ -45,7 +50,9 @@ pub fn broadcast_transactions(peer_set: Arc<Mutex<PeerSet>>) {
                         // ticks, and to a couple of peers, so they never crowd out the
                         // tick polls the whole session depends on.
                         let session_step = dest_id == miner::random::RANDOM_CONTRACT_IDENTITY;
-                        if session_step && !first_send {
+                        let tck: u32 = transfer_map.get("tick").and_then(|t| t.parse().ok()).unwrap_or(0);
+                        let imminent = session_step && tck <= latest_tick + STEP_IMMINENT_TICKS;
+                        if session_step && !first_send && !imminent {
                             let last: u32 = transfer_map.get("last_broadcast_tick").and_then(|t| t.parse().ok()).unwrap_or(0);
                             if last + STEP_REBROADCAST_EVERY_TICKS > latest_tick {
                                 continue;
@@ -53,10 +60,7 @@ pub fn broadcast_transactions(peer_set: Arc<Mutex<PeerSet>>) {
                         }
 
                         let amount = transfer_map.get("amount").unwrap();
-                        let tick = transfer_map.get("tick").unwrap();
-
                         let amt: u64 = amount.parse().unwrap();
-                        let tck: u32 = tick.parse().unwrap();
 
                         let source_pub_key = get_public_key_from_identity(source_id).unwrap();
                         let des_pub_key = get_public_key_from_identity(dest_id).unwrap();
@@ -134,7 +138,7 @@ pub fn broadcast_transactions(peer_set: Arc<Mutex<PeerSet>>) {
                             if let Some(broadcast) = _broadcast {
                                 let sent = {
                                     let mut lock = peer_set.lock().unwrap();
-                                    if first_send { lock.make_request_urgent(broadcast) }
+                                    if first_send || imminent { lock.make_request_urgent(broadcast) }
                                     else if session_step { lock.make_request_high_priority(broadcast) }
                                     else { lock.make_request(broadcast) }
                                 };

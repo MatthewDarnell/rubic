@@ -20,7 +20,7 @@ use consensus::tick::Tick;
 use consensus::tick_data::{TickData, TransactionDigest};
 use crypto::qubic_identities::get_identity;
 use uuid::Uuid;
-use logger::error;
+use logger::{error, info};
 use smart_contract::qx::orderbook::{AssetOrdersRequest, OrderBook};
 use store::sqlite::asset::{asset_issuance};
 use smart_contract::qx::asset::{IssuedAsset, PossessedAsset};
@@ -53,6 +53,105 @@ const PEER_LAG_MEASUREMENT_TTL: std::time::Duration = std::time::Duration::from_
 /// Ticks a peer without a recent lag measurement is taken to be behind when
 /// its contract report is dated.
 const UNMEASURED_PEER_LAG: u32 = 10;
+
+/// The wallet's tick is the highest any peer reports, so one peer answering
+/// with a tick far ahead would move it on its own; every pending transfer
+/// would then look expired and every RANDOM step too late. A jump of more
+/// than this many ticks past the known tick is held back until another peer
+/// reports a tick near it, or, with no other peer answering, until the same
+/// peer has insisted on it for a few replies in a row.
+const MAX_TICK_JUMP: u32 = 30;
+/// Tick replies older than this no longer corroborate a jump.
+const TICK_REPLY_TTL: std::time::Duration = std::time::Duration::from_secs(15);
+/// Far-ahead replies in a row a lone peer needs before its tick is taken.
+const LONE_PEER_INSISTENCE: u32 = 3;
+/// Per peer: its latest reported tick, when, and how many far-ahead replies
+/// in a row it has given.
+static PEER_TICKS: std::sync::OnceLock<Mutex<HashMap<String, (u32, std::time::Instant, u32)>>> = std::sync::OnceLock::new();
+
+/// Whether a peer's reported tick may be stored as the wallet's view of the
+/// network. Also records the reply, so a later peer can corroborate it.
+fn tick_reply_acceptable(peer: &str, reported: u32, latest: u32) -> bool {
+    let Ok(mut map) = PEER_TICKS.get_or_init(|| Mutex::new(HashMap::new())).lock() else { return true };
+    judge_tick_reply(&mut map, peer, reported, latest, std::time::Instant::now())
+}
+
+/// The rule behind `tick_reply_acceptable`, on an explicit table of replies.
+fn judge_tick_reply(map: &mut HashMap<String, (u32, std::time::Instant, u32)>, peer: &str, reported: u32, latest: u32, now: std::time::Instant) -> bool {
+    let far = reported > latest.saturating_add(MAX_TICK_JUMP);
+    let streak = if far { map.get(peer).map_or(0, |(_, _, n)| *n) + 1 } else { 0 };
+    map.insert(peer.to_string(), (reported, now, streak));
+    if !far {
+        return true;
+    }
+    let others: Vec<u32> = map.iter()
+        .filter(|(id, (_, at, _))| id.as_str() != peer && now.duration_since(*at) < TICK_REPLY_TTL)
+        .map(|(_, (tick, _, _))| *tick).collect();
+    if others.is_empty() {
+        return streak >= LONE_PEER_INSISTENCE;
+    }
+    others.iter().any(|t| t.saturating_add(MAX_TICK_JUMP) >= reported)
+}
+
+#[cfg(test)]
+mod tick_guard_tests {
+    use super::*;
+    use std::time::{Duration, Instant};
+
+    fn table() -> HashMap<String, (u32, Instant, u32)> {
+        HashMap::new()
+    }
+
+    #[test]
+    fn a_small_step_is_always_taken() {
+        let mut map = table();
+        let now = Instant::now();
+        assert!(judge_tick_reply(&mut map, "a", 1000, 998, now));
+        assert!(judge_tick_reply(&mut map, "b", 1005, 1000, now));
+    }
+
+    #[test]
+    fn a_jump_waits_for_a_second_peer() {
+        let mut map = table();
+        let now = Instant::now();
+        assert!(judge_tick_reply(&mut map, "a", 1000, 1000, now));
+        assert!(!judge_tick_reply(&mut map, "b", 1500, 1000, now), "one peer far ahead is held back");
+        assert!(judge_tick_reply(&mut map, "c", 1502, 1000, now), "a second peer near it lets it through");
+        assert!(judge_tick_reply(&mut map, "b", 1503, 1000, now), "and the first peer's next reply too");
+    }
+
+    #[test]
+    fn a_bogus_peer_never_moves_the_tick_while_others_answer() {
+        let mut map = table();
+        let now = Instant::now();
+        assert!(judge_tick_reply(&mut map, "a", 1000, 1000, now));
+        for k in 0..10 {
+            assert!(!judge_tick_reply(&mut map, "x", 9000 + k, 1000 + k, now + Duration::from_secs(k as u64)));
+            assert!(judge_tick_reply(&mut map, "a", 1001 + k, 1000 + k, now + Duration::from_secs(k as u64)));
+        }
+    }
+
+    #[test]
+    fn a_lone_peer_is_believed_after_insisting() {
+        let mut map = table();
+        let now = Instant::now();
+        assert!(!judge_tick_reply(&mut map, "a", 5000, 1000, now));
+        assert!(!judge_tick_reply(&mut map, "a", 5001, 1000, now + Duration::from_secs(1)));
+        assert!(judge_tick_reply(&mut map, "a", 5002, 1000, now + Duration::from_secs(2)));
+    }
+
+    #[test]
+    fn stale_replies_do_not_count_as_company() {
+        let mut map = table();
+        let now = Instant::now();
+        assert!(judge_tick_reply(&mut map, "a", 1000, 1000, now));
+        let later = now + TICK_REPLY_TTL + Duration::from_secs(1);
+        // Peer a's reply is too old to weigh in: b is alone and must insist.
+        assert!(!judge_tick_reply(&mut map, "b", 5000, 1000, later));
+        assert!(!judge_tick_reply(&mut map, "b", 5001, 1000, later + Duration::from_secs(1)));
+        assert!(judge_tick_reply(&mut map, "b", 5002, 1000, later + Duration::from_secs(2)));
+    }
+}
 
 /// Records how far `peer`'s reported tick trails the highest tick the wallet
 /// already knows. Both numbers are taken when the reply arrives, so a slow
@@ -318,9 +417,14 @@ pub fn get_formatted_response(requests: Arc<Mutex<HashMap<u32, QubicApiPacket>>>
                     data[3] = response.data[7];
                     let value = u32::from_le_bytes(data);
                     note_peer_tick(peer_id.as_str(), value);
-                    match insert_tick(get_db_path().as_str(), peer_id.as_str(), value) {
-                        Ok(_) => {},
-                        Err(_err) => {}
+                    let latest: u32 = store::sqlite::tick::fetch_latest_tick(get_db_path().as_str()).ok().and_then(|t| t.parse().ok()).unwrap_or(0);
+                    if !tick_reply_acceptable(peer_id.as_str(), value, latest) {
+                        info(format!("Holding back tick {} from peer {}: {} ticks past the known tick {}, no other peer near it yet", value, peer_id, value - latest, latest).as_str());
+                    } else {
+                        match insert_tick(get_db_path().as_str(), peer_id.as_str(), value) {
+                            Ok(_) => {},
+                            Err(_err) => {}
+                        }
                     }
                 }
             }
