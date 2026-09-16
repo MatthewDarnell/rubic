@@ -92,9 +92,9 @@ jobs:
         - name: Generate Env Vars Port
           run: echo RUBIC_PORT=3000 >> .env
         - name: Generate Env Vars Max Peers
-          run: echo RUBIC_MAX_PEERS=7 >> .env
+          run: echo RUBIC_MAX_PEERS=8 >> .env
         - name: Generate Env Vars Min Peers
-          run: echo RUBIC_MIN_PEERS=3 >> .env
+          run: echo RUBIC_MIN_PEERS=5 >> .env
         - name: Generate Env Vars Log Level
           run: echo RUBIC_LOG_LEVEL=error >> .env
         - name: Show current dir files
