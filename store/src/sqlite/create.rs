@@ -160,6 +160,7 @@ pub fn open_database(path: &str, create: bool) -> Result<sqlite::Connection, Str
         fail_streak INTEGER DEFAULT 0,
         continued_by INTEGER DEFAULT 0,
         failed_tick INTEGER DEFAULT 0,
+        total_steps INTEGER DEFAULT 1000,
         created DATETIME DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (identity) REFERENCES identities(identity) ON DELETE CASCADE
     );
@@ -222,7 +223,7 @@ pub fn open_database(path: &str, create: bool) -> Result<sqlite::Connection, Str
 /// not touch existing tables, so each is applied as an idempotent ALTER: a
 /// "duplicate column" error just means the database already has it.
 fn migrate(connection: &sqlite::Connection) {
-    const ADDED_COLUMNS: [&str; 7] = [
+    const ADDED_COLUMNS: [&str; 8] = [
         "ALTER TABLE transfer ADD COLUMN last_broadcast_tick INTEGER DEFAULT 0;",
         "ALTER TABLE random_session ADD COLUMN last_accepted_tick INTEGER DEFAULT 0;",
         "ALTER TABLE random_session ADD COLUMN reason TEXT DEFAULT '';",
@@ -230,6 +231,7 @@ fn migrate(connection: &sqlite::Connection) {
         "ALTER TABLE random_session ADD COLUMN fail_streak INTEGER DEFAULT 0;",
         "ALTER TABLE random_session ADD COLUMN continued_by INTEGER DEFAULT 0;",
         "ALTER TABLE random_session ADD COLUMN failed_tick INTEGER DEFAULT 0;",
+        "ALTER TABLE random_session ADD COLUMN total_steps INTEGER DEFAULT 1000;",
     ];
     for statement in ADDED_COLUMNS {
         if let Err(err) = connection.execute(statement) {

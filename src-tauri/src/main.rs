@@ -195,7 +195,8 @@ async fn main() {
         rubic::routes::wallet::reset_wallet,
         rubic::routes::miner::random::random_sessions,
         rubic::routes::miner::random::start_random_session,
-        rubic::routes::miner::random::stop_random_session
+        rubic::routes::miner::random::stop_random_session,
+        rubic::routes::miner::random::random_session_steps
       ])
             .manage(std::sync::Mutex::new(tx))
             .manage(std::sync::Mutex::new(rx_server_route_responses_from_thread))

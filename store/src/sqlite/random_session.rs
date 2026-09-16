@@ -25,7 +25,9 @@ pub const STATUS_FAILED: i64 = 3;
 /// The leave step was included: collateral returned.
 pub const STATUS_STOPPED: i64 = 4;
 
-const SESSION_COLUMNS: [&str; 14] = ["id", "identity", "tier", "first_tick", "status", "broadcast_through", "leave_step", "last_accepted_tick", "reason", "auto_restart", "fail_streak", "continued_by", "failed_tick", "created"];
+const SESSION_COLUMNS: [&str; 15] = ["id", "identity", "tier", "first_tick", "status", "broadcast_through", "leave_step", "last_accepted_tick", "reason", "auto_restart", "fail_streak", "continued_by", "failed_tick", "total_steps", "created"];
+/// Step columns without the secrets: what a history listing needs.
+const STEP_SUMMARY_COLUMNS: [&str; 5] = ["session_id", "step", "tick", "stay_txid", "leave_txid"];
 const STEP_COLUMNS: [&str; 9] = ["session_id", "step", "tick", "reveal_secret", "commit_secret", "stay_txid", "stay_sig", "leave_txid", "leave_sig"];
 
 fn read_row(statement: &sqlite::Statement, columns: &[&str]) -> HashMap<String, String> {
@@ -77,7 +79,7 @@ pub struct NewStep {
 }
 
 /// Creates the session and all its steps in one transaction; returns the session id.
-pub fn create_session(path: &str, identity: &str, tier: u64, first_tick: u32, auto_restart: bool, fail_streak: u32, steps: &[NewStep]) -> Result<i64, String> {
+pub fn create_session(path: &str, identity: &str, tier: u64, first_tick: u32, auto_restart: bool, fail_streak: u32, total_steps: u32, steps: &[NewStep]) -> Result<i64, String> {
     let _lock = get_db_lock().lock().unwrap();
     let connection = open_database(path, false)?;
     connection.execute("BEGIN TRANSACTION;").map_err(|e| e.to_string())?;
@@ -86,8 +88,9 @@ pub fn create_session(path: &str, identity: &str, tier: u64, first_tick: u32, au
         let first_tick = first_tick.to_string();
         let auto_restart = if auto_restart { "1" } else { "0" };
         let fail_streak = fail_streak.to_string();
-        let mut insert = prepare_crud_statement(&connection, "INSERT INTO random_session (identity, tier, first_tick, status, broadcast_through, leave_step, auto_restart, fail_streak) VALUES (:identity, :tier, :first_tick, 0, -1, -1, CAST(:auto_restart AS INTEGER), CAST(:fail_streak AS INTEGER));")?;
-        insert.bind::<&[(&str, &str)]>(&[(":identity", identity), (":tier", tier.as_str()), (":first_tick", first_tick.as_str()), (":auto_restart", auto_restart), (":fail_streak", fail_streak.as_str())][..]).map_err(|e| e.to_string())?;
+        let total_steps = total_steps.to_string();
+        let mut insert = prepare_crud_statement(&connection, "INSERT INTO random_session (identity, tier, first_tick, status, broadcast_through, leave_step, auto_restart, fail_streak, total_steps) VALUES (:identity, :tier, :first_tick, 0, -1, -1, CAST(:auto_restart AS INTEGER), CAST(:fail_streak AS INTEGER), CAST(:total_steps AS INTEGER));")?;
+        insert.bind::<&[(&str, &str)]>(&[(":identity", identity), (":tier", tier.as_str()), (":first_tick", first_tick.as_str()), (":auto_restart", auto_restart), (":fail_streak", fail_streak.as_str()), (":total_steps", total_steps.as_str())][..]).map_err(|e| e.to_string())?;
         insert.next().map_err(|e| e.to_string())?;
         let mut id_query = prepare_crud_statement(&connection, "SELECT last_insert_rowid() AS id;")?;
         let id: i64 = match id_query.next() {
@@ -217,6 +220,16 @@ pub fn fetch_steps_between(path: &str, session_id: i64, from: i64, through: i64)
     let through = through.to_string();
     fetch(path, "SELECT * FROM random_step WHERE session_id = CAST(:session_id AS INTEGER) AND step >= CAST(:from AS INTEGER) AND step <= CAST(:through AS INTEGER) ORDER BY step ASC;",
         &[(":session_id", session_id.as_str()), (":from", from.as_str()), (":through", through.as_str())], &STEP_COLUMNS)
+}
+
+/// The sent steps of a session (through `through`), newest first, without
+/// their secrets; at most `limit` rows.
+pub fn fetch_step_summaries(path: &str, session_id: i64, through: i64, limit: u32) -> Result<Vec<HashMap<String, String>>, String> {
+    let session_id = session_id.to_string();
+    let through = through.to_string();
+    let limit = limit.to_string();
+    fetch(path, "SELECT session_id, step, tick, stay_txid, leave_txid FROM random_step WHERE session_id = CAST(:session_id AS INTEGER) AND step <= CAST(:through AS INTEGER) ORDER BY step DESC LIMIT CAST(:limit AS INTEGER);",
+        &[(":session_id", session_id.as_str()), (":through", through.as_str()), (":limit", limit.as_str())], &STEP_SUMMARY_COLUMNS)
 }
 
 /// The step whose stay or leave transaction has this id.

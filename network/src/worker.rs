@@ -28,7 +28,7 @@ pub fn handle_new_peer(_id: String, request_matcher: Arc<Mutex<HashMap<u32, Qubi
             break;
         }
         // Wait for work; wake up now and then to notice a dropped peer.
-        let Some(mut request) = queue.pop(Duration::from_secs(1)) else { continue };
+        let Some(mut request) = queue.pop(peer.get_id().as_str(), Duration::from_secs(1)) else { continue };
         {
             {
                 // Picked up: no longer part of the backlog the PeerSet throttles on.
@@ -82,6 +82,9 @@ pub fn handle_new_peer(_id: String, request_matcher: Arc<Mutex<HashMap<u32, Qubi
             }
         }
     }
+    // Anything still addressed to this peer will never be sent by it.
+    let dropped = queue.discard(peer.get_id().as_str());
+    let _ = backlog.fetch_update(Ordering::Relaxed, Ordering::Relaxed, |n| Some(n.saturating_sub(dropped)));
    // println!("Worker Peer Thread Exiting!");
 }
 

@@ -331,14 +331,15 @@ impl PeerSet {
             }
         };
 
-        // A transaction's first send is the one thing the user is waiting on: it
-        // goes to the front of the queue, ahead of every poll already waiting.
-        // Resends take the normal path so they cannot starve the tick polls.
+        // A transaction's first send is the one thing the user is waiting on: a
+        // copy is addressed to every peer, each sent as that peer's very next
+        // request, ahead of every poll already waiting. Resends take the normal
+        // path so they cannot starve the tick polls.
         let urgent = priority == RequestPriority::Urgent;
         for id in targets {
-            request.peer = Some(id);
+            request.peer = Some(id.clone());
             if urgent {
-                self.queue.push_front(request.clone());
+                self.queue.push_urgent(&id, request.clone());
             } else {
                 self.queue.push_back(request.clone());
             }

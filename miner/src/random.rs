@@ -42,8 +42,11 @@ pub const COMMIT_LEN: usize = 32;
 pub const STREAM_TICKS: u32 = 3;
 /// The collateral tiers the contract accepts, in QU.
 pub const TIERS: [u64; 10] = [1, 10, 100, 1_000, 10_000, 100_000, 1_000_000, 10_000_000, 100_000_000, 1_000_000_000];
-/// Steps signed ahead when a session starts; the last one always leaves.
-pub const MAX_STEPS: u32 = 1000;
+/// Reveal steps a session may be signed for, at most; the last one always
+/// leaves. 10 000 steps is 30 000 ticks, several hours at the usual tick rate.
+pub const MAX_STEPS: u32 = 10_000;
+/// Reveal steps when the caller does not choose.
+pub const DEFAULT_STEPS: u32 = 1_000;
 
 pub fn is_tier(amount: u64) -> bool {
     TIERS.contains(&amount)

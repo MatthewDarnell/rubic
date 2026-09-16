@@ -640,8 +640,8 @@ const MainView = () => {
     } else if (pendingAction.startsWith('identity/add/')) {
       result = await apiPost('identity/add', { seed: pendingAction.split('/')[2], password: actionPassword });
     } else if (pendingAction.startsWith('miner/random/start/')) {
-      // miner/random/start/<identity>/<tier>/<auto_restart 0|1>/
-      result = await apiPost('miner/random/start', { identity: pendingAction.split('/')[3], tier: Number(pendingAction.split('/')[4]) || 1, auto_restart: pendingAction.split('/')[5] === '1', password: actionPassword, tick: targetTick });
+      // miner/random/start/<identity>/<tier>/<auto_restart 0|1>/<steps>/
+      result = await apiPost('miner/random/start', { identity: pendingAction.split('/')[3], tier: Number(pendingAction.split('/')[4]) || 1, auto_restart: pendingAction.split('/')[5] === '1', steps: Number(pendingAction.split('/')[6]) || 0, password: actionPassword, tick: targetTick });
     } else if (pendingAction.startsWith('identity/new')) {
       result = await apiPost('identity/new', { password: actionPassword });
     } else if (pendingAction === '/wallet/download/') {

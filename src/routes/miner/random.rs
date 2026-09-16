@@ -1,7 +1,8 @@
 use rocket::{get, post};
 use rocket::serde::{Deserialize, json::Json};
 use logger::{error, info};
-use miner::random::{is_tier, MAX_STEPS, STREAM_TICKS};
+use std::time::{Duration, Instant};
+use miner::random::{is_tier, ProviderSlot, DEFAULT_STEPS, MAX_STEPS, STREAM_TICKS, TIERS};
 use store::get_db_path;
 use store::sqlite::random_session::{self, STATUS_RUNNING, STATUS_STOP_REQUESTED};
 use store::sqlite::{identity, tick};
@@ -29,6 +30,9 @@ pub struct StartRandomSessionRequest {
     /// (the identity's seed stays in memory while the session runs).
     #[serde(default)]
     pub auto_restart: bool,
+    /// Reveal steps to sign (1 ..= MAX_STEPS); 0 or omitted for the default.
+    #[serde(default)]
+    pub steps: u32,
 }
 
 /// Body of `POST /miner/random/stop`.
@@ -45,9 +49,10 @@ pub fn random_sessions() -> String {
     match random_session::fetch_sessions(get_db_path().as_str(), 50) {
         Ok(mut sessions) => {
             for session in sessions.iter_mut() {
-                // Every session is signed with the same chain length; the step rows of
-                // finished sessions may have been pruned, so this is not a row count.
-                session.insert("steps".to_string(), (MAX_STEPS + 1).to_string());
+                // Chain length as signed (reveal steps plus the first commit); the step
+                // rows of finished sessions may have been pruned, so not a row count.
+                let total_steps: u32 = session.get("total_steps").and_then(|v| v.parse().ok()).unwrap_or(DEFAULT_STEPS);
+                session.insert("steps".to_string(), (total_steps + 1).to_string());
                 session.insert("step_ticks".to_string(), STREAM_TICKS.to_string());
                 // Steps sit at first_tick + 3k, so the contract's last accepted tick
                 // says how many reveal steps went through (each returned the previous
@@ -90,13 +95,17 @@ pub fn random_sessions() -> String {
 // replaced automatically, which needs the seed. Replies with the session id.
 #[post("/miner/random/start", format = "json", data = "<body>")]
 pub fn start_random_session(body: Json<StartRandomSessionRequest>) -> String {
-    let StartRandomSessionRequest { identity: address, password, tier, tick, auto_restart } = body.into_inner();
+    let StartRandomSessionRequest { identity: address, password, tier, tick, auto_restart, steps } = body.into_inner();
     if address.len() != 60 {
         return "Invalid Identity!".to_string();
     }
     let tier = if tier == 0 { 1 } else { tier };
     if !is_tier(tier) {
         return "Invalid Tier! Use 1, 10, 100 ... 1000000000 QU".to_string();
+    }
+    let steps = if steps == 0 { DEFAULT_STEPS } else { steps };
+    if steps > MAX_STEPS {
+        return format!("Too many steps: at most {} per session", MAX_STEPS);
     }
     let mut id = match identity::fetch_identity(get_db_path().as_str(), address.as_str()) {
         Ok(id) => id,
@@ -131,14 +140,83 @@ pub fn start_random_session(body: Json<StartRandomSessionRequest>) -> String {
     if latest == 0 {
         return "No tick from peers yet".to_string();
     }
+    // Pre-flight: the contract keys providers by identity and tier, and rejects a
+    // fresh commit from one it still holds ("must reveal before re-committing").
+    // Ask it now rather than learn from a rejected first commit 30 ticks later.
+    if let Some(slot) = provider_slot_now(&id.identity, tier, latest) {
+        return format!("This identity already holds a RANDOM slot at the {} QU stake (stream {}, last accepted tick {}). Wait for the contract to drop it, or leave it with a reveal first.", tier, slot.stream, slot.last_update_tick);
+    }
     let first_tick = if tick > latest { tick } else { latest + DEFAULT_TICK_OFFSET };
-    match crate::miner::start_session(&id, tier, first_tick, auto_restart, 0) {
+    match crate::miner::start_session(&id, tier, first_tick, auto_restart, 0, steps) {
         Ok(session_id) => session_id.to_string(),
         Err(err) => {
             error!("Failed To Start RANDOM Session: {}", err);
             format!("Failed To Start RANDOM Session: {}", err)
         }
     }
+}
+
+/// The contract's slot for `identity` at `tier`, from a report fresh enough
+/// to trust (asked for now, waited for up to a few seconds). `None` when the
+/// identity holds no such slot, or no fresh report arrived in time.
+fn provider_slot_now(identity: &str, tier: u64, latest: u32) -> Option<ProviderSlot> {
+    const FRESH_TICKS: u32 = 10;
+    const WAIT: Duration = Duration::from_secs(4);
+    let tier_index = TIERS.iter().position(|t| *t == tier)? as u32;
+    let fresh = |checked: u32| checked + FRESH_TICKS >= latest;
+    let slot_of = |slots: &str| ProviderSlot::parse_list(slots).into_iter().find(|s| s.tier == tier_index);
+    if let Ok(Some((checked, slots))) = random_session::fetch_provider_status(get_db_path().as_str(), identity) {
+        if fresh(checked) {
+            return slot_of(&slots);
+        }
+    }
+    crate::miner::queue_provider_status_check(identity);
+    let deadline = Instant::now() + WAIT;
+    while Instant::now() < deadline {
+        std::thread::sleep(Duration::from_millis(200));
+        if let Ok(Some((checked, slots))) = random_session::fetch_provider_status(get_db_path().as_str(), identity) {
+            if fresh(checked) {
+                return slot_of(&slots);
+            }
+        }
+    }
+    None
+}
+
+/// The sent steps of a session, newest first: tick, kind, transaction, when
+/// it was first sent, whether it was included, whether the contract accepted it.
+#[get("/miner/random/<session_id>/steps?<limit>")]
+pub fn random_session_steps(session_id: i64, limit: Option<u32>) -> String {
+    let path = get_db_path();
+    let Ok(Some(session)) = random_session::fetch_session(path.as_str(), session_id) else { return "Unknown Session".to_string() };
+    let get = |k: &str| session.get(k).cloned().unwrap_or_default();
+    let through: i64 = get("broadcast_through").parse().unwrap_or(-1);
+    let leave_step: i64 = get("leave_step").parse().unwrap_or(-1);
+    let accepted_tick: u32 = get("last_accepted_tick").parse().unwrap_or(0);
+    let first_tick: u32 = get("first_tick").parse().unwrap_or(0);
+    let steps = match random_session::fetch_step_summaries(path.as_str(), session_id, through, limit.unwrap_or(200).min(2000)) {
+        Ok(steps) => steps,
+        Err(err) => return err,
+    };
+    let mut out: Vec<std::collections::HashMap<String, String>> = Vec::with_capacity(steps.len());
+    for step in steps {
+        let k: i64 = step.get("step").and_then(|v| v.parse().ok()).unwrap_or(0);
+        let tick: u32 = step.get("tick").and_then(|v| v.parse().ok()).unwrap_or(0);
+        let leaving = k == leave_step;
+        let txid = step.get(if leaving { "leave_txid" } else { "stay_txid" }).cloned().unwrap_or_default();
+        let kind = if k == 0 { "commit" } else if leaving { "leave" } else { "reveal" };
+        let transfer = store::sqlite::transfer::fetch_transfer_by_txid(path.as_str(), &txid).ok().and_then(|rows| rows.into_iter().next());
+        let mut row = std::collections::HashMap::new();
+        row.insert("step".to_string(), k.to_string());
+        row.insert("tick".to_string(), tick.to_string());
+        row.insert("kind".to_string(), kind.to_string());
+        row.insert("txid".to_string(), txid);
+        row.insert("sent".to_string(), transfer.as_ref().and_then(|t| t.get("created").cloned()).unwrap_or_default());
+        row.insert("included".to_string(), transfer.as_ref().and_then(|t| t.get("status").cloned()).unwrap_or_else(|| "-1".to_string()));
+        row.insert("accepted".to_string(), if accepted_tick >= first_tick && tick <= accepted_tick { "1" } else { "0" }.to_string());
+        out.push(row);
+    }
+    format!("{:?}", out)
 }
 
 // POST /miner/random/stop  {"session_id": 1}

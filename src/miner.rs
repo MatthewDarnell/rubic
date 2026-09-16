@@ -18,6 +18,7 @@ use api::customtransfer::CustomTransferTransaction;
 use crypto::qubic_identities::get_public_key_from_identity;
 use logger::{error, info};
 use miner::random::{commitment, new_secret, reveal_and_commit_input, ProviderSlot, GET_PROVIDER_STATUS, MAX_STEPS, RANDOM_CONTRACT_INDEX, RANDOM_CONTRACT_IDENTITY, REVEAL_AND_COMMIT, STREAM_TICKS};
+use std::collections::HashSet;
 use network::peers::PeerSet;
 use once_cell::sync::Lazy;
 use protocol::identity::Identity;
@@ -35,6 +36,15 @@ static SESSION_SEEDS: Lazy<Mutex<HashMap<i64, String>>> = Lazy::new(|| Mutex::ne
 const MAX_FAIL_STREAK: u32 = 3;
 /// Ticks ahead of the latest known tick a session's first commit is scheduled.
 pub const FIRST_COMMIT_LEAD_TICKS: u32 = 30;
+/// Identities whose provider status should be fetched on the next pass, asked
+/// for by the start route's pre-flight check.
+static STATUS_CHECKS: Lazy<Mutex<HashSet<String>>> = Lazy::new(|| Mutex::new(HashSet::new()));
+
+/// Asks the driver to fetch the contract's provider status for an identity on
+/// its next pass (within about half a second plus a round trip).
+pub fn queue_provider_status_check(identity: &str) {
+    STATUS_CHECKS.lock().unwrap().insert(identity.to_string());
+}
 
 const PASS_INTERVAL: Duration = Duration::from_millis(500);
 /// A step is broadcast once its tick is at most this far ahead of the latest
@@ -103,23 +113,24 @@ fn broadcast_step(session: &HashMap<String, String>, step: &HashMap<String, Stri
     transfer::create_transfer(get_db_path().as_str(), &get(session, "identity"), RANDOM_CONTRACT_IDENTITY, tx._amount, tx._tick, &hex::encode(&tx._signature), &txid)
 }
 
-/// Signs a whole session (first commit plus MAX_STEPS steps, each with a stay
-/// and a leave variant), records it, and puts the first commit on the wire.
-/// Returns the session id. With `auto_restart` the seed is kept in memory so a
-/// failed session can be replaced by a new one.
-pub fn start_session(id: &Identity, tier: u64, first_tick: u32, auto_restart: bool, fail_streak: u32) -> Result<i64, String> {
+/// Signs a whole session (first commit plus `steps` reveal steps, each with a
+/// stay and a leave variant), records it, and puts the first commit on the
+/// wire. Returns the session id. With `auto_restart` the seed is kept in
+/// memory so a failed session can be replaced by a new one.
+pub fn start_session(id: &Identity, tier: u64, first_tick: u32, auto_restart: bool, fail_streak: u32, steps: u32) -> Result<i64, String> {
+    let steps = steps.clamp(1, MAX_STEPS);
     // Secrets d1..dN: step k reveals d(k) and commits K12(d(k+1)); step N only leaves.
-    let secrets: Vec<Vec<u8>> = (0..MAX_STEPS).map(|_| new_secret()).collect();
+    let secrets: Vec<Vec<u8>> = (0..steps).map(|_| new_secret()).collect();
     let sign = |step_tick: u32, reveal: &[u8], commit: Option<&[u8; 32]>| -> (String, String) {
         let tx = CustomTransferTransaction::from_vars(id, RANDOM_CONTRACT_IDENTITY, tier, REVEAL_AND_COMMIT, step_tick, &reveal_and_commit_input(reveal, commit));
         (tx.txid(), hex::encode(&tx._signature))
     };
-    let mut steps: Vec<NewStep> = Vec::with_capacity(MAX_STEPS as usize + 1);
-    for k in 0..=MAX_STEPS {
+    let mut chain: Vec<NewStep> = Vec::with_capacity(steps as usize + 1);
+    for k in 0..=steps {
         let step_tick = first_tick + STREAM_TICKS * k;
         let reveal: &[u8] = if k == 0 { &[] } else { &secrets[(k - 1) as usize] };
-        let next = if k < MAX_STEPS { Some(&secrets[k as usize]) } else { None };
-        steps.push(NewStep {
+        let next = if k < steps { Some(&secrets[k as usize]) } else { None };
+        chain.push(NewStep {
             step: k,
             tick: step_tick,
             reveal_secret: hex::encode(reveal),
@@ -128,16 +139,16 @@ pub fn start_session(id: &Identity, tier: u64, first_tick: u32, auto_restart: bo
             leave: if k == 0 { None } else { Some(sign(step_tick, reveal, None)) },
         });
     }
-    let first = steps[0].stay.clone().unwrap();
+    let first = chain[0].stay.clone().unwrap();
     let path = get_db_path();
-    let session_id = random_session::create_session(path.as_str(), id.identity.as_str(), tier, first_tick, auto_restart, fail_streak, &steps)?;
+    let session_id = random_session::create_session(path.as_str(), id.identity.as_str(), tier, first_tick, auto_restart, fail_streak, steps, &chain)?;
     // The first commit goes out now; the driver sends the rest as their ticks come near.
     transfer::create_transfer(path.as_str(), id.identity.as_str(), RANDOM_CONTRACT_IDENTITY, tier, first_tick, &first.1, &first.0)?;
     let _ = random_session::set_session_progress(path.as_str(), session_id, 0, -1);
     if auto_restart {
         SESSION_SEEDS.lock().unwrap().insert(session_id, id.seed.clone());
     }
-    info!("RANDOM session {} started by {} at tier {} QU: first commit {} at tick {}, {} steps signed", session_id, id.identity, tier, first.0, first_tick, steps.len());
+    info!("RANDOM session {} started by {} at tier {} QU: first commit {} at tick {}, {} steps signed", session_id, id.identity, tier, first.0, first_tick, chain.len());
     Ok(session_id)
 }
 
@@ -165,7 +176,8 @@ fn fail(path: &str, session: &HashMap<String, String>, failed_tick: u32, reason:
             Some(seed) => {
                 let latest: u32 = tick::fetch_latest_tick(path).ok().and_then(|t| t.parse().ok()).unwrap_or(0);
                 let tier: u64 = num(session, "tier").unwrap_or(0);
-                match start_session(&Identity::new(&seed), tier, latest + FIRST_COMMIT_LEAD_TICKS, true, streak) {
+                let steps: u32 = num(session, "total_steps").unwrap_or(miner::random::DEFAULT_STEPS);
+                match start_session(&Identity::new(&seed), tier, latest + FIRST_COMMIT_LEAD_TICKS, true, streak, steps) {
                     Ok(new_id) => {
                         let _ = random_session::set_session_continued(path, id, new_id);
                         reason.push_str(&format!("; continued as session {}", new_id));
@@ -213,6 +225,12 @@ pub fn run_random_sessions(peer_set: Arc<Mutex<PeerSet>>) {
             if latest == 0 {
                 continue;
             }
+            // Pre-flight checks asked for by the start route.
+            let checks: Vec<String> = STATUS_CHECKS.lock().unwrap().drain().collect();
+            for identity in checks {
+                request_provider_status(&peer_set, &identity);
+                last_status_request.insert(identity, Instant::now());
+            }
             let Ok(sessions) = random_session::fetch_active_sessions(path.as_str()) else { continue };
             last_status_request.retain(|_, at| at.elapsed() < Duration::from_secs(600));
             for session in sessions {
@@ -224,7 +242,8 @@ pub fn run_random_sessions(peer_set: Arc<Mutex<PeerSet>>) {
                 let mut through: i64 = num(&session, "broadcast_through").unwrap_or(-1);
                 let mut leave_step: i64 = num(&session, "leave_step").unwrap_or(-1);
                 let mut last_accepted: u32 = num(&session, "last_accepted_tick").unwrap_or(0);
-                let Ok(total) = random_session::count_steps(path.as_str(), id) else { continue };
+                // Chain length: the signed reveal steps plus the first commit.
+                let total: u32 = num::<u32>(&session, "total_steps").unwrap_or(miner::random::DEFAULT_STEPS) + 1;
                 let step_tick = |k: i64| first_tick + STREAM_TICKS * k as u32;
 
                 // Keep the contract's view of this provider fresh.

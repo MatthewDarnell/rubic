@@ -4,8 +4,11 @@ import {
   Button,
   Checkbox,
   Chip,
+  CircularProgress,
+  Collapse,
   FormControl,
   FormControlLabel,
+  IconButton,
   InputLabel,
   MenuItem,
   Paper,
@@ -21,6 +24,7 @@ import {
   Typography,
 } from '@mui/material';
 import CasinoIcon from '@mui/icons-material/Casino';
+import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import StopIcon from '@mui/icons-material/Stop';
 import { apiCall, apiPost } from '../api';
@@ -30,9 +34,14 @@ import Identicon from './Identicon';
 import { formatNumber, isNumeric, shortenId } from '../utils/format';
 
 const SESSIONS_INTERVAL = 3000;
-// A session signs this many steps up front (the server's MAX_STEPS plus the first commit).
-const MAX_STEPS_PER_SESSION = 1001;
+// Reveal steps a session is signed for, chosen at Start; the first commit
+// comes on top, so a session of N steps sends N + 1 transactions.
+const SESSION_LENGTHS = [500, 1000, 2500, 5000, 10000];
+const DEFAULT_STEPS = 1000;
+const MAX_STEPS = 10000; // the server's MAX_STEPS
 const STREAM_TICKS = 3; // a provider acts every third tick
+// Step rows fetched when a session is expanded (newest first).
+const HISTORY_LIMIT = 200;
 // The collateral tiers the RANDOM contract accepts. Each step refunds the
 // previous stake and locks this amount again, so the identity needs twice the
 // tier free when the session starts.
@@ -59,8 +68,12 @@ export default function RandomMinerPanel({ identities, labels, latestTick, tickO
   const toast = useToast();
   const [selectedId, setSelectedId] = useState('');
   const [tier, setTier] = useState(1);
+  const [steps, setSteps] = useState(DEFAULT_STEPS);
   const [sessions, setSessions] = useState([]);
   const [stopping, setStopping] = useState(null);
+  // The session whose step history is open, and what was loaded for it.
+  const [expanded, setExpanded] = useState(null);
+  const [history, setHistory] = useState({ id: null, rows: null, error: '' });
   // Read when the start dialog is confirmed: the dialog body is built once, so
   // the checkbox is uncontrolled and reports into this ref.
   const autoRestartRef = useRef(false);
@@ -81,6 +94,29 @@ export default function RandomMinerPanel({ identities, labels, latestTick, tickO
       clearTimeout(timer);
     };
   }, []);
+
+  // Step history of the expanded session: loaded when it opens, and again on
+  // every sessions poll while that session is still on the network.
+  const expandedActive = expanded !== null && sessions.some((s) => s.id === expanded && Number(s.status) < 3);
+  useEffect(() => {
+    if (expanded === null) return undefined;
+    let cancelled = false;
+    (async () => {
+      const res = await apiCall(`miner/random/${expanded}/steps?limit=${HISTORY_LIMIT}`);
+      if (cancelled) return;
+      if (res.success && Array.isArray(res.data)) setHistory({ id: expanded, rows: res.data, error: '' });
+      else setHistory({ id: expanded, rows: [], error: String(res.data || res.error || 'Could not load the steps') });
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [expanded, expandedActive ? sessions : null]);
+
+  const toggle = (id) => {
+    setExpanded((open) => (open === id ? null : id));
+    setHistory({ id: null, rows: null, error: '' });
+  };
 
   const signer = identities.find((i) => i.id === selectedId);
   const balance = isNumeric(signer?.balance) ? Number(signer.balance) : null;
@@ -115,8 +151,9 @@ export default function RandomMinerPanel({ identities, labels, latestTick, tickO
             </Box>
           )}
           <Typography variant='body2'>
-            First commit at tick <b>{formatNumber(firstTick)}</b>, then a reveal-and-commit every {STREAM_TICKS} ticks until
-            you stop, at the <b>{formatNumber(tier)} QU</b> tier.
+            First commit at tick <b>{formatNumber(firstTick)}</b>, then a reveal-and-commit every {STREAM_TICKS} ticks at the{' '}
+            <b>{formatNumber(tier)} QU</b> tier, for up to <b>{formatNumber(steps)} steps</b> (about {formatNumber(steps * STREAM_TICKS)} ticks)
+            or until you stop.
           </Typography>
           <Typography variant='body2' color='text.secondary' sx={{ mt: 1 }}>
             Each step returns the previous stake and locks {formatNumber(tier)} QU again. Stopping takes a few steps:
@@ -143,7 +180,7 @@ export default function RandomMinerPanel({ identities, labels, latestTick, tickO
           <IdText id={selectedId} full copy={false} />
         </>
       ),
-      onConfirm: () => onAction(`miner/random/start/${selectedId}/${tier}/${autoRestartRef.current ? 1 : 0}/`),
+      onConfirm: () => onAction(`miner/random/start/${selectedId}/${tier}/${autoRestartRef.current ? 1 : 0}/${steps}/`),
     });
   };
 
@@ -181,14 +218,6 @@ export default function RandomMinerPanel({ identities, labels, latestTick, tickO
     unknown: { color: 'text.disabled', text: () => '\u2014', hint: 'No report from the contract for this session.' },
   };
 
-  const progress = (s) => {
-    const first = Number(s.first_tick);
-    const total = Number(s.steps) || 0;
-    if (live === null || !Number.isFinite(first) || total === 0) return null;
-    const done = Math.min(total, Math.max(0, Math.floor((live - first) / STREAM_TICKS) + 1));
-    return { done, total, through: Number(s.broadcast_through) };
-  };
-
   return (
     <Box sx={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
       <Paper variant='outlined' sx={{ px: 2, py: 1.5, mb: 2, flexShrink: 0 }}>
@@ -220,6 +249,19 @@ export default function RandomMinerPanel({ identities, labels, latestTick, tickO
               {TIERS.map((t) => (
                 <MenuItem key={t} value={t}>
                   {formatNumber(t)} QU
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+          <FormControl size='small' sx={{ width: 225, flexShrink: 0 }}>
+            <InputLabel id='random-steps-label'>Session length</InputLabel>
+            <Select labelId='random-steps-label' value={steps} label='Session length' onChange={(e) => setSteps(Number(e.target.value))}>
+              {SESSION_LENGTHS.map((n) => (
+                <MenuItem key={n} value={n}>
+                  {formatNumber(n)} steps
+                  <Box component='span' sx={{ ml: 1, color: 'text.secondary' }}>
+                    ≈ {formatNumber(n * STREAM_TICKS)} ticks
+                  </Box>
                 </MenuItem>
               ))}
             </Select>
@@ -256,8 +298,8 @@ export default function RandomMinerPanel({ identities, labels, latestTick, tickO
             Your chosen Collateral stake rolls over every step and, if successful, is refunded when you stop.
           </Typography>
           <Typography component='li' variant='body2' color='text.secondary'>
-            Maximum {formatNumber(MAX_STEPS_PER_SESSION)} steps per session ({formatNumber(MAX_STEPS_PER_SESSION * STREAM_TICKS)} ticks),
-            after which the session ends.
+            Session length is chosen at Start, up to {formatNumber(MAX_STEPS + 1)} steps ({formatNumber((MAX_STEPS + 1) * STREAM_TICKS)} ticks)
+            including the first commit, after which the session ends.
           </Typography>
           <Typography component='li' variant='body2' color='text.secondary'>
             Keep Rubic running to avoid halting the mining and losing funds.
@@ -276,7 +318,7 @@ export default function RandomMinerPanel({ identities, labels, latestTick, tickO
               <Stack direction='row' spacing={0.75} sx={{ alignItems: 'center' }}>
                 <Chip size='small' color={currentState.color} label={currentState.label} />
                 <Typography variant='caption' color='text.secondary'>
-                  {shortenId(current.identity, 6, 6)} · {formatNumber(current.tier)} QU · step {Number(current.sent) || 0} / {Number(current.steps) || MAX_STEPS_PER_SESSION}
+                  {shortenId(current.identity, 6, 6)} · {formatNumber(current.tier)} QU · step {Number(current.sent) || 0} / {Number(current.steps) || DEFAULT_STEPS + 1}
                   {current.auto_restart === '1' ? ' · auto' : ''}
                 </Typography>
               </Stack>
@@ -296,6 +338,7 @@ export default function RandomMinerPanel({ identities, labels, latestTick, tickO
           <Table size='small' stickyHeader>
             <TableHead>
               <TableRow>
+                <TableCell sx={{ width: 40 }} />
                 <TableCell>Identity</TableCell>
                 <TableCell align='right'>Tier</TableCell>
                 <TableCell>First commit</TableCell>
@@ -307,17 +350,23 @@ export default function RandomMinerPanel({ identities, labels, latestTick, tickO
             <TableBody>
               {sessions.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={6} align='center' sx={{ py: 3, color: 'text.secondary' }}>
+                  <TableCell colSpan={7} align='center' sx={{ py: 3, color: 'text.secondary' }}>
                     No sessions yet
                   </TableCell>
                 </TableRow>
               )}
               {sessions.map((s) => {
                 const state = SESSION_STATE[Number(s.status)] || SESSION_STATE[0];
-                const p = progress(s);
                 const finished = Number(s.status) >= 3;
+                const open = expanded === s.id;
                 return (
-                  <TableRow key={s.id} hover sx={{ opacity: finished ? 0.75 : 1 }}>
+                  <React.Fragment key={s.id}>
+                  <TableRow hover onClick={() => toggle(s.id)} sx={{ opacity: finished ? 0.75 : 1, cursor: 'pointer', '& > td': { borderBottom: open ? 'none' : undefined } }}>
+                    <TableCell sx={{ pr: 0 }}>
+                      <IconButton size='small' aria-label={open ? 'Hide steps' : 'Show steps'} onClick={(e) => { e.stopPropagation(); toggle(s.id); }}>
+                        <ExpandMoreIcon fontSize='small' sx={{ transform: open ? 'rotate(180deg)' : 'none', transition: 'transform 150ms' }} />
+                      </IconButton>
+                    </TableCell>
                     <TableCell>
                       <Stack direction='row' spacing={1} sx={{ alignItems: 'center' }}>
                         <Identicon id={s.identity} size={20} />
@@ -327,9 +376,9 @@ export default function RandomMinerPanel({ identities, labels, latestTick, tickO
                     <TableCell align='right' className='mono'>{formatNumber(s.tier)} QU</TableCell>
                     <TableCell className='mono'>tick {formatNumber(s.first_tick)}</TableCell>
                     <TableCell>
-                      <Tooltip title={`${formatNumber(Number(s.sent) || 0)} steps sent by the wallet · ${formatNumber(Number(s.accepted) || 0)} accepted by the contract · ${formatNumber(p ? p.total : MAX_STEPS_PER_SESSION)} signed`}>
+                      <Tooltip title={`${formatNumber(Number(s.sent) || 0)} steps sent by the wallet · ${formatNumber(Number(s.accepted) || 0)} accepted by the contract · ${formatNumber(Number(s.steps) || 0)} signed`}>
                         <Box component='span' className='mono' sx={{ whiteSpace: 'nowrap' }}>
-                          {Number(s.sent) || 0} / {p ? p.total : MAX_STEPS_PER_SESSION}
+                          {Number(s.sent) || 0} / {Number(s.steps) || DEFAULT_STEPS + 1}
                         </Box>
                       </Tooltip>
                     </TableCell>
@@ -344,7 +393,7 @@ export default function RandomMinerPanel({ identities, labels, latestTick, tickO
                         );
                       })()}
                     </TableCell>
-                    <TableCell>
+                    <TableCell onClick={(e) => e.stopPropagation()}>
                       {state.running && (
                         <Tooltip title='Reveal and leave at the next unsent step; no new session is started afterwards'>
                           <span>
@@ -356,12 +405,100 @@ export default function RandomMinerPanel({ identities, labels, latestTick, tickO
                       )}
                     </TableCell>
                   </TableRow>
+                  <TableRow>
+                    <TableCell colSpan={7} sx={{ py: 0, borderBottom: open ? undefined : 'none' }}>
+                      <Collapse in={open} unmountOnExit>
+                        <StepHistory session={s} live={live} history={history.id === s.id ? history : null} />
+                      </Collapse>
+                    </TableCell>
+                  </TableRow>
+                  </React.Fragment>
                 );
               })}
             </TableBody>
           </Table>
         </TableContainer>
       </Paper>
+    </Box>
+  );
+}
+
+// What a step's transaction went through: the wallet sent it, the network
+// included it in its tick, the contract accepted it (or not).
+const STEP_KIND = { commit: 'First commit', reveal: 'Reveal and commit', leave: 'Reveal and leave' };
+
+function stepOutcome(row, session, live) {
+  const tick = Number(row.tick);
+  const included = String(row.included);
+  if (row.accepted === '1') return { label: 'accepted', color: 'success.main', hint: 'The contract recorded this step: the previous stake came back and this one is locked.' };
+  if (included === '0') return { label: 'included', color: 'primary.main', hint: 'Included in its tick; the contract has not reported on it yet.' };
+  if (included === '1') return { label: 'failed', color: 'error.main', hint: 'The transaction was not included in its tick.' };
+  if (included === '2') return { label: 'expired', color: 'error.main', hint: 'Its tick passed without the transaction being included.' };
+  if (Number(session.status) === 3 && Number(session.failed_tick) === tick) return { label: 'failed', color: 'error.main', hint: session.reason || 'The session failed at this step.' };
+  if (live !== null && tick < live - STREAM_TICKS) return { label: 'not reported', color: 'text.secondary', hint: 'Its tick has passed; no report from the contract yet.' };
+  return { label: 'pending', color: 'text.secondary', hint: 'Sent; its tick has not come yet.' };
+}
+
+function StepHistory({ session, live, history }) {
+  if (!history || history.rows === null) {
+    return (
+      <Box sx={{ py: 1.5, display: 'flex', alignItems: 'center', gap: 1, color: 'text.secondary' }}>
+        <CircularProgress size={14} />
+        <Typography variant='caption'>Loading steps…</Typography>
+      </Box>
+    );
+  }
+  if (history.error) {
+    return (
+      <Typography variant='caption' color='error.main' sx={{ display: 'block', py: 1.5 }}>
+        {history.error}
+      </Typography>
+    );
+  }
+  if (history.rows.length === 0) {
+    return (
+      <Typography variant='caption' color='text.secondary' sx={{ display: 'block', py: 1.5 }}>
+        {Number(session.sent) > 0 ? 'The steps of this session have been pruned from the history.' : 'No step has been sent yet.'}
+      </Typography>
+    );
+  }
+  const sent = Number(session.sent) || 0;
+  return (
+    <Box sx={{ py: 1, pl: 5 }}>
+      <Typography variant='caption' color='text.secondary' sx={{ display: 'block', mb: 0.5 }}>
+        {history.rows.length < sent ? `Latest ${formatNumber(history.rows.length)} of ${formatNumber(sent)} steps sent` : `${formatNumber(history.rows.length)} steps sent`}, newest first
+      </Typography>
+      <Table size='small' sx={{ '& td, & th': { py: 0.25 } }}>
+        <TableHead>
+          <TableRow>
+            <TableCell>Step</TableCell>
+            <TableCell>Tick</TableCell>
+            <TableCell>Kind</TableCell>
+            <TableCell>Transaction</TableCell>
+            <TableCell>Sent</TableCell>
+            <TableCell>Outcome</TableCell>
+          </TableRow>
+        </TableHead>
+        <TableBody>
+          {history.rows.map((row) => {
+            const outcome = stepOutcome(row, session, live);
+            return (
+              <TableRow key={row.step}>
+                <TableCell className='mono'>{row.step}</TableCell>
+                <TableCell className='mono'>{formatNumber(row.tick)}</TableCell>
+                <TableCell>{STEP_KIND[row.kind] || row.kind}</TableCell>
+                <TableCell>{row.txid ? <IdText id={row.txid} head={6} tail={6} explorer='tx' /> : '—'}</TableCell>
+                <TableCell className='mono' sx={{ whiteSpace: 'nowrap' }}>{row.sent ? `${row.sent} UTC` : '—'}</TableCell>
+                <TableCell>
+                  <Tooltip title={outcome.hint}>
+                    <Box component='span' sx={{ color: outcome.color, whiteSpace: 'nowrap' }}>{outcome.label}</Box>
+                  </Tooltip>
+                </TableCell>
+              </TableRow>
+            );
+          })}
+        </TableBody>
+      </Table>
     </Box>
   );
 }
