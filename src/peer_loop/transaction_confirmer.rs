@@ -125,6 +125,13 @@ pub fn confirm_transactions(peer_set: Arc<Mutex<PeerSet>>) {
                             }
                         }
 
+                        // Steps to the RANDOM contract are settled by the session driver
+                        // from the contract's own report. A session leaves hundreds of
+                        // them; a tick-data request for each would crowd out everything.
+                        if to_contract {
+                            continue;
+                        }
+
                         if latest_tick - tick > 35000 {
                             match transfer::set_broadcasted_transfer_as_failure(get_db_path().as_str(), txid.as_str()) {
                                 Ok(_) => {

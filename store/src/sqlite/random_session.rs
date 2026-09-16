@@ -232,6 +232,39 @@ pub fn fetch_step_summaries(path: &str, session_id: i64, through: i64, limit: u3
         &[(":session_id", session_id.as_str()), (":through", through.as_str()), (":limit", limit.as_str())], &STEP_SUMMARY_COLUMNS)
 }
 
+/// Settles the wallet's step transfers to the RANDOM contract from what the
+/// contract reported, instead of asking the network for every tick's data:
+/// steps up to a session's last accepted tick were included (status 0); once a
+/// session is over, its other steps were not (status 1); steps no session
+/// covers (from a wiped session table) are given up 30 ticks after their tick.
+/// A session covers the steps it broadcast (up to `broadcast_through`), never
+/// its whole signed chain: an earlier session's chain overlaps its successor.
+/// Returns how many were confirmed and how many failed.
+pub fn settle_step_transfers(path: &str, contract: &str, latest_tick: u32) -> Result<(usize, usize), String> {
+    let _lock = get_db_lock().lock().unwrap();
+    let connection = open_database(path, false)?;
+    let latest = latest_tick.to_string();
+    let run = |query: &str, binds: &[(&str, &str)]| -> Result<usize, String> {
+        let mut statement = prepare_crud_statement(&connection, query)?;
+        statement.bind::<&[(&str, &str)]>(binds).map_err(|e| e.to_string())?;
+        statement.next().map_err(|e| e.to_string())?;
+        Ok(connection.change_count())
+    };
+    let confirmed = run("UPDATE transfer SET status = 0 WHERE status = -1 AND destination_identity = :contract AND EXISTS (
+        SELECT 1 FROM random_session s WHERE s.identity = transfer.source_identity
+            AND s.last_accepted_tick >= s.first_tick
+            AND transfer.tick >= s.first_tick AND transfer.tick <= s.last_accepted_tick
+            AND transfer.tick <= s.first_tick + 3 * s.broadcast_through);", &[(":contract", contract)])?;
+    let failed = run("UPDATE transfer SET status = 1 WHERE status = -1 AND destination_identity = :contract AND EXISTS (
+        SELECT 1 FROM random_session s WHERE s.identity = transfer.source_identity AND s.status >= 3
+            AND transfer.tick >= s.first_tick AND transfer.tick <= s.first_tick + 3 * s.broadcast_through);", &[(":contract", contract)])?;
+    let orphaned = run("UPDATE transfer SET status = 1 WHERE status = -1 AND destination_identity = :contract
+        AND tick + 30 < CAST(:latest AS INTEGER) AND NOT EXISTS (
+        SELECT 1 FROM random_session s WHERE s.identity = transfer.source_identity
+            AND transfer.tick >= s.first_tick AND transfer.tick <= s.first_tick + 3 * s.broadcast_through);", &[(":contract", contract), (":latest", latest.as_str())])?;
+    Ok((confirmed, failed + orphaned))
+}
+
 /// The step whose stay or leave transaction has this id.
 pub fn fetch_step_by_txid(path: &str, txid: &str) -> Result<Option<HashMap<String, String>>, String> {
     Ok(fetch(path, "SELECT * FROM random_step WHERE stay_txid = :txid OR leave_txid = :txid LIMIT 1;", &[(":txid", txid)], &STEP_COLUMNS)?.into_iter().next())
