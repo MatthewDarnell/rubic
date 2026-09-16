@@ -35,13 +35,13 @@ pub fn get_min_peers() -> usize {
                 Ok(value) => value,
                 Err(err) => {
                     println!("Invalid RUBIC_MIN_PEERS in env vars. ({}) -> {:?} Defaulting...", v.as_str(), err);
-                    return 3;
+                    return 5;
                 }
             }
         },
         Err(_) => {
             debug!("RUBIC_MIN_PEERS not found in env vars! Defaulting...");
-            let default_min_peers: usize = 3;
+            let default_min_peers: usize = 5;
             debug!("Using RUBIC_MIN_PEERS: <3>");
             return default_min_peers;
         }
@@ -56,7 +56,7 @@ pub fn get_max_peers() -> usize {
                 Ok(value) => value,
                 Err(err) => {
                     println!("Invalid RUBIC_MAX_PEERS in env vars. ({}) -> {:?} Defaulting...", v.as_str(), err);
-                    return 3;
+                    return 8;
                 }
             }
         },
