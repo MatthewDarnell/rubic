@@ -197,6 +197,7 @@ const OpenOrders = ({ orders, labels, busy, onCancel }) => (
 );
 
 export default function QxPanel({
+  miningActive,
   identities,
   labels,
   assetsNIssuer,
@@ -399,6 +400,11 @@ export default function QxPanel({
 
   return (
     <Box sx={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+      {miningActive && (
+        <Typography variant='body2' sx={{ color: 'error.main', fontWeight: 600, mb: 1, flexShrink: 0 }}>
+          Orderbook is not updating while Random Mining
+        </Typography>
+      )}
       {/* Order ticket on one line where it fits; the book below gets the rest of the window. */}
       <Paper variant='outlined' sx={{ px: 2, py: 1.5, mb: 2, flexShrink: 0 }}>
         <Stack direction='row' spacing={1.5} useFlexGap sx={{ alignItems: 'center', flexWrap: 'wrap' }}>

@@ -1,6 +1,7 @@
 pub mod env;
 pub mod peer_loop;
 pub mod routes;
+pub mod miner;
 
 pub use crypto;
 pub use logger;

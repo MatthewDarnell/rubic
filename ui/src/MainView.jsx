@@ -18,6 +18,7 @@ import IdentityDrawer from './components/IdentityDrawer';
 import RenameDialog from './components/RenameDialog';
 import AssetsPanel from './components/AssetsPanel';
 import QxPanel from './components/QxPanel';
+import RandomMinerPanel from './components/RandomMinerPanel';
 import PeersPanel from './components/PeersPanel';
 import SettingsPanel from './components/SettingsPanel';
 import SendDialog from './components/SendDialog';
@@ -31,6 +32,10 @@ import { formatNumber, isNumeric } from './utils/format';
 import { recordBalances, readHistory, sliceSince, RANGES } from './utils/balanceHistory';
 
 const POLLING_INTERVAL = 3000;
+// The RANDOM contract. A session's steps are stake-sized transfers to it every
+// 3 ticks; they belong to the Random Miner tab, not to Activity or the counts.
+const RANDOM_CONTRACT_IDENTITY = 'DAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAANMIG';
+const isRoundTransfer = (t) => t.destination === RANDOM_CONTRACT_IDENTITY;
 const TICK_INTERVAL = 1000;
 // Transactions expire this many ticks after the current one unless the user
 // overrides it in Settings ("Transfer Ticks Offset"). The wallet's own view of
@@ -42,6 +47,7 @@ const UNLOCK_CHECK_INTERVAL = 5000;
 const OPEN_ORDERS_INTERVAL = 5000; // poll of the server's QX-reported open orders
 const BOOK_VIEW_INTERVAL = 1000; // poll of the order book on screen in QX Exchange (a local read)
 const HEALTH_INTERVAL = 5000;
+const MINING_CHECK_INTERVAL = 5000; // whether a RANDOM session is active, for the sidebar mark
 const MIN_PEERS_FOR_SENDING = 3;
 const ASSETS_RETRY_INTERVAL = 5000; // while no issued assets are known yet
 const ASSETS_REFRESH_INTERVAL = 5 * 60 * 1000;
@@ -66,6 +72,7 @@ const describeAction = (action) => {
   if (action.startsWith('asset/transfer')) return 'Asset transfer sent';
   if (action.startsWith('transfer/')) return 'Transfer sent';
   if (action.startsWith('qx/order')) return 'QX order submitted';
+  if (action.startsWith('miner/random/start')) return 'RANDOM session started: first commit broadcast';
   if (action.includes('wallet/download')) return 'Wallet exported';
   return 'Done';
 };
@@ -96,6 +103,7 @@ const MainView = () => {
   const [bookAsset, setBookAsset] = useState(null); // asset the ask/bid arrays belong to
   const [bookAge, setBookAge] = useState({ ask: null, bid: null }); // seconds since each side was last received
   const [health, setHealth] = useState(null); // server request-queue health (see /health)
+  const [miningActive, setMiningActive] = useState(false); // a RANDOM session is providing, stopping or leaving
   const [selectedAsset, setSelectedAsset] = useState(null);
   const [selectedId, setSelectedId] = useState('');
 
@@ -354,6 +362,24 @@ const MainView = () => {
     };
   }, [nav, selectedAsset, fetchOrderbook]);
 
+  // Whether a RANDOM session is active, shown as a mark on the sidebar tab.
+  useEffect(() => {
+    let cancelled = false;
+    let timer;
+    const run = async () => {
+      const res = await backgroundCall('miner/random');
+      if (cancelled) return;
+      const sessions = res.success && Array.isArray(res.data) ? res.data : [];
+      setMiningActive(sessions.some((s) => [0, 1, 2].includes(Number(s.status))));
+      timer = setTimeout(run, MINING_CHECK_INTERVAL);
+    };
+    run();
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, []);
+
   // Server health (request queue depth, peers) for the status pill's popover and
   // the pre-send warnings.
   useEffect(() => {
@@ -475,7 +501,8 @@ const MainView = () => {
       const transfersNow = asList(transferRes);
       const assetTransfersNow = asList(assetTransferRes);
       const qxNow = asList(qxRes);
-      setTransfers(transfersNow);
+      const ownTransfersNow = transfersNow.filter((t) => !isRoundTransfer(t));
+      setTransfers(ownTransfersNow);
       setAssetTransfers(assetTransfersNow);
       setQxOrders(qxNow);
       setTotalBalance(sum);
@@ -486,7 +513,7 @@ const MainView = () => {
       // Notify when something that was pending settles, whichever section is open.
       const own = new Set(full.map((i) => i.id));
       const items = normalizeActivity({
-        transfers: transfersNow,
+        transfers: ownTransfersNow,
         assetTransfers: assetTransfersNow,
         qxOrders: qxNow,
         ownIds: own,
@@ -564,7 +591,7 @@ const MainView = () => {
     const offset = Number.isInteger(Number(tickOffset)) && Number(tickOffset) > 0 ? Number(tickOffset) : DEFAULT_TICK_OFFSET;
     const targetTick = Number(tick.data) + offset;
 
-    const isTx = pendingAction.includes('transfer') || pendingAction.startsWith('qx/order');
+    const isTx = pendingAction.includes('transfer') || pendingAction.startsWith('qx/order') || pendingAction.startsWith('miner/random/start');
     if (isTx && !isNumeric(tick.data)) {
       // Without a tick there is nothing to target; the server would reject (or choke on) NaN.
       setAction('');
@@ -612,6 +639,9 @@ const MainView = () => {
       result = await apiPost('identity/delete', { identity: pendingAction.split('/')[2], password: actionPassword });
     } else if (pendingAction.startsWith('identity/add/')) {
       result = await apiPost('identity/add', { seed: pendingAction.split('/')[2], password: actionPassword });
+    } else if (pendingAction.startsWith('miner/random/start/')) {
+      // miner/random/start/<identity>/<tier>/<auto_restart 0|1>/<steps>/
+      result = await apiPost('miner/random/start', { identity: pendingAction.split('/')[3], tier: Number(pendingAction.split('/')[4]) || 1, auto_restart: pendingAction.split('/')[5] === '1', steps: Number(pendingAction.split('/')[6]) || 0, password: actionPassword, tick: targetTick });
     } else if (pendingAction.startsWith('identity/new')) {
       result = await apiPost('identity/new', { password: actionPassword });
     } else if (pendingAction === '/wallet/download/') {
@@ -668,6 +698,7 @@ const MainView = () => {
     const parts = pendingAction.split('/');
     if (pendingAction.startsWith('transfer/')) return parts[1];
     if (pendingAction.startsWith('asset/transfer/')) return parts[4];
+    if (pendingAction.startsWith('miner/random/start/')) return parts[3];
     if (pendingAction.startsWith('qx/order/')) return parts[6];
     if (pendingAction.startsWith('identity/delete/')) return parts[2];
     return null;
@@ -801,13 +832,36 @@ const MainView = () => {
     const pendingFromSource = pendingTxs.filter((t) => t.source === sourceId).length;
     if (pendingFromSource > 0) {
       out.push(
-        `This identity already has ${pendingFromSource === 1 ? 'a transaction' : `${pendingFromSource} transactions`} waiting for its tick. A node keeps one pending transaction per identity, so sending now can replace the earlier one before it executes.`
+        `This identity already has ${pendingFromSource === 1 ? 'a transaction' : `${pendingFromSource} transactions`} waiting for its tick.`
       );
     }
-    if (connectedPeers < MIN_PEERS_FOR_SENDING) {
+    return [...out, ...connectionWarnings()];
+  };
+
+  // Signs that the wallet's link to the network is weak right now. Shown before
+  // anything is sent; for RANDOM mining a weak link costs the stake, so the
+  // miner shows them prominently.
+  const connectionWarnings = () => {
+    const out = [];
+    const connected = peers.filter((p) => p.connected === '1');
+    if (connected.length < MIN_PEERS_FOR_SENDING) {
       out.push(
-        `Only ${connectedPeers} peer${connectedPeers === 1 ? '' : 's'} connected. Transactions are broadcast to every connected peer; with few peers they may not reach the network in time.`
+        `Only ${connected.length} peer${connected.length === 1 ? '' : 's'} connected. Transactions are broadcast to every connected peer; with few peers they may not reach the network in time.`
       );
+    }
+    const lagging = connected.filter((p) => Number(p.tick_lag) > 10).length;
+    if (connected.length > 0 && lagging >= Math.ceil(connected.length / 2)) {
+      out.push(`${lagging} of ${connected.length} connected peers are more than 10 ticks behind the network.`);
+    }
+    const pings = connected.map((p) => Number(p.ping)).filter((n) => n > 0 && n < 9999).sort((a, b) => a - b);
+    const medianPing = pings.length ? pings[Math.floor(pings.length / 2)] : null;
+    if (medianPing !== null && medianPing >= 600) {
+      out.push(`Peers are slow to answer (typical latency ${medianPing} ms).`);
+    }
+    const nowSec = Date.now() / 1000;
+    const silent = connected.filter((p) => isNumeric(p.last_responded) && nowSec - Number(p.last_responded) > 60).length;
+    if (connected.length > 0 && silent >= Math.ceil(connected.length / 2)) {
+      out.push(`${silent} of ${connected.length} connected peers have not answered for over a minute.`);
     }
     if (health && health.routine_limit && health.routine_backlog >= health.routine_limit / 2) {
       out.push('The wallet is behind on peer requests right now; balances and confirmations may lag.');
@@ -897,6 +951,7 @@ const MainView = () => {
     ),
     exchange: (
       <QxPanel
+        miningActive={miningActive}
         bookAge={bookAge}
         warningsFor={warningsFor}
         identities={identities}
@@ -913,6 +968,18 @@ const MainView = () => {
         busy={showProgress}
         onAction={commitAction}
         requestConfirm={setConfirm}
+      />
+    ),
+    miner: (
+      <RandomMinerPanel
+        identities={identities}
+        labels={labels}
+        latestTick={latestTick}
+        tickOffset={tickOffset}
+        busy={showProgress}
+        onAction={commitAction}
+        requestConfirm={setConfirm}
+        warningsFor={warningsFor}
       />
     ),
     network: <PeersPanel peers={peers} onChanged={refreshPeers} />,
@@ -959,7 +1026,7 @@ const MainView = () => {
         <AppShell
           nav={nav}
           onNav={setNav}
-          badges={{ network: connectedPeers || undefined, activity: pendingCount || undefined }}
+          badges={{ network: connectedPeers || undefined, activity: pendingCount || undefined, miner: miningActive ? '⛏' : undefined }}
           totalBalance={totalBalance}
           price={price}
           connected={connected}

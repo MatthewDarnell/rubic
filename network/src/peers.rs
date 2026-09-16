@@ -4,13 +4,14 @@ use std::net::{SocketAddr, TcpStream};
 use std::sync::{Arc, Mutex};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use api::request::QubicApiPacket;
-use logger::{ debug, error };
+use logger::debug;
 use std::time::{Duration};
 use rand::prelude::IteratorRandom;
 use rand::thread_rng;
 use store;
 
 use crate::worker;
+use crate::queue::RequestQueue;
 use crate::peer::Peer;
 
 pub const DEFAULT_CONNECT_TIMEOUT: Duration = Duration::from_millis(1500);
@@ -65,11 +66,13 @@ pub enum RequestPriority {
     Normal,
     /// What the user is watching right now.
     High,
+    /// A transaction's first broadcast: to every peer, ahead of the queue.
+    Urgent,
 }
 
 pub struct PeerSet {
   peers: Vec<Peer>,
-  req_channel: (spmc::Sender<QubicApiPacket>, spmc::Receiver<QubicApiPacket>),
+  queue: Arc<RequestQueue>,
   request_matcher: Arc<Mutex<HashMap<u32, QubicApiPacket>>>,
   threads: HashMap<String, std::thread::JoinHandle<()>>,
   /// Requests handed to the channel that no worker has picked up yet.
@@ -87,7 +90,7 @@ impl PeerSet {
             peers: vec![],
             threads: HashMap::new(),
             request_matcher: Arc::new(Mutex::new(HashMap::new())),
-            req_channel: spmc::channel::<QubicApiPacket>(),
+            queue: Arc::new(RequestQueue::new()),
             backlog: Arc::new(AtomicUsize::new(0)),
             tick_backlog: Arc::new(AtomicUsize::new(0)),
         };
@@ -147,11 +150,11 @@ impl PeerSet {
         {
             let mut peer = new_peer.clone();
             peer.set_stream(stream);
-            let rx = self.req_channel.1.clone();
+            let queue = Arc::clone(&self.queue);
             let thread_id = id.clone();
             let backlog = Arc::clone(&self.backlog);
             let tick_backlog = Arc::clone(&self.tick_backlog);
-            let t = std::thread::spawn(move || worker::handle_new_peer(thread_id, request_matcher, peer, rx, backlog, tick_backlog));
+            let t = std::thread::spawn(move || worker::handle_new_peer(thread_id, request_matcher, peer, queue, backlog, tick_backlog));
             self.threads.insert(id.clone(), t);
         }
         self.peers.push(new_peer);
@@ -260,6 +263,11 @@ impl PeerSet {
         self.make_request_with_priority(request, RequestPriority::High)
     }
 
+    /// A transaction's first broadcast: every peer, ahead of everything queued.
+    pub fn make_request_urgent(&mut self, request: QubicApiPacket) -> Result<(), String> {
+        self.make_request_with_priority(request, RequestPriority::Urgent)
+    }
+
     fn make_request_with_priority(&mut self, mut request: QubicApiPacket, priority: RequestPriority) -> Result<(), String> {
         // Evict anything the workers have flagged dead first; no database round trips here.
         self.prune_disconnected();
@@ -299,6 +307,7 @@ impl PeerSet {
                     RequestPriority::Low => LOW_PRIORITY_BACKLOG,
                     RequestPriority::Normal => MAX_REQUEST_BACKLOG,
                     RequestPriority::High => MAX_REQUEST_BACKLOG * 4,
+                    RequestPriority::Urgent => usize::MAX,
                 },
             ),
         };
@@ -322,16 +331,21 @@ impl PeerSet {
             }
         };
 
+        // A transaction's first send is the one thing the user is waiting on: a
+        // copy is addressed to every peer, each sent as that peer's very next
+        // request, ahead of every poll already waiting. Resends take the normal
+        // path so they cannot starve the tick polls.
+        let urgent = priority == RequestPriority::Urgent;
         for id in targets {
-            request.peer = Some(id);
-            match self.req_channel.0.send(request.clone()) {
-                Ok(_) => {
-                    self.backlog.fetch_add(1, Ordering::Relaxed);
-                    if is_tick_poll {
-                        self.tick_backlog.fetch_add(1, Ordering::Relaxed);
-                    }
-                },
-                Err(err) => error!("Failed To Send Request Data To Threads! : {}", err.to_string()),
+            request.peer = Some(id.clone());
+            if urgent {
+                self.queue.push_urgent(&id, request.clone());
+            } else {
+                self.queue.push_back(request.clone());
+            }
+            self.backlog.fetch_add(1, Ordering::Relaxed);
+            if is_tick_poll {
+                self.tick_backlog.fetch_add(1, Ordering::Relaxed);
             }
         }
         Ok(())

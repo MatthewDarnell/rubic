@@ -18,3 +18,4 @@ pub mod transfer;
 pub mod response_entity;
 pub mod asset;
 pub mod qx;
+pub mod random_session;

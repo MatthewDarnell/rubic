@@ -8,12 +8,13 @@ use api::request::QubicApiPacket;
 use store::get_db_path;
 use store::sqlite::peer::{set_peer_disconnected, update_peer_responded};
 use crate::tcp_recv::{drain_buffered, qubic_tcp_receive_data};
+use crate::queue::RequestQueue;
 
 /// How often a responsive peer's "last responded" / latency is written to the
 /// database. Replies arrive many times a second; the UI only needs seconds.
 const RESPONDED_WRITE_INTERVAL: Duration = Duration::from_secs(5);
 
-pub fn handle_new_peer(_id: String, request_matcher: Arc<Mutex<HashMap<u32, QubicApiPacket>>>, peer: Peer, rx: spmc::Receiver<QubicApiPacket>, backlog: Arc<AtomicUsize>, tick_backlog: Arc<AtomicUsize>) {
+pub fn handle_new_peer(_id: String, request_matcher: Arc<Mutex<HashMap<u32, QubicApiPacket>>>, peer: Peer, queue: Arc<RequestQueue>, backlog: Arc<AtomicUsize>, tick_backlog: Arc<AtomicUsize>) {
     if peer.get_stream().is_none() {
        println!("Peer {} Missing TcpStream! Shutting Down Worker Thread.", peer.get_id());
         return;
@@ -26,9 +27,10 @@ pub fn handle_new_peer(_id: String, request_matcher: Arc<Mutex<HashMap<u32, Qubi
         if !peer.is_connected() {
             break;
         }
-        //Block until we receive work
-        match rx.clone().recv() {
-            Ok(mut request) => {
+        // Wait for work; wake up now and then to notice a dropped peer.
+        let Some(mut request) = queue.pop(peer.get_id().as_str(), Duration::from_secs(1)) else { continue };
+        {
+            {
                 // Picked up: no longer part of the backlog the PeerSet throttles on.
                 let _ = backlog.fetch_update(Ordering::Relaxed, Ordering::Relaxed, |n| Some(n.saturating_sub(1)));
                 if matches!(request.api_type, api::header::EntityType::RequestCurrentTickInfo) {
@@ -77,13 +79,12 @@ pub fn handle_new_peer(_id: String, request_matcher: Arc<Mutex<HashMap<u32, Qubi
                         break;
                     }
                 }
-            },
-            Err(err) => {
-                println!("Failed To Receive Work In Thread! {}", err.to_string());
-                break;
             }
         }
     }
+    // Anything still addressed to this peer will never be sent by it.
+    let dropped = queue.discard(peer.get_id().as_str());
+    let _ = backlog.fetch_update(Ordering::Relaxed, Ordering::Relaxed, |n| Some(n.saturating_sub(dropped)));
    // println!("Worker Peer Thread Exiting!");
 }
 

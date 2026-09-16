@@ -13,6 +13,5 @@ rand = "0.8.5"
 api = { path = '../api' }
 crypto = { path = '../crypto' }
 logger = { path = '../logger' }
-spmc = "0.3.0"
 store = { path = '../store' }
 uuid = { version = "1.4.1", features = ["v4"] }
