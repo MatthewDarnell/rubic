@@ -11,7 +11,7 @@ impl FormatQubicResponseDataToStructure for OrderBook {
 pub fn handle_asset_order_response(response: &mut QubicApiPacket) -> Option<OrderBook> {
     let data_len =  std::mem::size_of::<RequestResponseHeader>() + response.data.len();
     if data_len != (std::mem::size_of::<RequestResponseHeader>() + (std::mem::size_of::<AssetOrder>() * 256)) {
-        println!("Wrong Size! {}, {:?}", data_len, &response.data[0..8]);
+        //println!("Wrong Size! {}, {:?}", data_len, &response.data[0..8]);
         return None;
     }
     let mut ret_val: OrderBook = OrderBook {

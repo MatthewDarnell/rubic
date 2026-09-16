@@ -572,7 +572,9 @@ pub fn get_formatted_response(requests: Arc<Mutex<HashMap<u32, QubicApiPacket>>>
                         }
                     }
                 },
-                None => println!("Failed To Read Orderbook!")
+                None => {
+                    //println!("Failed To Read Orderbook!")
+                }
             }
         },
         EntityType::ResponseEnd => {},

@@ -232,37 +232,34 @@ pub fn fetch_step_summaries(path: &str, session_id: i64, through: i64, limit: u3
         &[(":session_id", session_id.as_str()), (":through", through.as_str()), (":limit", limit.as_str())], &STEP_SUMMARY_COLUMNS)
 }
 
-/// Settles the wallet's step transfers to the RANDOM contract from what the
-/// contract reported, instead of asking the network for every tick's data:
-/// steps up to a session's last accepted tick were included (status 0); once a
-/// session is over, its other steps were not (status 1); steps no session
-/// covers (from a wiped session table) are given up 30 ticks after their tick.
-/// A session covers the steps it broadcast (up to `broadcast_through`), never
-/// its whole signed chain: an earlier session's chain overlaps its successor.
-/// Returns how many were confirmed and how many failed.
-pub fn settle_step_transfers(path: &str, contract: &str, latest_tick: u32) -> Result<(usize, usize), String> {
+/// Marks the step transfers the RANDOM contract accepted as included: a step
+/// it recorded (tick up to the session's last accepted tick) was in its tick.
+/// Nothing is marked failed here. A step the contract did not accept may still
+/// have been included and rejected (a stay sent after an eviction, say), so
+/// only the tick's transaction list can tell; the confirmer does that for
+/// recent steps. A session covers the steps it broadcast, never its whole
+/// signed chain, which overlaps its successor's. Returns how many were marked.
+pub fn confirm_accepted_steps(path: &str, contract: &str) -> Result<usize, String> {
     let _lock = get_db_lock().lock().unwrap();
     let connection = open_database(path, false)?;
-    let latest = latest_tick.to_string();
-    let run = |query: &str, binds: &[(&str, &str)]| -> Result<usize, String> {
-        let mut statement = prepare_crud_statement(&connection, query)?;
-        statement.bind::<&[(&str, &str)]>(binds).map_err(|e| e.to_string())?;
-        statement.next().map_err(|e| e.to_string())?;
-        Ok(connection.change_count())
-    };
-    let confirmed = run("UPDATE transfer SET status = 0 WHERE status = -1 AND destination_identity = :contract AND EXISTS (
+    let mut statement = prepare_crud_statement(&connection, "UPDATE transfer SET status = 0 WHERE status = -1 AND destination_identity = :contract AND EXISTS (
         SELECT 1 FROM random_session s WHERE s.identity = transfer.source_identity
             AND s.last_accepted_tick >= s.first_tick
             AND transfer.tick >= s.first_tick AND transfer.tick <= s.last_accepted_tick
-            AND transfer.tick <= s.first_tick + 3 * s.broadcast_through);", &[(":contract", contract)])?;
-    let failed = run("UPDATE transfer SET status = 1 WHERE status = -1 AND destination_identity = :contract AND EXISTS (
-        SELECT 1 FROM random_session s WHERE s.identity = transfer.source_identity AND s.status >= 3
-            AND transfer.tick >= s.first_tick AND transfer.tick <= s.first_tick + 3 * s.broadcast_through);", &[(":contract", contract)])?;
-    let orphaned = run("UPDATE transfer SET status = 1 WHERE status = -1 AND destination_identity = :contract
-        AND tick + 30 < CAST(:latest AS INTEGER) AND NOT EXISTS (
-        SELECT 1 FROM random_session s WHERE s.identity = transfer.source_identity
-            AND transfer.tick >= s.first_tick AND transfer.tick <= s.first_tick + 3 * s.broadcast_through);", &[(":contract", contract), (":latest", latest.as_str())])?;
-    Ok((confirmed, failed + orphaned))
+            AND transfer.tick <= s.first_tick + 3 * s.broadcast_through);")?;
+    statement.bind::<&[(&str, &str)]>(&[(":contract", contract)][..]).map_err(|e| e.to_string())?;
+    statement.next().map_err(|e| e.to_string())?;
+    Ok(connection.change_count())
+}
+
+/// Whether a step transfer's session is still on the network (running,
+/// stopping or leaving): its steps are settled by the driver, not the confirmer.
+pub fn step_session_active(path: &str, source: &str, tick: u32) -> Result<bool, String> {
+    let tick = tick.to_string();
+    let rows = fetch(path, "SELECT id FROM random_session WHERE identity = :identity AND status IN (0, 1, 2)
+        AND CAST(:tick AS INTEGER) >= first_tick AND CAST(:tick AS INTEGER) <= first_tick + 3 * broadcast_through LIMIT 1;",
+        &[(":identity", source), (":tick", tick.as_str())], &["id"])?;
+    Ok(!rows.is_empty())
 }
 
 /// The step whose stay or leave transaction has this id.

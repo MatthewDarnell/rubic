@@ -249,10 +249,10 @@ pub fn run_random_sessions(peer_set: Arc<Mutex<PeerSet>>) {
             };
             if last_settle.elapsed() >= SETTLE_INTERVAL {
                 last_settle = Instant::now();
-                match random_session::settle_step_transfers(path.as_str(), RANDOM_CONTRACT_IDENTITY, latest) {
-                    Ok((0, 0)) => {},
-                    Ok((confirmed, failed)) => info!("RANDOM: settled step transfers from the contract's report: {} included, {} not", confirmed, failed),
-                    Err(err) => error!("RANDOM: could not settle step transfers: {}", err),
+                match random_session::confirm_accepted_steps(path.as_str(), RANDOM_CONTRACT_IDENTITY) {
+                    Ok(0) => {},
+                    Ok(confirmed) => info!("RANDOM: {} step transfers confirmed from the contract's report", confirmed),
+                    Err(err) => error!("RANDOM: could not confirm step transfers: {}", err),
                 }
             }
             // Pre-flight checks asked for by the start route.

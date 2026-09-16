@@ -8,11 +8,18 @@ use crypto::qubic_identities::{get_identity, get_public_key_from_identity};
 use logger::error;
 use network::peers::PeerSet;
 use store::get_db_path;
-use store::sqlite::{identity, tick, transfer};
+use store::sqlite::{identity, random_session, tick, transfer};
 
 /// How many ticks past a transfer's tick a peer report must be before "no
 /// outgoing transfer at that tick" is taken to mean the transfer failed.
 const ENTITY_REPORT_GRACE_TICKS: u32 = 5;
+/// A step to the RANDOM contract is checked against its tick's transaction
+/// list only once the contract's report has had time to settle it (accepted
+/// means included) and only while the tick is recent enough for peers to
+/// still serve its data; older ones stay unknown rather than cost a request
+/// each, a long session leaves hundreds of them.
+const CONTRACT_STEP_MIN_AGE_TICKS: u32 = 6;
+const CONTRACT_STEP_MAX_AGE_TICKS: u32 = 1000;
 
 /// Settles a pending transfer from the peers' entity reports for its source
 /// identity: they carry the tick of the identity's latest executed outgoing
@@ -44,18 +51,21 @@ fn settle_from_entity_report(source: &str, txid: &str, tx_tick: u32) -> Settled 
         Ok(Some(report)) => report,
         _ => return Settled::Undecided,
     };
-    // Need a report from after the tick, backed by more than one peer.
-    if peers < 2 || report_tick <= tx_tick {
+    if report_tick <= tx_tick {
         return Settled::Undecided;
     }
+    // One peer saying the transfer executed is enough to confirm it: a peer
+    // cannot see an outgoing transfer that did not happen. Failing needs more.
     if latest_out == tx_tick {
         match transfer::set_broadcasted_transfer_as_success(get_db_path().as_str(), txid) {
-            Ok(_) => println!("Transaction <{}> confirmed (peers report an outgoing transfer at tick {}).", txid, tx_tick),
+            Ok(_) => {
+                //println!("Transaction <{}> confirmed (peers report an outgoing transfer at tick {}).", txid, tx_tick)
+            },
             Err(err) => println!("Failed To Confirm Transaction {} ({})", txid, err),
         }
         return Settled::Confirmed;
     }
-    if latest_out < tx_tick && report_tick > tx_tick + ENTITY_REPORT_GRACE_TICKS {
+    if peers >= 2 && latest_out < tx_tick && report_tick > tx_tick + ENTITY_REPORT_GRACE_TICKS {
         match transfer::set_broadcasted_transfer_as_failure(get_db_path().as_str(), txid) {
             Ok(_) => println!("Transaction <{}> failed (peers report no outgoing transfer at tick {} by tick {}).", txid, tx_tick, report_tick),
             Err(err) => println!("Failed To Set Failed Transaction {} ({})", txid, err),
@@ -125,11 +135,20 @@ pub fn confirm_transactions(peer_set: Arc<Mutex<PeerSet>>) {
                             }
                         }
 
-                        // Steps to the RANDOM contract are settled by the session driver
-                        // from the contract's own report. A session leaves hundreds of
-                        // them; a tick-data request for each would crowd out everything.
+                        // Steps to the RANDOM contract: the driver confirms the ones the
+                        // contract accepted from its report, so only the leftovers of a
+                        // finished session reach the tick-data check below, and only
+                        // while their tick is recent enough to be worth asking about.
                         if to_contract {
-                            continue;
+                            let age = latest_tick.saturating_sub(tick);
+                            if age < CONTRACT_STEP_MIN_AGE_TICKS || age > CONTRACT_STEP_MAX_AGE_TICKS {
+                                continue;
+                            }
+                            if let Some(source) = transfer.get("source") {
+                                if random_session::step_session_active(get_db_path().as_str(), source, tick).unwrap_or(true) {
+                                    continue;
+                                }
+                            }
                         }
 
                         if latest_tick - tick > 35000 {

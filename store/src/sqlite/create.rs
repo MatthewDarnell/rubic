@@ -241,6 +241,30 @@ fn migrate(connection: &sqlite::Connection) {
             }
         }
     }
+    // Numbered one-off repairs, tracked in the file's user_version.
+    const REPAIRS: [&str; 1] = [
+        // 1: RANDOM steps marked failed because the contract did not accept them.
+        //    Only the tick's transaction list can say whether a step was included.
+        "UPDATE transfer SET status = -1 WHERE status = 1 AND destination_identity = 'DAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAANMIG';",
+    ];
+    let mut version: i64 = 0;
+    let _ = connection.iterate("PRAGMA user_version;", |row| {
+        version = row.first().and_then(|(_, v)| v.and_then(|v| v.parse().ok())).unwrap_or(0);
+        true
+    });
+    for (index, statement) in REPAIRS.iter().enumerate() {
+        let number = index as i64 + 1;
+        if version >= number {
+            continue;
+        }
+        match connection.execute(statement).and_then(|_| connection.execute(format!("PRAGMA user_version = {};", number))) {
+            Ok(_) => version = number,
+            Err(err) => {
+                logger::error(format!("Database repair {} failed: {}", number, err).as_str());
+                break;
+            }
+        }
+    }
 }
 
 #[cfg(test)]
