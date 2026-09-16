@@ -164,11 +164,13 @@ pub fn open_database(path: &str, create: bool) -> Result<sqlite::Connection, Str
         created DATETIME DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (identity) REFERENCES identities(identity) ON DELETE CASCADE
     );
-    CREATE TABLE IF NOT EXISTS random_provider (
-        identity TEXT PRIMARY KEY,
+    CREATE TABLE IF NOT EXISTS random_provider_report (
+        identity TEXT NOT NULL,
+        peer TEXT NOT NULL,
         checked_tick INTEGER NOT NULL,
         slots TEXT NOT NULL,
-        updated DATETIME DEFAULT CURRENT_TIMESTAMP
+        updated DATETIME DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (identity, peer)
     );
     CREATE TABLE IF NOT EXISTS random_step (
         session_id INTEGER NOT NULL,
@@ -242,10 +244,12 @@ fn migrate(connection: &sqlite::Connection) {
         }
     }
     // Numbered one-off repairs, tracked in the file's user_version.
-    const REPAIRS: [&str; 1] = [
+    const REPAIRS: [&str; 2] = [
         // 1: RANDOM steps marked failed because the contract did not accept them.
         //    Only the tick's transaction list can say whether a step was included.
         "UPDATE transfer SET status = -1 WHERE status = 1 AND destination_identity = 'DAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAANMIG';",
+        // 2: provider status is now kept per answering peer (random_provider_report).
+        "DROP TABLE IF EXISTS random_provider;",
     ];
     let mut version: i64 = 0;
     let _ = connection.iterate("PRAGMA user_version;", |row| {

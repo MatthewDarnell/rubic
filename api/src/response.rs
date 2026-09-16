@@ -50,6 +50,9 @@ static PEER_LAG: std::sync::OnceLock<Mutex<HashMap<String, (u32, std::time::Inst
 const MAX_BOOK_PEER_LAG: u32 = 10;
 /// A lag measurement older than this no longer counts against a peer.
 const PEER_LAG_MEASUREMENT_TTL: std::time::Duration = std::time::Duration::from_secs(60);
+/// Ticks a peer without a recent lag measurement is taken to be behind when
+/// its contract report is dated.
+const UNMEASURED_PEER_LAG: u32 = 10;
 
 /// Records how far `peer`'s reported tick trails the highest tick the wallet
 /// already knows. Both numbers are taken when the reply arrives, so a slow
@@ -496,10 +499,14 @@ pub fn get_formatted_response(requests: Arc<Mutex<HashMap<u32, QubicApiPacket>>>
                     match miner::random::parse_provider_status(&response.data) {
                         Some(slots) => {
                             // The report reflects the answering peer's state, which may trail
-                            // the network: date it by that peer's tick, not the wallet's.
+                            // the network: date it by that peer's tick, not the wallet's. A
+                            // peer whose lag is not known is assumed well behind, so its
+                            // report can only vouch for older steps.
                             let latest: u32 = store::sqlite::tick::fetch_latest_tick(get_db_path().as_str()).ok().and_then(|t| t.parse().ok()).unwrap_or(0);
-                            let checked_tick = latest.saturating_sub(response.peer.as_deref().map(peer_lag).unwrap_or(0));
-                            if let Err(err) = store::sqlite::random_session::set_provider_status(get_db_path().as_str(), &identity, checked_tick, &miner::random::ProviderSlot::list_to_text(&slots)) {
+                            let peer = response.peer.clone().unwrap_or_default();
+                            let lag = peer_tick_lag(&peer).unwrap_or(UNMEASURED_PEER_LAG);
+                            let checked_tick = latest.saturating_sub(lag);
+                            if let Err(err) = store::sqlite::random_session::set_provider_report(get_db_path().as_str(), &identity, &peer, checked_tick, &miner::random::ProviderSlot::list_to_text(&slots)) {
                                 error(format!("Failed To Store RANDOM Provider Status: {}", err).as_str());
                             }
                         },

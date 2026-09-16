@@ -432,9 +432,9 @@ function stepOutcome(row, session, live) {
   const included = String(row.included);
   if (row.accepted === '1') return { label: 'accepted', color: 'success.main', hint: 'The contract recorded this step: the previous stake came back and this one is locked.' };
   if (included === '0') return { label: 'included', color: 'primary.main', hint: 'Included in its tick; the contract has not reported on it yet.' };
-  if (included === '1') return { label: 'failed', color: 'error.main', hint: 'The transaction was not included in its tick.' };
+  if (included === '1') return { label: 'not included', color: 'error.main', hint: 'The tick\'s transaction list does not contain this transaction.' };
   if (included === '2') return { label: 'expired', color: 'error.main', hint: 'Its tick passed without the transaction being included.' };
-  if (Number(session.status) === 3 && Number(session.failed_tick) === tick) return { label: 'failed', color: 'error.main', hint: session.reason || 'The session failed at this step.' };
+  if (Number(session.status) === 3 && Number(session.failed_tick) === tick) return { label: 'not accepted', color: 'error.main', hint: session.reason || 'The contract did not record this step; the transaction may still have been included and rejected.' };
   if (live !== null && tick < live - STREAM_TICKS) return { label: 'not reported', color: 'text.secondary', hint: 'Its tick has passed; no report from the contract yet.' };
   return { label: 'pending', color: 'text.secondary', hint: 'Sent; its tick has not come yet.' };
 }

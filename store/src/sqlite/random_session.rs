@@ -185,16 +185,26 @@ pub fn set_session_accepted(path: &str, id: i64, tick: u32) -> Result<(), String
 
 /// What the contract last reported for an identity's provider slots (text as
 /// produced by the miner crate), and the wallet's tick when it was asked.
-pub fn set_provider_status(path: &str, identity: &str, checked_tick: u32, slots: &str) -> Result<(), String> {
+/// Stores one peer's answer to GetProviderStatus for an identity, dated by
+/// that peer's own tick. One row per (identity, peer): the driver judges a
+/// session on the reports of several peers, never on one peer's word.
+pub fn set_provider_report(path: &str, identity: &str, peer: &str, checked_tick: u32, slots: &str) -> Result<(), String> {
     let checked_tick = checked_tick.to_string();
-    execute(path, "INSERT INTO random_provider (identity, checked_tick, slots, updated) VALUES (:identity, :checked_tick, :slots, CURRENT_TIMESTAMP) \
-        ON CONFLICT(identity) DO UPDATE SET checked_tick = excluded.checked_tick, slots = excluded.slots, updated = excluded.updated;",
-        &[(":identity", identity), (":checked_tick", checked_tick.as_str()), (":slots", slots)])
+    execute(path, "INSERT INTO random_provider_report (identity, peer, checked_tick, slots, updated) VALUES (:identity, :peer, CAST(:checked_tick AS INTEGER), :slots, CURRENT_TIMESTAMP) \
+        ON CONFLICT(identity, peer) DO UPDATE SET checked_tick = excluded.checked_tick, slots = excluded.slots, updated = excluded.updated;",
+        &[(":identity", identity), (":peer", peer), (":checked_tick", checked_tick.as_str()), (":slots", slots)])
 }
 
-pub fn fetch_provider_status(path: &str, identity: &str) -> Result<Option<(u32, String)>, String> {
-    let rows = fetch(path, "SELECT checked_tick, slots FROM random_provider WHERE identity = :identity;", &[(":identity", identity)], &["checked_tick", "slots"])?;
-    Ok(rows.into_iter().next().map(|r| (r.get("checked_tick").and_then(|t| t.parse().ok()).unwrap_or(0), r.get("slots").cloned().unwrap_or_default())))
+/// Every peer's latest report for an identity, newest first, as
+/// `(peer, checked_tick, slots text)`.
+pub fn fetch_provider_reports(path: &str, identity: &str) -> Result<Vec<(String, u32, String)>, String> {
+    let rows = fetch(path, "SELECT peer, checked_tick, slots FROM random_provider_report WHERE identity = :identity ORDER BY checked_tick DESC;",
+        &[(":identity", identity)], &["peer", "checked_tick", "slots"])?;
+    Ok(rows.into_iter().map(|r| (
+        r.get("peer").cloned().unwrap_or_default(),
+        r.get("checked_tick").and_then(|t| t.parse().ok()).unwrap_or(0),
+        r.get("slots").cloned().unwrap_or_default(),
+    )).collect())
 }
 
 /// Records how far the driver has broadcast, and which step (if any) leaves.

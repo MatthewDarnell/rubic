@@ -165,7 +165,9 @@ fn provider_slot_now(identity: &str, tier: u64, latest: u32) -> Option<ProviderS
     let tier_index = TIERS.iter().position(|t| *t == tier)? as u32;
     let fresh = |checked: u32| checked + FRESH_TICKS >= latest;
     let slot_of = |slots: &str| ProviderSlot::parse_list(slots).into_iter().find(|s| s.tier == tier_index);
-    if let Ok(Some((checked, slots))) = random_session::fetch_provider_status(get_db_path().as_str(), identity) {
+    // Reports come newest first.
+    let newest = || random_session::fetch_provider_reports(get_db_path().as_str(), identity).ok().and_then(|r| r.into_iter().next());
+    if let Some((_, checked, slots)) = newest() {
         if fresh(checked) {
             return slot_of(&slots);
         }
@@ -174,7 +176,7 @@ fn provider_slot_now(identity: &str, tier: u64, latest: u32) -> Option<ProviderS
     let deadline = Instant::now() + WAIT;
     while Instant::now() < deadline {
         std::thread::sleep(Duration::from_millis(200));
-        if let Ok(Some((checked, slots))) = random_session::fetch_provider_status(get_db_path().as_str(), identity) {
+        if let Some((_, checked, slots)) = newest() {
             if fresh(checked) {
                 return slot_of(&slots);
             }

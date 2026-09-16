@@ -41,6 +41,13 @@ const SETTLE_INTERVAL: Duration = Duration::from_secs(5);
 /// Ticks after a leave's tick to wait for peers to report whether the leave
 /// was included before the session is given up as evicted.
 const LEAVE_VERIFY_TICKS: u32 = 30;
+/// Peers that must agree before a session is ended on the contract's report.
+/// One peer serving stale state would otherwise halt a healthy chain, and the
+/// provider then really is evicted for the steps that stop going out.
+const CORROBORATING_PEERS: usize = 2;
+/// A report dated further behind the latest tick than this says nothing about
+/// the present.
+const REPORT_MAX_AGE_TICKS: u32 = 60;
 /// How often a balance report is asked for while a leave is being verified.
 const LEAVE_CHECK_INTERVAL: Duration = Duration::from_secs(3);
 /// Identities whose provider status should be fetched on the next pass, asked
@@ -211,15 +218,176 @@ fn request_provider_status(peer_set: &Arc<Mutex<PeerSet>>, identity: &str) {
     }
 }
 
+/// A session's slot is gone from the contract, on enough peers' word.
+#[derive(Debug, PartialEq)]
+pub struct Gone {
+    /// The last sent step the reports are late enough to judge.
+    pub judged: i64,
+    /// The newest report's tick.
+    pub newest: u32,
+    /// How many peers reported the slot gone.
+    pub peers: usize,
+}
+
+/// What several peers' GetProviderStatus reports say about a session.
+#[derive(Debug, PartialEq)]
+pub struct Verdict {
+    /// The latest tick the contract accepted a step at (at least the value passed in).
+    pub last_accepted: u32,
+    pub gone: Option<Gone>,
+    /// The slot is there but a step's tick is well past without being
+    /// accepted: `(that step's tick, peers reporting so)`.
+    pub not_accepted: Option<(u32, usize)>,
+}
+
+/// Judges a session on the reports of several peers (`(peer, tick the report
+/// is dated, slots)`). A single peer's word never ends a session: one serving
+/// stale state would halt a healthy chain, and the steps that then stop going
+/// out get the provider evicted for real. `needed` peers must agree, and
+/// reports of an empty slot must span a full stream period, unless they all
+/// come from after the session's own leave.
+pub fn judge_reports(reports: &[(String, u32, Vec<ProviderSlot>)], tier: u64, first_tick: u32, through: i64, leave_step: i64, last_accepted: u32, latest: u32, needed: usize) -> Verdict {
+    let step_tick = |k: i64| first_tick + STREAM_TICKS * k as u32;
+    let slot_at_tier = |slots: &[ProviderSlot]| slots.iter().find(|s| s.tier_amount() == tier).cloned();
+    let mut verdict = Verdict { last_accepted, gone: None, not_accepted: None };
+    let mut newest_present: Option<u32> = None;
+    for (_, checked, slots) in reports {
+        if let Some(slot) = slot_at_tier(slots) {
+            newest_present = Some(newest_present.map_or(*checked, |t| t.max(*checked)));
+            if slot.last_update_tick > verdict.last_accepted && slot.last_update_tick >= first_tick {
+                verdict.last_accepted = slot.last_update_tick;
+            }
+        }
+    }
+    // Recent reports of no slot, newer than any report that still saw it.
+    let absent: Vec<(&str, u32)> = reports.iter()
+        .filter(|(_, checked, slots)| checked + REPORT_MAX_AGE_TICKS >= latest && newest_present.map_or(true, |p| *checked > p) && slot_at_tier(slots).is_none())
+        .map(|(peer, checked, _)| (peer.as_str(), *checked)).collect();
+    let absent_peers = absent.iter().map(|(p, _)| *p).collect::<HashSet<&str>>().len();
+    let absent_oldest = absent.iter().map(|(_, c)| *c).min().unwrap_or(0);
+    let absent_newest = absent.iter().map(|(_, c)| *c).max().unwrap_or(0);
+    let leave_tick = if leave_step >= 0 { Some(step_tick(leave_step)) } else { None };
+    let gone = absent_peers >= needed
+        && (absent_newest >= absent_oldest + STREAM_TICKS || leave_tick.map_or(false, |t| absent_oldest >= t + STREAM_TICKS));
+    // Every sent step whose tick (plus the tick the contract needs to evict) is
+    // behind a report should have been accepted by then.
+    let judged_by = |tick: u32| (0..=through).filter(|k| step_tick(*k) + STREAM_TICKS <= tick).max();
+    if gone {
+        if let Some(judged) = judged_by(absent_newest) {
+            verdict.gone = Some(Gone { judged, newest: absent_newest, peers: absent_peers });
+        }
+    } else if let Some(present) = newest_present {
+        if let Some(k) = judged_by(present) {
+            let due_tick = step_tick(k);
+            if verdict.last_accepted < due_tick {
+                let stale_peers = reports.iter()
+                    .filter(|(_, checked, slots)| *checked >= due_tick + 2 * STREAM_TICKS && slot_at_tier(slots).map_or(false, |s| s.last_update_tick < due_tick))
+                    .map(|(peer, _, _)| peer.as_str()).collect::<HashSet<&str>>().len();
+                if stale_peers >= needed {
+                    verdict.not_accepted = Some((due_tick, stale_peers));
+                }
+            }
+        }
+    }
+    verdict
+}
+
+#[cfg(test)]
+mod judge_tests {
+    use super::*;
+
+    const FIRST: u32 = 1000;
+    const TIER: u64 = 1;
+
+    fn slot(last_update: u32) -> Vec<ProviderSlot> {
+        vec![ProviderSlot { stream: 0, tier: 0, locked: 1, contributed: true, last_update_tick: last_update }]
+    }
+
+    fn report(peer: &str, checked: u32, slots: Vec<ProviderSlot>) -> (String, u32, Vec<ProviderSlot>) {
+        (peer.to_string(), checked, slots)
+    }
+
+    #[test]
+    fn one_peer_saying_gone_is_not_enough() {
+        let reports = vec![report("a", 1030, vec![])];
+        let v = judge_reports(&reports, TIER, FIRST, 10, -1, 1021, 1030, 2);
+        assert_eq!(v.gone, None);
+        assert_eq!(v.not_accepted, None);
+    }
+
+    #[test]
+    fn two_peers_over_a_stream_period_mean_gone() {
+        let reports = vec![report("a", 1030, vec![]), report("b", 1033, vec![])];
+        let v = judge_reports(&reports, TIER, FIRST, 10, -1, 1021, 1033, 2);
+        assert_eq!(v.gone, Some(Gone { judged: 10, newest: 1033, peers: 2 }));
+    }
+
+    #[test]
+    fn two_peers_at_the_same_tick_must_wait() {
+        let reports = vec![report("a", 1030, vec![]), report("b", 1030, vec![])];
+        let v = judge_reports(&reports, TIER, FIRST, 10, -1, 1021, 1030, 2);
+        assert_eq!(v.gone, None);
+    }
+
+    #[test]
+    fn a_newer_sighting_of_the_slot_outranks_older_empty_reports() {
+        let reports = vec![report("a", 1030, vec![]), report("b", 1033, vec![]), report("c", 1036, slot(1033))];
+        let v = judge_reports(&reports, TIER, FIRST, 12, -1, 1021, 1036, 2);
+        assert_eq!(v.gone, None);
+        assert_eq!(v.last_accepted, 1033, "the sighting also advances the accepted tick");
+    }
+
+    #[test]
+    fn stale_empty_reports_do_not_count() {
+        let reports = vec![report("a", 1030, vec![]), report("b", 1033, vec![])];
+        let v = judge_reports(&reports, TIER, FIRST, 10, -1, 1021, 1033 + REPORT_MAX_AGE_TICKS + 1, 2);
+        assert_eq!(v.gone, None);
+    }
+
+    #[test]
+    fn after_a_leave_no_span_is_needed() {
+        // Leave at step 10 (tick 1030): reports from tick 1033 on settle it.
+        let reports = vec![report("a", 1033, vec![]), report("b", 1033, vec![])];
+        let v = judge_reports(&reports, TIER, FIRST, 10, 10, 1027, 1033, 2);
+        assert_eq!(v.gone, Some(Gone { judged: 10, newest: 1033, peers: 2 }));
+    }
+
+    #[test]
+    fn a_step_left_unrecorded_needs_two_peers_too() {
+        // Step 8 (tick 1024) is due; reports dated 1030 or later still show 1018
+        // as the last accepted tick, two stream periods on.
+        let one = vec![report("a", 1031, slot(1018))];
+        let v = judge_reports(&one, TIER, FIRST, 8, -1, 1018, 1031, 2);
+        assert_eq!(v.not_accepted, None);
+        let two = vec![report("a", 1031, slot(1018)), report("b", 1030, slot(1018))];
+        let v = judge_reports(&two, TIER, FIRST, 8, -1, 1018, 1031, 2);
+        assert_eq!(v.not_accepted, Some((1024, 2)));
+    }
+
+    #[test]
+    fn a_lagging_peer_cannot_call_a_step_missing() {
+        // Peer b is dated well behind: its old last-accepted tick is no news.
+        let reports = vec![report("a", 1031, slot(1018)), report("b", 1022, slot(1018))];
+        let v = judge_reports(&reports, TIER, FIRST, 8, -1, 1018, 1031, 2);
+        assert_eq!(v.not_accepted, None);
+    }
+
+    #[test]
+    fn a_single_peer_wallet_judges_on_one() {
+        let reports = vec![report("a", 1033, vec![])];
+        let v = judge_reports(&reports, TIER, FIRST, 10, -1, 1021, 1033, 1);
+        assert_eq!(v.gone, None, "one report cannot span a stream period");
+        let reports = vec![report("a", 1036, vec![]), report("a", 1030, vec![])];
+        let v = judge_reports(&reports, TIER, FIRST, 10, -1, 1021, 1036, 1);
+        assert!(v.gone.is_some());
+    }
+}
+
 pub fn run_random_sessions(peer_set: Arc<Mutex<PeerSet>>) {
     std::thread::spawn(move || {
         let mut last_status_request: HashMap<String, Instant> = HashMap::new();
         // Session id -> when a balance report was last asked for to verify its leave.
         let mut leave_checks: HashMap<i64, Instant> = HashMap::new();
-        // Session id -> tick of the first report that showed no slot after a step
-        // was due. One report can come from a peer that has not caught up; a
-        // second one, a few ticks later, is taken as the contract's word.
-        let mut empty_since: HashMap<i64, u32> = HashMap::new();
         let mut last_prune = Instant::now() - PRUNE_INTERVAL;
         let mut last_settle = Instant::now() - SETTLE_INTERVAL;
         // The tick found in the store at start is whatever was known when Rubic
@@ -282,107 +450,74 @@ pub fn run_random_sessions(peer_set: Arc<Mutex<PeerSet>>) {
                     last_status_request.insert(identity.clone(), Instant::now());
                 }
 
-                // Settle against the contract: which step was last accepted, and
-                // whether the slot is still there.
-                if let Ok(Some((checked_tick, slots_text))) = random_session::fetch_provider_status(path.as_str(), &identity) {
-                    let slots = ProviderSlot::parse_list(&slots_text);
-                    let slot: Option<&ProviderSlot> = slots.iter().find(|s| s.tier_amount() == tier);
-                    if let Some(slot) = slot {
-                        empty_since.remove(&id);
-                        if slot.last_update_tick > last_accepted && slot.last_update_tick >= first_tick {
-                            last_accepted = slot.last_update_tick;
-                            let _ = random_session::set_session_accepted(path.as_str(), id, last_accepted);
-                        }
-                    }
-                    // Every sent step whose tick (plus the tick the contract needs to
-                    // evict) is behind the checked tick should have been accepted.
-                    let judged_through = (0..=through).filter(|k| step_tick(*k) + STREAM_TICKS <= checked_tick).max();
-                    if let Some(k) = judged_through {
-                        let due_tick = step_tick(k);
-                        if slot.is_none() {
-                            // A report from after the leave's tick is the contract's last
-                            // word on its own; otherwise wait for a second empty report.
-                            let conclusive = leave_step >= 0 && checked_tick >= step_tick(leave_step) + STREAM_TICKS;
-                            if !conclusive {
-                                match empty_since.get(&id) {
-                                    None => {
-                                        empty_since.insert(id, checked_tick);
-                                        continue;
-                                    },
-                                    Some(first_empty) if checked_tick < first_empty + STREAM_TICKS => continue,
-                                    Some(_) => {},
-                                }
-                            }
-                            // After a leave the slot is gone either way. It was a clean leave
-                            // when the leave itself was seen included in its tick, or when the
-                            // contract had accepted every step before it. Otherwise the peers'
-                            // entity report decides (it names the identity's latest outgoing
-                            // transfer): ask for one and wait a little before giving up.
-                            if leave_step >= 0 && k >= leave_step {
-                                let leave_tick = step_tick(leave_step);
-                                let leave_status = random_session::fetch_step(path.as_str(), id, leave_step as u32).ok().flatten()
-                                    .and_then(|step| transfer_status(&get(&step, "leave_txid")));
-                                let included = leave_status.as_deref() == Some("0");
-                                if included || last_accepted >= step_tick(leave_step - 1).max(first_tick) {
-                                    info!("RANDOM session {}: left at step {} (tick {}), collateral returned", id, leave_step, leave_tick);
-                                    let _ = random_session::set_session_accepted(path.as_str(), id, leave_tick);
-                                    let _ = random_session::set_session_status(path.as_str(), id, STATUS_STOPPED);
-                                    leave_checks.remove(&id);
-                                    forget_seed(id);
-                                    continue;
-                                }
-                                let not_included = leave_status.as_deref() == Some("1");
-                                if !not_included && checked_tick < leave_tick + LEAVE_VERIFY_TICKS {
-                                    if leave_checks.get(&id).map_or(true, |at| at.elapsed() >= LEAVE_CHECK_INTERVAL) {
-                                        leave_checks.insert(id, Instant::now());
-                                        if let Err(err) = peer_set.lock().unwrap().make_request(api::QubicApiPacket::get_identity_balance(&identity)) {
-                                            error!("{}", err);
-                                        }
-                                    }
-                                    continue;
-                                }
+                // Settle against the contract's reports, one per answering peer: which
+                // step was last accepted, and whether the slot is still there. Ending a
+                // session takes the agreement of several peers; on one peer's word the
+                // steps keep going out, which costs nothing if that peer was right.
+                let needed = CORROBORATING_PEERS.min(peer_set.lock().unwrap().num_peers().max(1));
+                let reports: Vec<(String, u32, Vec<ProviderSlot>)> = random_session::fetch_provider_reports(path.as_str(), &identity).unwrap_or_default()
+                    .into_iter().map(|(peer, checked, slots)| (peer, checked, ProviderSlot::parse_list(&slots))).collect();
+                let verdict = judge_reports(&reports, tier, first_tick, through, leave_step, last_accepted, latest, needed);
+                if verdict.last_accepted > last_accepted {
+                    last_accepted = verdict.last_accepted;
+                    let _ = random_session::set_session_accepted(path.as_str(), id, last_accepted);
+                }
+                let leave_tick = if leave_step >= 0 { Some(step_tick(leave_step)) } else { None };
+                if let Some(Gone { judged: k, newest: absent_newest, peers: absent_peers }) = verdict.gone {
+                    {
+                        // After a leave the slot is gone either way. It was a clean leave
+                        // when the leave itself was seen included in its tick, or when the
+                        // contract had accepted every step before it. Otherwise the peers'
+                        // entity report decides (it names the identity's latest outgoing
+                        // transfer): ask for one and wait a little before giving up.
+                        if let Some(leave_tick) = leave_tick.filter(|_| k >= leave_step) {
+                            let leave_status = random_session::fetch_step(path.as_str(), id, leave_step as u32).ok().flatten()
+                                .and_then(|step| transfer_status(&get(&step, "leave_txid")));
+                            let included = leave_status.as_deref() == Some("0");
+                            if included || last_accepted >= step_tick(leave_step - 1).max(first_tick) {
+                                info!("RANDOM session {}: left at step {} (tick {}), collateral returned", id, leave_step, leave_tick);
+                                let _ = random_session::set_session_accepted(path.as_str(), id, leave_tick);
+                                let _ = random_session::set_session_status(path.as_str(), id, STATUS_STOPPED);
                                 leave_checks.remove(&id);
-                                let reason = if not_included {
-                                    format!("the reveal-and-leave at tick {} was not included in its tick; the provider was evicted and the stake of {} QU forfeited", leave_tick, tier)
-                                } else {
-                                    format!("the reveal-and-leave at tick {} could not be verified: peers did not report on it within {} ticks", leave_tick, LEAVE_VERIFY_TICKS)
-                                };
-                                fail(path.as_str(), &session, leave_tick, reason);
+                                forget_seed(id);
                                 continue;
                             }
-                            let (failed_tick, reason) = if last_accepted < first_tick {
-                                (first_tick, format!("the first commit at tick {} was not accepted by the contract (wrong amount, stream full, or not included)", first_tick))
+                            let not_included = leave_status.as_deref() == Some("1");
+                            if !not_included && absent_newest < leave_tick + LEAVE_VERIFY_TICKS {
+                                if leave_checks.get(&id).map_or(true, |at| at.elapsed() >= LEAVE_CHECK_INTERVAL) {
+                                    leave_checks.insert(id, Instant::now());
+                                    if let Err(err) = peer_set.lock().unwrap().make_request(api::QubicApiPacket::get_identity_balance(&identity)) {
+                                        error!("{}", err);
+                                    }
+                                }
+                                continue;
+                            }
+                            leave_checks.remove(&id);
+                            let reason = if not_included {
+                                format!("the reveal-and-leave at tick {} was not included in its tick; the provider was evicted and the stake of {} QU forfeited", leave_tick, tier)
                             } else {
-                                let missed = last_accepted + STREAM_TICKS;
-                                (missed, format!("evicted by the contract: the step at tick {} was not accepted, the stake of {} QU was forfeited", missed, tier))
+                                format!("the reveal-and-leave at tick {} could not be verified: peers did not report on it within {} ticks", leave_tick, LEAVE_VERIFY_TICKS)
                             };
-                            fail(path.as_str(), &session, failed_tick, reason);
+                            fail(path.as_str(), &session, leave_tick, reason);
                             continue;
                         }
-                        if last_accepted < due_tick && checked_tick >= due_tick + 2 * STREAM_TICKS {
-                            // Slot still there but the contract did not record this step: it
-                            // was rejected, and the next stream tick will evict the provider.
-                            fail(path.as_str(), &session, due_tick, format!("the step at tick {} was not accepted by the contract (last accepted tick {})", due_tick, last_accepted));
-                            continue;
-                        }
+                        let (failed_tick, reason) = if last_accepted < first_tick {
+                            (first_tick, format!("the first commit at tick {} was not accepted by the contract (wrong amount, stream full, or not included)", first_tick))
+                        } else {
+                            let missed = last_accepted + STREAM_TICKS;
+                            (missed, format!("evicted by the contract: the step at tick {} was not accepted (reported by {} peers), the stake of {} QU was forfeited", missed, absent_peers, tier))
+                        };
+                        fail(path.as_str(), &session, failed_tick, reason);
+                        continue;
                     }
+                } else if let Some((due_tick, stale_peers)) = verdict.not_accepted {
+                    // Slot still there but the contract did not record a step whose tick is
+                    // well behind: it was rejected, and the next stream tick evicts the
+                    // provider. Again only on the word of enough peers.
+                    fail(path.as_str(), &session, due_tick, format!("the step at tick {} was not accepted by the contract (last accepted tick {}, reported by {} peers)", due_tick, last_accepted, stale_peers));
+                    continue;
                 }
-
-                // Early signal from the confirmer: a step not included in its tick.
-                let mut failed = false;
-                if let Ok(sent) = random_session::fetch_steps_between(path.as_str(), id, (through - 4).max(0), through) {
-                    for step in &sent {
-                        let k: i64 = num(step, "step").unwrap_or(-1);
-                        let leaving = k == leave_step;
-                        let txid = get(step, if leaving { "leave_txid" } else { "stay_txid" });
-                        if transfer_status(&txid).as_deref() == Some("1") && step_tick(k) > last_accepted {
-                            fail(path.as_str(), &session, step_tick(k), format!("step {} (tick {}) was not included in its tick; the stake of {} QU was forfeited", k, step_tick(k), tier));
-                            failed = true;
-                            break;
-                        }
-                    }
-                }
-                if failed || leave_step >= 0 || !tick_moved {
+                if leave_step >= 0 || !tick_moved {
                     continue;
                 }
 
